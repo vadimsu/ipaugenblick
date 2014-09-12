@@ -1,0 +1,1 @@
+cmd_testhost.o = gcc -Wp,-MD,./.testhost.o.d.tmp -I/home/vadim/projects/ipaugenblick/dpdk-1.6.0r2/scripts/testhost   -o testhost.o -c /home/vadim/projects/ipaugenblick/dpdk-1.6.0r2/scripts/testhost/testhost.c 

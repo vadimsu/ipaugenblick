@@ -1,0 +1,1 @@
+../../../lib/librte_eal/common/include/x86_64/arch/rte_atomic.h

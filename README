@@ -1,0 +1,125 @@
+The top:
+- kmem_cache is ported to rte_mempool
+- kmalloc/kfree are ported to rte_malloc/rte_free
+- timer is ported to rte_timer
+- workqueue & tasklets are ported to direct calls
+- delayed workqueue is ported to rte_timer
+- list_rcu is just list
+- all rcu code is removed
+- user credentials, access check etc is removed
+- struct page wrapps the rte_mbuf
+- mmap functions (protocol specific) are dummy
+- sendmsg functions (protocol specific) are dummy
+- all spinlocks, mutexes are removed, there are also two assumptions about the socket: it is now owned by user (which prevents pre-queueing
+  the packets), on other hand, it assumes the code is executing in the process's context so the received data can be directly queued)
+core/datagram.c
+- receiver_wake_function
+    Not relevant in current porting
+- skb_copy_datagram_iovec
+    1. rte_mbuf data pointer and length are adjusted before placing in the iovec
+    2. app_glue_data_available_cbk is called
+- skb_copy_and_csum_datagram
+    1. csum_and_copy_to_user is replaced with csum_and_to_user since data always remains in the rte_mbufs
+- skb_copy_and_csum_datagram_iovec
+    1. Instead of walking through the iovec, copying each time a portion of skb with prior checksumming, checksum the skb and copy
+       the rte_mbuf pointers into the modifyed iovec
+
+core/neighbor.c
+- neigh_invalidate
+   error report is disabled since it attempts to put a part of buffer of failed skb into the icmp message. The porting currently is
+   not designed to send more than max headers in the head fragment
+- __neigh_notify
+  returned immediately since rtnetlink is not supported in current implementation
+core/sock.c
+ - skb_page_frag_refill
+   page_frag's page is provided with rte_mbuf
+ - __release_sock
+  does nothing (original code manages to process backlog queue)
+
+ - sk_wait_data
+   is dummy
+ - sock_no_sendpage
+   is dummy
+ - sock_def_wakeup
+   calls app_glue_on_accept if state is TCP_ESTABLISHED
+ - sk_send_sigurg
+   is dummy 
+ - timestamping functions are dummy
+ipv4/ip_fragment.c
+ - ip_check_defrag
+   instead of skb_copy_bits, skb_copy_from_linear_data_offset is used to copy the data
+   from received skb since currently no option for non-linear skb on the receive path
+ipv4/ip_output.c
+ - ip_fragment
+   skb_copy_bits2 is called instead of skb_copy_bits (see sk_buff changes)
+ - __ip_append_data
+   some changes related to page_frag and page (since page is a wrapper for rte_mbuf)
+ipv4/tcp.c
+ - tcp_poll is not supported currently
+ - tcp_splice_* functions are not supported currently
+ - tcp_sendmsg is not supported, tcp_sendpage is used
+ - urgent data processing is not supported
+ - tcp_read_sock is not supported
+ipv4/tcp_input.c
+ - tcp_collapse
+   call to skb_copy_bits changed to match the prototype (see sk_buff changes)
+ - tcp_data_snd_check 
+   calls app_glue_on_transmission_opportunity to let user check where can it transmit
+ - tcp_copy_to_iovec
+   call to skb_copy_datagram_iovec is changed to match the prototype (see sk_buff changes)
+socket.c
+  is undiffable, it contains wrappers for kernel_send etc functions (calls protocol specific function)
+sk_buff.c + sk_buff.h
+struct sk_buff changes
+  - shinfo is a part of sk_buff structure
+  - new field header_mbuf is a pointer to rte_mbuf
+  - data field is initialized to the same address rte_mbuf.pkt.data points to
+  - __skb_fill_page_desc
+    a fragment's page.p field is initialized to point to page parameter's mbuf field (of type rte_mbuf)
+  - skb_frag_page returns fragment's page.p field (rte_mbuf)
+sk_buff.h:
+  - __skb_frag_ref calls rte_pktmbuf_refcnt_update with a pointer to rte_mbuf and 1 (increment)
+  - __skb_frag_unref calls rte_pktmbuf_free_seg which will decrement the reference and free rte_mbuf if reached 0
+  - skb_frag_address returns page_address plus the offset in the fragment. page_address receives a pointer to
+    rte_mbuf (returned by skb_frag_page)
+  - __skb_frag_set_page assigns fragment's page.p to pointer to rte_mbuf (page), passed as parameter
+  - skb_header_pointer calls skb_copy_bits2 which is original skb_copy_bits. skb_copy_bits is optimized to copy pointers rather than data
+  - skb_copy_from_linear_data, skb_copy_from_linear_data_offset, skb_copy_to_linear_data, skb_copy_to_linear_data_offset
+    call rte_memcpy
+sk_buff.c
+  - skb_copy_bits
+    This function loops on the source skb's frags array and copies the lengths, offsets and pointers to rte_mbufs to destination ones.
+    It also sets the the destination's nr_frags to the source's nr_frags. This function does not copy the headers 
+    (pointed by header_mbuf.pkt.data field)
+  - skb_copy_bits2
+    This is just original skb_copy_bits (this copies the headers as well as the data (memcpy rather than copying the pointers)
+  - __alloc_skb
+    allocates skb (sk_buff, header_mbuf, shinfo) and sets the pointers accordingly
+  - build_skb is modified similarly
+  - skb_add_rx_frag 
+    page argument is struct page * rather than void *
+  - skb_coalesce_rx_frag is not currently used
+  - skb_free_head does nothing (freed in other place)
+  - skb_release_data
+    frees header_mbuf (by calling rte_pktmbuf_free_seg)
+  - kfree_skbmem frees header_mbuf, if has not been freed erarlier
+  - __skb_clone
+    added reference count increment for header_mbuf and frags rte_mbufs
+  - skb_copy_ubufs
+    is dummy
+  - skb_copy
+    copies headers and calls skb_copy_bits (original code calls it as well, but the prototype is changed. skb_copy_bits copies the
+    only pointers to rte_mbufs the framents point to)
+  - pskb_expand_head
+    header_mbuf is reallocated (similar change as in __alloc_skb). Since the data is stored in rte_mbufs which are pointed from
+    the frags, it does not make sense to touch it, this code is dropped
+  - skb_copy_expand
+    calls skb_copy_protocol_headers and the skb_copy_bits rather than original code which calls skb_copy_bits only. This is because
+    the original skb_copy_bits copies all the data and modified skb_copy_bits copies the only pointers to rte_mbufs containing data and
+    does not copy the headers.
+  - skb_put tries to allocate a fragment (rte_mbuf) if no sufficient space
+  - __pskb_pull_tail may be called on the receive path when there is no space in the tail. It is very unlikely to happen and 
+      is currently "to be done", does nothing and returns 0
+  - skb_append_datato_frags is currently dummy
+  - kfree_skb_partial frees header_mbuf, if not freed earlier
+  - skb_try_coalesce returns false (no coalescing)
