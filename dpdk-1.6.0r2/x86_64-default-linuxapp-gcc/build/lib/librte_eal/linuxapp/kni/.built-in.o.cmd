@@ -1,1 +1,0 @@
-cmd_/home/vadim/projects/ipaugenblick/dpdk-1.6.0r2/x86_64-default-linuxapp-gcc/build/lib/librte_eal/linuxapp/kni/built-in.o :=  rm -f /home/vadim/projects/ipaugenblick/dpdk-1.6.0r2/x86_64-default-linuxapp-gcc/build/lib/librte_eal/linuxapp/kni/built-in.o; ar rcsD /home/vadim/projects/ipaugenblick/dpdk-1.6.0r2/x86_64-default-linuxapp-gcc/build/lib/librte_eal/linuxapp/kni/built-in.o

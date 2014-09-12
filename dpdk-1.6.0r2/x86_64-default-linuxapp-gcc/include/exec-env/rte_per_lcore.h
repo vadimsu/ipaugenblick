@@ -1,1 +1,0 @@
-../../../lib/librte_eal/linuxapp/eal/include/exec-env/rte_per_lcore.h

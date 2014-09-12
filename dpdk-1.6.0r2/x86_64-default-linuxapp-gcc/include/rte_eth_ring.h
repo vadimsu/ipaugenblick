@@ -1,1 +1,0 @@
-../../lib/librte_pmd_ring/rte_eth_ring.h
