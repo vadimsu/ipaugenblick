@@ -13,6 +13,7 @@
 #include <getopt.h>
 #include <specific_includes/dpdk_drv_iface.h>
 #include <pools.h>
+#include <porting/load_balancer.h>
 #define RTE_RX_DESC_DEFAULT (4096)
 #define RTE_TX_DESC_DEFAULT 4096
 #define RX_QUEUE_PER_PORT 1
@@ -258,29 +259,32 @@ DUMP(argc);
 
 static struct rte_mempool *mbufs_mempool = NULL;
 
-extern unsigned long tcp_memory_allocated;
 extern uint64_t sk_stream_alloc_skb_failed;
-
 void show_mib_stats(void);
 /* This function only prints statistics, it it not called on data path */
+#define PRINT_GLUE_STATS 1
+#define PRINT_USER_STATS 1
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
-#if 1
+		printf("rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
+		//show_mib_stats();
+		load_balancer_print_stats();
+		dpdk_dev_print_stats();
+#if PRINT_GLUE_STATS
 		app_glue_print_stats();
-		show_mib_stats();
-        dpdk_dev_print_stats();
-		print_user_stats();
+		print_skb_iov_stats();
+		printf("stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
 		printf("sk_stream_alloc_skb_failed %"PRIu64"\n",sk_stream_alloc_skb_failed);
-		printf("tcp_memory_allocated=%"PRIu64"\n",tcp_memory_allocated);
+		print_tcp_memory_stats();
+#endif
 		dump_header_cache();
 		dump_head_cache();
 		dump_fclone_cache();
-		printf("rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
-		printf("stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
-		print_skb_iov_stats();
+#if PRINT_USER_STATS
+		print_user_stats();
 #endif
-		sleep(10);
+		sleep(1);
 	}
 	return 0;
 }
@@ -361,6 +365,32 @@ static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
 	}
 	return NULL;
 }
+static void normalize_core_mask(uint8_t core_count,uint8_t *core_mask,uint8_t *poll_core_id)
+{
+	int i,cc;
+	uint8_t temp = 0x80;
+	while(temp > 0) {
+		if(temp & core_count) {
+			core_count &=temp;
+			break;
+		}
+		temp = temp >> 1;
+	}
+
+	for(i = 0,cc = 0;i < MAXCPU;i++) {
+		if(cc < core_count) {
+			if((1 << i) & (*core_mask)) {
+				cc++;
+			}
+		}
+		else {
+			if((1 << i) & (*core_mask)) {
+				*poll_core_id = i;
+			}
+			*core_mask &= ~(1 << i);
+		}
+	}
+}
 /*
  * This function must be called prior any other in this package.
  * It initializes all the DPDK libs, reads the configuration, initializes the stack's
@@ -368,20 +398,19 @@ static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
  * Parameters: refer to DPDK EAL parameters.
  * For example -c <core mask> -n <memory channels> -- -p <port mask>
  */
-int dpdk_linux_tcpip_init(int argc,char **argv)
+int dpdk_linux_tcpip_init(int argc,char **argv, int (*worker_func)(void*))
 {
 	int ret;
 	uint8_t nb_ports;
 	uint8_t portid, last_port;
-    uint16_t queue_id;
+        uint16_t queue_id;
 	struct lcore_conf *conf;
 	struct rte_eth_dev_info dev_info;
 	unsigned nb_ports_in_mask = 0;
 	uint8_t nb_ports_available;
-	unsigned lcore_id, core_count;
-    int rx_lcore_id = 1;
-	int tx_lcore_id = 2;
-    unsigned main_loop_lcore_id;
+    int lcore_id;
+    uint8_t core_mask,i;
+    uint8_t poll_core_id;
 	struct ether_addr mac_addr;
 	dpdk_dev_config_t *p_dpdk_dev_config;
 
@@ -399,7 +428,6 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	net_dev_init();
 	skb_init();
 	inet_init();
-	app_glue_init();
     argc -= ret;
 	argv += ret;
     ret = parse_args(argc, argv);
@@ -433,7 +461,6 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 
 	if (nb_ports > RTE_MAX_ETHPORTS)
 		nb_ports = RTE_MAX_ETHPORTS;
-	core_count = rte_lcore_count();
 	/*
 	 * Each logical core is assigned a dedicated TX queue on each port.
 	 */
@@ -459,7 +486,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0)
 			continue;
-		for(lcore_id = 0;lcore_id < core_count;lcore_id++) {
+		for(lcore_id = 0;lcore_id < rte_lcore_count();lcore_id++) {
         	    if(rte_lcore_is_enabled(lcore_id)) {
         	    	conf = get_lcore_conf(lcore_id);
         	        conf->n_rtx_port = -1;
@@ -520,9 +547,22 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 
 		rte_eth_promiscuous_enable(portid);
 	}
-	rte_set_log_type(RTE_LOGTYPE_PMD,1);
-	rte_set_log_level(RTE_LOG_DEBUG);	
+	//rte_set_log_type(RTE_LOGTYPE_PMD,1);
+	//rte_set_log_level(RTE_LOG_DEBUG);
 #endif
+	        core_mask = 0;
+        printf("LCORE COUNT %d\n",rte_lcore_count());
+        for(lcore_id = rte_get_next_lcore(rte_lcore_id(),0,0),i = 0;
+        	lcore_id < rte_lcore_count();
+        	lcore_id = rte_get_next_lcore(lcore_id,0,0)) {
+        	if(!rte_lcore_is_enabled(lcore_id)) {
+        		continue;
+        	}
+        	i++;
+        	poll_core_id = lcore_id;
+        	core_mask |= 1 << lcore_id;
+        	printf("%s %d %d %x\n",__FILE__,__LINE__,lcore_id,core_mask);
+        }
 	for (portid = 0; portid < nb_ports; portid++) {
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0)
@@ -537,21 +577,29 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		    printf("%s %d\n",__FILE__,__LINE__);
 		}
 	}
-	init_systick(rte_lcore_id());
+	printf("LCORE MASK %x %x\n",core_mask,poll_core_id);
+	normalize_core_mask(i,&core_mask,&poll_core_id);
+	printf("NORMALIZED LCORE MASK %x %x\n",core_mask,poll_core_id);
+	init_systick(poll_core_id/*rte_lcore_id()*/);
+	load_balancer_set_poller_core_id(poll_core_id);
+	load_balancer_init(core_mask);
 #ifdef DPDK_SW_LOOP
 	init_dpdk_sw_loop();
 #endif
-#ifdef RUN_TO_COMPLETE
-	rte_eal_remote_launch(print_stats, NULL, 1);
-#endif
-#if 0
-	rte_eal_remote_launch(print_stats, NULL, /*CALL_MASTER*/3);
-//	while(1)sleep(1000);
-	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
-		if (rte_eal_wait_lcore(lcore_id) < 0)
-			return -1;
-	}
-#endif
+   for(lcore_id = 0;lcore_id < rte_lcore_count();lcore_id++) {
+	   if((1 << lcore_id) & core_mask) {
+		   printf("%s %d %d\n",__FILE__,__LINE__,lcore_id);
+		   if(rte_eal_remote_launch(worker_func, NULL, lcore_id)) {
+			   printf("CANNOT LAUNCH WORKER %d\n",lcore_id);
+			   abort();
+		   }
+	   }
+    }
+    if(rte_eal_remote_launch(worker_func, NULL, poll_core_id)) {
+    	printf("CANNOT LAUNCH WORKER-POLLER %d\n",lcore_id);
+    	abort();
+    }
+	print_stats(NULL);
 	return 0;
 }
 

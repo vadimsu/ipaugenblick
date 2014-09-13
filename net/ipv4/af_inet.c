@@ -1486,11 +1486,12 @@ unsigned long snmp_fold_field(void __percpu *mib[], int offt)
 {
 	unsigned long res = 0;
 	int i, j;
-
+#if 0
 	for_each_possible_cpu(i) {
 		for (j = 0; j < SNMP_ARRAY_SZ; j++)
 			res += *(((unsigned long *) per_cpu_ptr(mib[j], i)) + offt);
 	}
+#endif
 	return res;
 }
 EXPORT_SYMBOL_GPL(snmp_fold_field);
@@ -1584,7 +1585,7 @@ static __net_init int ipv4_mib_init_net(struct net *net)
 			  sizeof(struct ipstats_mib),
 			  __alignof__(struct ipstats_mib)) < 0)
 		goto err_ip_mib;
-
+#if 0
 	for_each_possible_cpu(i) {
 		struct ipstats_mib *af_inet_stats;
 		af_inet_stats = per_cpu_ptr(net->mib.ip_statistics[0], i);
@@ -1594,7 +1595,7 @@ static __net_init int ipv4_mib_init_net(struct net *net)
 		//u64_stats_init(&af_inet_stats->syncp);
 #endif
 	}
-
+#endif
 	if (snmp_mib_init((void __percpu **)net->mib.net_statistics,
 			  sizeof(struct linux_mib),
 			  __alignof__(struct linux_mib)) < 0)

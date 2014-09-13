@@ -461,7 +461,7 @@ static struct neighbour *ipv4_neigh_lookup(const struct dst_entry *dst,
 	n = __ipv4_neigh_lookup(dev, *(__force u32 *)pkey);
 	if (n)
 		return n;
-	return neigh_create(&arp_tbl, pkey, dev);
+	return neigh_create(&arp_tbl[rte_lcore_id()], pkey, dev);
 }
 
 /*
@@ -1320,12 +1320,12 @@ static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 }
 
 //static DEFINE_SPINLOCK(rt_uncached_lock);
-static LINUX_LIST_HEAD(rt_uncached_list);
+static LINUX_LIST_HEAD(rt_uncached_list[MAXCPU]);
 
 static void rt_add_uncached_list(struct rtable *rt)
 {
 	spin_lock_bh(&rt_uncached_lock);
-	list_add_tail(&rt->rt_uncached, &rt_uncached_list);
+	list_add_tail(&rt->rt_uncached, &rt_uncached_list[rte_lcore_id()]);
 	spin_unlock_bh(&rt_uncached_lock);
 }
 
@@ -1342,12 +1342,12 @@ static void ipv4_dst_destroy(struct dst_entry *dst)
 
 void rt_flush_dev(struct net_device *dev)
 {
-	if (!list_empty(&rt_uncached_list)) {
+	if (!list_empty(&rt_uncached_list[rte_lcore_id()])) {
 		struct net *net = dev_net(dev);
 		struct rtable *rt;
 
 		spin_lock_bh(&rt_uncached_lock);
-		list_for_each_entry(rt, &rt_uncached_list, rt_uncached) {
+		list_for_each_entry(rt, &rt_uncached_list[rte_lcore_id()], rt_uncached) {
 			if (rt->dst.dev != dev)
 				continue;
 			rt->dst.dev = net->loopback_dev;

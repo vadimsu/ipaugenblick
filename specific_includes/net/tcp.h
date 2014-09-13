@@ -43,11 +43,11 @@
 #include <specific_includes/net/tcp_states.h>
 #include <specific_includes/net/inet_ecn.h>
 #include <specific_includes/net/dst.h>
-
+#include <rte_lcore.h>
 /*#include <linux/seq_file.h>
 #include <linux/memcontrol.h>*/
 
-extern struct inet_hashinfo tcp_hashinfo;
+extern struct inet_hashinfo tcp_hashinfo[MAXCPU];
 
 extern struct percpu_counter tcp_orphan_count;
 void tcp_time_wait(struct sock *sk, int state, int timeo);
@@ -234,7 +234,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
  */
 #define	TFO_SERVER_ALWAYS	0x1000
 
-extern struct inet_timewait_death_row tcp_death_row;
+extern struct inet_timewait_death_row tcp_death_row[MAXCPU];
 
 /* sysctl variables for tcp */
 extern int sysctl_tcp_timestamps;
@@ -342,13 +342,19 @@ static inline bool tcp_synq_no_recent_overflow(const struct sock *sk)
 }
 
 extern struct proto tcp_prot;
-
+#if 0/* This needs to be fixed */
 #define TCP_INC_STATS(net, field)	SNMP_INC_STATS((net)->mib.tcp_statistics, field)
 #define TCP_INC_STATS_BH(net, field)	SNMP_INC_STATS_BH((net)->mib.tcp_statistics, field)
 #define TCP_DEC_STATS(net, field)	SNMP_DEC_STATS((net)->mib.tcp_statistics, field)
 #define TCP_ADD_STATS_USER(net, field, val) SNMP_ADD_STATS_USER((net)->mib.tcp_statistics, field, val)
 #define TCP_ADD_STATS(net, field, val)	SNMP_ADD_STATS((net)->mib.tcp_statistics, field, val)
-
+#else
+#define TCP_INC_STATS(net, field)
+#define TCP_INC_STATS_BH(net, field)
+#define TCP_DEC_STATS(net, field)
+#define TCP_ADD_STATS_USER(net, field, val)
+#define TCP_ADD_STATS(net, field, val)
+#endif
 void tcp_tasklet_init(void);
 
 void tcp_v4_err(struct sk_buff *skb, u32);

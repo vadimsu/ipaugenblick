@@ -78,7 +78,7 @@ struct udp_table {
 	unsigned int		mask;
 	unsigned int		log;
 };
-extern struct udp_table udp_table;
+extern struct udp_table udp_table[MAXCPU];
 void udp_table_init(struct udp_table *, const char *);
 static inline struct udp_hslot *udp_hashslot(struct udp_table *table,
 					     struct net *net, unsigned int num)
@@ -213,6 +213,7 @@ struct sock *__udp6_lib_lookup(struct net *net,
 /*
  * 	SNMP statistics for UDP and UDP-Lite
  */
+#if 0/* This needs to be fixed */
 #define UDP_INC_STATS_USER(net, field, is_udplite)	      do { \
 	if (is_udplite) SNMP_INC_STATS_USER((net)->mib.udplite_statistics, field);       \
 	else		SNMP_INC_STATS_USER((net)->mib.udp_statistics, field);  }  while(0)
@@ -240,7 +241,18 @@ do {									\
 #else
 #define UDPX_INC_STATS_BH(sk, field) UDP_INC_STATS_BH(sock_net(sk), field, 0)
 #endif
+#else
+#define UDP_INC_STATS_USER(net, field, is_udplite)
+#define UDP_INC_STATS_BH(net, field, is_udplite)
+#define UDP6_INC_STATS_BH(net, field, is_udplite)
+#define UDP6_INC_STATS_USER(net, field, __lite)
 
+#if defined(CONFIG_IPV6)
+#define UDPX_INC_STATS_BH(sk, field)
+#else
+#define UDPX_INC_STATS_BH(sk, field) UDP_INC_STATS_BH(sock_net(sk), field, 0)
+#endif
+#endif
 /* /proc */
 int udp_seq_open(struct inode *inode, struct file *file);
 

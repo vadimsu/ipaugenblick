@@ -72,6 +72,9 @@
 #include <api.h>
 #include <porting/libinit.h>
 
+#define MY_IP_ADDR "192.168.1.1"
+#define PEER_IP_ADDR "192.168.1.2"
+
 uint64_t user_on_tx_opportunity_cycles = 0;
 uint64_t user_on_tx_opportunity_called = 0;
 uint64_t user_on_tx_opportunity_getbuff_called = 0;
@@ -189,16 +192,21 @@ int user_on_accept(struct socket *sock)
 		//user_accept_pending_cbk(newsock);
 	}
 }
-
-void app_main_loop()
+static void app_init(char *my_ip_addr,unsigned short my_port,char *peer_ip_addr,unsigned short port)
+{
+	create_client_socket(my_ip_addr,my_port,peer_ip_addr,port);
+}
+int app_main_loop(void *dummy)
 {
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
 	app_glue_init_poll_intervals(drv_poll_interval/2,
 			1000 /*timer_poll_interval*/,
 			drv_poll_interval/10,drv_poll_interval/10);
+	app_init(MY_IP_ADDR,0,PEER_IP_ADDR,7777);
 	while(1) {
 		app_glue_periodic(1);
 	}
+        return 0;
 }
 /*this is called in non-data-path thread */
 void print_user_stats()

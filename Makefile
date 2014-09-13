@@ -9,7 +9,7 @@ net/ipv4/tcp.c net/ipv4/tcp_ipv4.c net/ipv4/tcp_input.c net/ipv4/tcp_output.c \
 net/ipv4/tcp_timer.c net/ipv4/tcp_minisocks.c net/ipv4/tcp_cong.c net/ipv4/tcp_fastopen.c \
 net/ipv4/tcp_metrics.c net/ipv4/tcp_offload.c net/ipv4/fib_frontend.c net/ipv4/fib_trie.c \
 net/ipv4/route.c net/ipv4/protocol.c net/ipv4/fib_semantics.c net/ipv4/inetpeer.c \
-net/ipv4/raw.c net/ipv4/ping.c net/ipv4/syncookies.c \
+net/ipv4/raw.c net/ipv4/ping.c \
 net/ipv4/inet_connection_sock.c net/ipv4/inet_hashtables.c net/ipv4/inet_timewait_sock.c \
 net/ipv4/inet_fragment.c net/ipv4/icmp.c net/ipv4/udp.c net/ipv4/udp_offload.c \
 net/ipv4/udplite.c net/ipv4/udp_diag.c net/ipv4/cipso_ipv4.c \
@@ -23,7 +23,7 @@ lib/kasprintf.c lib/kstrtox.c lib/md5.c lib/percpu_counter.c lib/find_next_bit.c
 crypto/api.c \
 drivers/net/loopback.c kernel/notifier.c porting/mm_porting.c porting/timer_porting.c \
 porting/timing_porting.c porting/tasklet_workqueues_porting.c porting/app_glue.c \
-porting/libinit.c porting/show_mib_stats.c \
+porting/libinit.c porting/show_mib_stats.c porting/load_balancer.c \
 drivers/net/dpdk/rx.c drivers/net/dpdk/tx.c \
 drivers/net/dpdk/dpdk_sw_loop.c drivers/net/dpdk/device.c 
 #CFLAGS += -g
@@ -37,6 +37,7 @@ CFLAGS += $(ALL_HEADERS) -DMAXCPU=32 -D__UAPI_DEF_IN6_ADDR=1 -D__UAPI_DEF_SOCKAD
 -DCONFIG_NETFILTER -DCONFIG_NETLABEL -DCONFIG_NET_POLL_CONTROLLER \
 -DCONFIG_X86_64 -DCONFIG_GENERIC_ATOMIC64 -DTCP_BIND_CACHE_SIZE=16384 \
 -DINET_PEER_CACHE_SIZE=16384 -DSOCK_CACHE_SIZE=32768 -DRUN_TO_COMPLETE -DMAX_PKT_BURST=32 \
--DMULTIPLE_MEM_ALLOC=0 -DOPTIMIZE_SENDPAGES -DOPTIMIZE_TCP_RECEIVE -DCONFIG_SYN_COOKIES
+-DMULTIPLE_MEM_ALLOC=0 -DOPTIMIZE_SENDPAGES -DOPTIMIZE_TCP_RECEIVE 
+#-DCONFIG_SYN_COOKIES net/ipv4/syncookies.c 
 LIB = libnetinet.a
 include $(RTE_SDK)/mk/rte.extlib.mk

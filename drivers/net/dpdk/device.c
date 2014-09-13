@@ -39,11 +39,18 @@
 #include <rte_common.h>
 #include <rte_cycles.h>
 #include <rte_timer.h>
+#include <rte_ring.h>
+#include <porting/load_balancer.h>
+#include <porting/load_balancer2.h>
 
 typedef struct
 {
 	int port_number;
+	struct rte_ring *dev_to_ip_stack_ring[MAXCPU];
 }dpdk_dev_priv_t;
+
+static uint64_t per_core_rx_stats[MAXCPU];
+static uint64_t per_core_tx_stats[MAXCPU];
 
 /* this function polls DPDK PMD driver for the received buffers.
  * It constructs skb and submits it to the stack.
@@ -51,39 +58,54 @@ typedef struct
  */
 static void rx_construct_skb_and_submit(struct net_device *netdev)
 {
-	int size = MAX_PKT_BURST,ret,i,frag_idx;
+	int size = MAX_PKT_BURST,ret,i,frag_idx,assigned_core_id;
 	struct rte_mbuf *mbufs[MAX_PKT_BURST],*m;
-	struct sk_buff *skb;
+	struct sk_buff *skb,*skbs[MAX_PKT_BURST];
 	dpdk_dev_priv_t *priv = netdev_priv(netdev);
 
-	ret = dpdk_dev_get_received(priv->port_number,mbufs,size);
-	if(unlikely(ret <= 0)) {
-		return;
-	}
-	for(i = 0;i < ret;i++) {
-		skb = build_skb(mbufs[i],mbufs[i]->pkt.data_len);
-		if(unlikely(skb == NULL)) {
-			rte_pktmbuf_free(mbufs[i]);
-			continue;
+	if(load_balancer_get_poller_core_id() == rte_lcore_id()) {
+		ret = dpdk_dev_get_received(priv->port_number,mbufs,size);
+		if(unlikely(ret <= 0)) {
+			return;
 		}
-		skb->len = mbufs[i]->pkt.data_len;
+		for(i = 0;i < ret;i++) {
+			skb = build_skb(mbufs[i],mbufs[i]->pkt.data_len);
+			if(unlikely(skb == NULL)) {
+				rte_pktmbuf_free(mbufs[i]);
+				continue;
+			}
+			skb->len = mbufs[i]->pkt.data_len;
 #if 0 /* once the receive will scatter the packets, this will be needed */
-		m = mbufs[i]->pkt.next;
-		frag_idx = 0;
-		while(unlikely(m)) {
-			struct page pg;
+			m = mbufs[i]->pkt.next;
+			frag_idx = 0;
+			while(unlikely(m)) {
+				struct page pg;
 
-			pg.mbuf = m;
-			skb_add_rx_frag(skb,frag_idx,&pg,0,m->pkt.data_len,m->pkt.data_len);
-			frag_idx++;
-			m = m->pkt.next;
-		}
+				pg.mbuf = m;
+				skb_add_rx_frag(skb,frag_idx,&pg,0,m->pkt.data_len,m->pkt.data_len);
+				frag_idx++;
+				m = m->pkt.next;
+			}
+#else
+			if(mbufs[i]->pkt.next) {
+				printf("NOT YET SUPPORTED %s %d\n",__FILE__,__LINE__);
+				abort();
+			}
 #endif
-		skb->protocol = eth_type_trans(skb, netdev);
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-		skb->dev = netdev;
-		netif_receive_skb(skb);
+			skb->protocol = eth_type_trans(skb, netdev);
+			skb->ip_summed = CHECKSUM_UNNECESSARY;
+			skb->dev = netdev;
+			assigned_core_id = load_balancer_get_core_to_process_packet(skb);
+			if(!rte_ring_enqueue_burst(priv->dev_to_ip_stack_ring[assigned_core_id],(void **)&skb,1)) {
+				kfree_skb(skb);
+			}
+		}
 	}
+	ret = rte_ring_dequeue_burst(priv->dev_to_ip_stack_ring[rte_lcore_id()],(void **)skbs,MAX_PKT_BURST);
+	for(i = 0;i < ret;i++) {
+		netif_receive_skb(skbs[i]);
+	}
+	per_core_rx_stats[rte_lcore_id()] += ret;
 }
 
 static int dpdk_open(struct net_device *netdev)
@@ -125,10 +147,12 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 		pkt_len += (*mbuf)->pkt.data_len;
 		mbuf = &((*mbuf)->pkt.next);
 	}
+
 	head->pkt.pkt_len = pkt_len;
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
 	kfree_skb(skb);
+	per_core_tx_stats[rte_lcore_id()]++;
 	return NETDEV_TX_OK;
 }
 static struct rtnl_link_stats64 *dpdk_get_stats64(struct net_device *netdev,
@@ -200,6 +224,9 @@ static void dpdk_netpoll(struct net_device *netdev)
 	 * Then check if there are mbufs ready for tx, but not submitted yet
 	 */
 	rx_construct_skb_and_submit(netdev);
+	if(load_balancer_get_poller_core_id() == rte_lcore_id()){
+		dpdk_dev_tx_poll(priv->port_number);
+	}
 }
 static netdev_features_t dpdk_fix_features(struct net_device *netdev,
          netdev_features_t features)
@@ -302,6 +329,8 @@ void *create_netdev(int port_num)
 {
 	struct net_device *netdev;
 	dpdk_dev_priv_t *priv;
+	char ring_name[1024];
+	int cpu_idx;
 
 	netdev = alloc_netdev_mqs(sizeof(dpdk_dev_priv_t),"dpdk_if",ether_setup,1,1);
 	if(netdev == NULL) {
@@ -321,12 +350,26 @@ void *create_netdev(int port_num)
 		printf("Cannot register netdev %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
+	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		sprintf(ring_name,"ip_stack_ring%d",cpu_idx);
+		priv->dev_to_ip_stack_ring[cpu_idx] = rte_ring_create(ring_name,4096,rte_socket_id(),0);
+		if(!priv->dev_to_ip_stack_ring[cpu_idx]) {
+			printf("Cannot create ring %s %d\n",__FILE__,__LINE__);
+			abort();
+		}
+	}
+	dpdk_dev_tx_poll_init(port_num);
 	return netdev;
 }
+extern uint64_t poller_tx_dropped;
+extern uint64_t tx_dropped[MAXCPU];
 extern uint64_t received;
 extern uint64_t transmitted;
-extern uint64_t tx_dropped;
 void dpdk_dev_print_stats()
 {
-	printf("PHY received %"PRIu64" transmitted %"PRIu64" dropped %"PRIu64"\n",received,transmitted,tx_dropped);
+	int i;
+	for(i = 0;i < 4;i++) {
+		printf("CORE#%d rx %"PRIu64" tx %"PRIu64" tx_dropped %"PRIu64"\n",i,per_core_rx_stats[i],per_core_tx_stats[i],tx_dropped[i]);
+	}
+	printf("PHY received %"PRIu64" transmitted %"PRIu64" poller_tx_dropped %"PRIu64"\n",received,transmitted,poller_tx_dropped);
 }

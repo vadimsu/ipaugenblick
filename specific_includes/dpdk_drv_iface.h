@@ -15,7 +15,8 @@ void dpdk_dev_init_rx_ring(int port_num);
 int dpdk_dev_get_received(int port_num,struct rte_mbuf **tbl,int tbl_size);
 void dpdk_dev_init_tx_ring(int port_num);
 void dpdk_dev_enqueue_for_tx(int port_num,struct rte_mbuf *m);
-
+void dpdk_dev_tx_poll(int port_num);
+void dpdk_dev_tx_poll_init(int port_num);
 void transmit_pending(int port_num);
 
 int get_tx_overflow(int port_num);

@@ -177,7 +177,7 @@ static inline __u8 ip_reply_arg_flowi_flags(const struct ip_reply_arg *arg)
 void ip_send_unicast_reply(struct net *net, struct sk_buff *skb, __be32 daddr,
 			   __be32 saddr, const struct ip_reply_arg *arg,
 			   unsigned int len);
-
+#if 0/* This needs to be fixed */
 #define IP_INC_STATS(net, field)	SNMP_INC_STATS64((net)->mib.ip_statistics, field)
 #define IP_INC_STATS_BH(net, field)	SNMP_INC_STATS64_BH((net)->mib.ip_statistics, field)
 #define IP_ADD_STATS(net, field, val)	SNMP_ADD_STATS64((net)->mib.ip_statistics, field, val)
@@ -189,7 +189,19 @@ void ip_send_unicast_reply(struct net *net, struct sk_buff *skb, __be32 daddr,
 #define NET_INC_STATS_USER(net, field) 	SNMP_INC_STATS_USER((net)->mib.net_statistics, field)
 #define NET_ADD_STATS_BH(net, field, adnd) SNMP_ADD_STATS_BH((net)->mib.net_statistics, field, adnd)
 #define NET_ADD_STATS_USER(net, field, adnd) SNMP_ADD_STATS_USER((net)->mib.net_statistics, field, adnd)
-
+#else
+#define IP_INC_STATS(net, field)
+#define IP_INC_STATS_BH(net, field)
+#define IP_ADD_STATS(net, field, val)
+#define IP_ADD_STATS_BH(net, field, val)
+#define IP_UPD_PO_STATS(net, field, val)
+#define IP_UPD_PO_STATS_BH(net, field, val)
+#define NET_INC_STATS(net, field)
+#define NET_INC_STATS_BH(net, field)
+#define NET_INC_STATS_USER(net, field)
+#define NET_ADD_STATS_BH(net, field, adnd)
+#define NET_ADD_STATS_USER(net, field, adnd)
+#endif
 unsigned long snmp_fold_field(void __percpu *mib[], int offt);
 #if BITS_PER_LONG==32
 u64 snmp_fold_field64(void __percpu *mib[], int offt, size_t sync_off);

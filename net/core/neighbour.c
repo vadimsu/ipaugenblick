@@ -43,6 +43,7 @@
 #include <specific_includes/linux/inetdevice.h>
 //#include <net/addrconf.h>
 #include <specific_includes/linux/percpu.h>
+#include <rte_lcore.h>
 #define DEBUG
 #define NEIGH_DEBUG 1
 #define neigh_dbg(level, fmt, ...)		\
@@ -58,7 +59,7 @@ static void __neigh_notify(struct neighbour *n, int type, int flags);
 static void neigh_update_notify(struct neighbour *neigh);
 static int pneigh_ifdown(struct neigh_table *tbl, struct net_device *dev);
 
-static struct neigh_table *neigh_tables;
+static struct neigh_table *neigh_tables[MAXCPU];
 #ifdef CONFIG_PROC_FS
 static const struct file_operations neigh_stat_seq_fops;
 #endif
@@ -95,7 +96,13 @@ static const struct file_operations neigh_stat_seq_fops;
  */
 
 //static DEFINE_RWLOCK(neigh_tbl_lock);
-
+void neigh_per_core_init()
+{
+	int cpu_idx;
+	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		neigh_tables[cpu_idx] = NULL;
+	}
+}
 static int neigh_blackhole(struct neighbour *neigh, struct sk_buff *skb)
 {
 	kfree_skb(skb);
@@ -1578,18 +1585,18 @@ static void neigh_table_init_no_netlink(struct neigh_table *tbl)
 	tbl->last_rand	= now + tbl->parms.reachable_time * 20;
 }
 
-void neigh_table_init(struct neigh_table *tbl)
+void neigh_table_init(struct neigh_table *tbl,int cpu_idx)
 {
 	struct neigh_table *tmp;
 
 	neigh_table_init_no_netlink(tbl);
 	write_lock(&neigh_tbl_lock);
-	for (tmp = neigh_tables; tmp; tmp = tmp->next) {
+	for (tmp = neigh_tables[cpu_idx]; tmp; tmp = tmp->next) {
 		if (tmp->family == tbl->family)
 			break;
 	}
-	tbl->next	= neigh_tables;
-	neigh_tables	= tbl;
+	tbl->next	= neigh_tables[cpu_idx];
+	neigh_tables[cpu_idx]	= tbl;
 	write_unlock(&neigh_tbl_lock);
 
 	if (unlikely(tmp)) {
@@ -1612,7 +1619,7 @@ int neigh_table_clear(struct neigh_table *tbl)
 	if (atomic_read(&tbl->entries))
 		pr_crit("neighbour leakage\n");
 	write_lock(&neigh_tbl_lock);
-	for (tp = &neigh_tables; *tp; tp = &(*tp)->next) {
+	for (tp = &neigh_tables[rte_lcore_id()]; *tp; tp = &(*tp)->next) {
 		if (*tp == tbl) {
 			*tp = tbl->next;
 			break;
@@ -1662,7 +1669,7 @@ static int neigh_delete(struct sk_buff *skb, struct nlmsghdr *nlh)
 	}
 
 	read_lock(&neigh_tbl_lock);
-	for (tbl = neigh_tables; tbl; tbl = tbl->next) {
+	for (tbl = neigh_tables[rte_lcore_id()]; tbl; tbl = tbl->next) {
 		struct neighbour *neigh;
 
 		if (tbl->family != ndm->ndm_family)
@@ -1730,7 +1737,7 @@ static int neigh_add(struct sk_buff *skb, struct nlmsghdr *nlh)
 	}
 
 	read_lock(&neigh_tbl_lock);
-	for (tbl = neigh_tables; tbl; tbl = tbl->next) {
+	for (tbl = neigh_tables[rte_lcore_id()]; tbl; tbl = tbl->next) {
 		int flags = NEIGH_UPDATE_F_ADMIN | NEIGH_UPDATE_F_OVERRIDE;
 		struct neighbour *neigh;
 		void *dst, *lladdr;
@@ -2005,7 +2012,7 @@ static int neightbl_set(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	ndtmsg = nlmsg_data(nlh);
 	read_lock(&neigh_tbl_lock);
-	for (tbl = neigh_tables; tbl; tbl = tbl->next) {
+	for (tbl = neigh_tables[rte_lcore_id()]; tbl; tbl = tbl->next) {
 		if (ndtmsg->ndtm_family && tbl->family != ndtmsg->ndtm_family)
 			continue;
 
@@ -2144,7 +2151,7 @@ static int neightbl_dump_info(struct sk_buff *skb, struct netlink_callback *cb)
 	family = ((struct rtgenmsg *) nlmsg_data(cb->nlh))->rtgen_family;
 
 	read_lock(&neigh_tbl_lock);
-	for (tbl = neigh_tables, tidx = 0; tbl; tbl = tbl->next, tidx++) {
+	for (tbl = neigh_tables[rte_lcore_id()], tidx = 0; tbl; tbl = tbl->next, tidx++) {
 		struct neigh_parms *p;
 
 		if (tidx < tbl_skip || (family && tbl->family != family))
@@ -2370,7 +2377,7 @@ static int neigh_dump_info(struct sk_buff *skb, struct netlink_callback *cb)
 
 	s_t = cb->args[0];
 
-	for (tbl = neigh_tables, t = 0; tbl;
+	for (tbl = neigh_tables[rte_lcore_id()], t = 0; tbl;
 	     tbl = tbl->next, t++) {
 		if (t < s_t || (family && tbl->family != family))
 			continue;

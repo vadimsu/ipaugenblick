@@ -139,6 +139,7 @@
 #include <rte_config.h>
 #include <rte_common.h>
 #include <rte_malloc.h>
+#include <rte_lcore.h>
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
@@ -2155,7 +2156,7 @@ static inline void __netif_reschedule(struct Qdisc *q)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	sd = &__get_cpu_var(softnet_data);
+//	sd = &__get_cpu_var(softnet_data);
 //	q->next_sched = NULL;
 //	*sd->output_queue_tailp = q;
 //	sd->output_queue_tailp = &q->next_sched;
@@ -2568,7 +2569,22 @@ int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
 	const struct net_device_ops *ops = dev->netdev_ops;
 	int rc = NETDEV_TX_OK;
 	unsigned int skb_len;
-
+#if 1
+	netdev_features_t features;
+	features = netif_skb_features(skb);
+	if (skb->ip_summed == CHECKSUM_PARTIAL) {
+		if (skb->encapsulation)
+			skb_set_inner_transport_header(skb,
+					skb_checksum_start_offset(skb));
+		else
+			skb_set_transport_header(skb,
+					skb_checksum_start_offset(skb));
+		if (!(features & NETIF_F_ALL_CSUM) &&
+				skb_checksum_help(skb))
+			goto out_kfree_skb;
+	}
+	return ops->ndo_start_xmit(skb, dev);
+#endif
 	if (likely(!skb->next)) {
 		netdev_features_t features;
 
@@ -2835,11 +2851,13 @@ EXPORT_SYMBOL(dev_loopback_xmit);
 static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 {
 	struct net_device *dev = skb->dev;
+	//const struct net_device_ops *ops = dev->netdev_ops;
 	struct netdev_queue *txq;
 	struct Qdisc *q;
 	int rc = -ENOMEM;
-
+//printf("%s %d %d\n",__FILE__,__LINE__,rte_lcore_id());
 	skb_reset_mac_header(skb);
+	//return ops->ndo_start_xmit(skb, dev);
 
 	/* Disable soft irqs for various locks below. Also
 	 * stops preemption for RCU.
@@ -2873,19 +2891,21 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 	   Either shot noqueue qdisc, it is even simpler 8)
 	 */
 	if (dev->flags & IFF_UP) {
+#if 0 /* it is ok if core
 		int cpu = smp_processor_id(); /* ok because BHs are off */
 
 		if (txq->xmit_lock_owner != cpu) {
+#endif
 
-			if (__this_cpu_read(xmit_recursion) > RECURSION_LIMIT)
-				goto recursion_alert;
+//			if (__this_cpu_read(xmit_recursion) > RECURSION_LIMIT)
+//				goto recursion_alert;
 
-			HARD_TX_LOCK(dev, txq, cpu);
+//			HARD_TX_LOCK(dev, txq, cpu);
 
 			if (!netif_xmit_stopped(txq)) {
-				__this_cpu_inc(xmit_recursion);
+//				__this_cpu_inc(xmit_recursion);
 				rc = dev_hard_start_xmit(skb, dev, txq);
-				__this_cpu_dec(xmit_recursion);
+//				__this_cpu_dec(xmit_recursion);
 				if (dev_xmit_complete(rc)) {
 					HARD_TX_UNLOCK(dev, txq);
 					goto out;
@@ -2894,6 +2914,8 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 			HARD_TX_UNLOCK(dev, txq);
 			printf("Virtual device %s asks to queue packet!\n",
 					     dev->name);
+			abort();
+#if 0
 		} else {
 			/* Recursion is detected! It is possible,
 			 * unfortunately
@@ -2901,7 +2923,9 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 recursion_alert:
 			printf("Dead loop on virtual device %s, fix it urgently!\n",
 					     dev->name);
+			abort();
 		}
+#endif
 	}
 
 	rc = -ENETDOWN;
@@ -3761,6 +3785,7 @@ EXPORT_SYMBOL(netif_receive_skb);
  */
 static void flush_backlog(void *arg)
 {
+#if 0
 	struct net_device *dev = arg;
 	struct softnet_data *sd = &__get_cpu_var(softnet_data);
 	struct sk_buff *skb, *tmp;
@@ -3782,6 +3807,7 @@ static void flush_backlog(void *arg)
 			input_queue_head_incr(sd);
 		}
 	}
+#endif
 }
 
 static int napi_gro_complete(struct sk_buff *skb)
@@ -4237,10 +4263,11 @@ static int process_backlog(struct napi_struct *napi, int quota)
 void __napi_schedule(struct napi_struct *n)
 {
 	unsigned long flags;
-
+#if 0
 	local_irq_save(flags);
 	____napi_schedule(&__get_cpu_var(softnet_data), n);
 	local_irq_restore(flags);
+#endif
 }
 EXPORT_SYMBOL(__napi_schedule);
 
@@ -5559,7 +5586,7 @@ static int dev_new_index(struct net *net)
 
 /* Delayed registration/unregisteration */
 static LINUX_LIST_HEAD(net_todo_list);
-static DECLARE_WAIT_QUEUE_HEAD(netdev_unregistering_wq);
+//static DECLARE_WAIT_QUEUE_HEAD(netdev_unregistering_wq);
 
 static void net_set_todo(struct net_device *dev)
 {
@@ -6092,9 +6119,10 @@ EXPORT_SYMBOL(register_netdev);
 int netdev_refcnt_read(const struct net_device *dev)
 {
 	int i, refcnt = 0;
-
+#if 0
 	for_each_possible_cpu(i)
 		refcnt += *per_cpu_ptr(dev->pcpu_refcnt, i);
+#endif
 	return refcnt;
 }
 EXPORT_SYMBOL(netdev_refcnt_read);

@@ -2,7 +2,7 @@ RTE_SDK=$(CURRENT_DIR)../dpdk-1.6.0r2
 RTE_TARGET ?= x86_64-default-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.extvars.mk
 SRC_ROOT=$(CURRENT_DIR)
-SRCS-y :=  app.c bm_app.c
+SRCS-y :=  bm_app.c
 #CFLAGS += -g
 CFLAGS += -Ofast  
 CFLAGS += $(WERROR_FLAGS) 

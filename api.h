@@ -127,10 +127,11 @@ extern int app_glue_calc_size_of_data_to_send(void *sock);
  * This function must be called prior any other in this package.
  * It initializes all the DPDK libs, reads the configuration, initializes the stack's
  * subsystems, allocates mbuf pools etc.
- * Parameters: refer to DPDK EAL parameters.
+ * Parameters: command line - refer to DPDK EAL parameters
  * For example -c <core mask> -n <memory channels> -- -p <port mask>
+ * worker_func - pointer to function to be run on enabled cores
  */
-extern int dpdk_linux_tcpip_init(int argc,char **argv);
+int dpdk_linux_tcpip_init(int argc,char **argv, int (*worker_func)(void*));
 /*
  * This function may be called to allocate rte_mbuf from existing pool.
  * Paramters: None

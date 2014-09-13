@@ -57,7 +57,7 @@ extern unsigned long __per_cpu_offset[NR_CPUS];
 	(*SHIFT_PERCPU_PTR(&(var), per_cpu_offset(cpu)))
 
 #ifndef __this_cpu_ptr
-#define __this_cpu_ptr(ptr) SHIFT_PERCPU_PTR(ptr, __my_cpu_offset)
+//#define __this_cpu_ptr(ptr) SHIFT_PERCPU_PTR(ptr, __my_cpu_offset)
 #endif
 #ifdef CONFIG_DEBUG_PREEMPT
 #define this_cpu_ptr(ptr) SHIFT_PERCPU_PTR(ptr, my_cpu_offset)

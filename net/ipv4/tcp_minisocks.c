@@ -31,24 +31,35 @@
 int sysctl_tcp_syncookies __read_mostly = 1;
 EXPORT_SYMBOL(sysctl_tcp_syncookies);
 
-int sysctl_tcp_abort_on_overflow __read_mostly;
+int sysctl_tcp_abort_on_overflow __read_mostly = 0;
 
-struct inet_timewait_death_row tcp_death_row = {
-	.sysctl_max_tw_buckets = NR_FILE * 2,
-	.period		= TCP_TIMEWAIT_LEN / INET_TWDR_TWKILL_SLOTS,
-//	.death_lock	= __SPIN_LOCK_UNLOCKED(tcp_death_row.death_lock),
-	.hashinfo	= &tcp_hashinfo,
-	.tw_timer	= TIMER_INITIALIZER(inet_twdr_hangman, 0,
-					    (unsigned long)&tcp_death_row),
-	.twkill_work	= __WORK_INITIALIZER(tcp_death_row.twkill_work,
-					     inet_twdr_twkill_work),
-/* Short-time timewait calendar */
+struct inet_timewait_death_row tcp_death_row[MAXCPU];
 
-	.twcal_hand	= -1,
-	.twcal_timer	= TIMER_INITIALIZER(inet_twdr_twcal_tick, 0,
-					    (unsigned long)&tcp_death_row),
-};
-EXPORT_SYMBOL_GPL(tcp_death_row);
+void tcp_init_death_row()
+{
+	int cpu_idx;
+    /* The same as original static initialization */
+	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		 tcp_death_row[cpu_idx].sysctl_max_tw_buckets = NR_FILE * 2;
+		 tcp_death_row[cpu_idx].period = TCP_TIMEWAIT_LEN / INET_TWDR_TWKILL_SLOTS;
+		 tcp_death_row[cpu_idx].hashinfo	= &tcp_hashinfo[cpu_idx];
+		 tcp_death_row[cpu_idx].tw_timer.entry.prev = TIMER_ENTRY_STATIC;
+		 tcp_death_row[cpu_idx].tw_timer.expires = 0;
+		 tcp_death_row[cpu_idx].tw_timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
+		 tcp_death_row[cpu_idx].tw_timer.function = inet_twdr_hangman;
+		 tcp_death_row[cpu_idx].tw_timer.data = (unsigned long)&tcp_death_row[cpu_idx];
+		 tcp_death_row[cpu_idx].twkill_work.data = WORK_STRUCT_NO_POOL | WORK_STRUCT_STATIC;
+		 tcp_death_row[cpu_idx].twkill_work.entry.prev = &tcp_death_row[cpu_idx].twkill_work.entry;
+		 tcp_death_row[cpu_idx].twkill_work.entry.next = &tcp_death_row[cpu_idx].twkill_work.entry;
+		 tcp_death_row[cpu_idx].twkill_work.func = inet_twdr_twkill_work;
+		 tcp_death_row[cpu_idx].twcal_hand	= -1;
+		 tcp_death_row[cpu_idx].twcal_timer.entry.prev = TIMER_ENTRY_STATIC;
+		 tcp_death_row[cpu_idx].twcal_timer.expires = 0;
+		 tcp_death_row[cpu_idx].twcal_timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
+		 tcp_death_row[cpu_idx].twcal_timer.function = inet_twdr_twcal_tick;
+		 tcp_death_row[cpu_idx].twcal_timer.data = (unsigned long)&tcp_death_row[cpu_idx];
+	}
+}
 
 static bool tcp_in_window(u32 seq, u32 end_seq, u32 s_win, u32 e_win)
 {
@@ -139,7 +150,7 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 		if (!th->fin ||
 		    TCP_SKB_CB(skb)->end_seq != tcptw->tw_rcv_nxt + 1) {
 kill_with_rst:
-			inet_twsk_deschedule(tw, &tcp_death_row);
+			inet_twsk_deschedule(tw, &tcp_death_row[rte_lcore_id()]);
 			inet_twsk_put(tw);
 			return TCP_TW_RST;
 		}
@@ -152,13 +163,13 @@ kill_with_rst:
 			tcptw->tw_ts_recent	  = tmp_opt.rcv_tsval;
 		}
 
-		if (tcp_death_row.sysctl_tw_recycle &&
+		if (tcp_death_row[rte_lcore_id()].sysctl_tw_recycle &&
 		    tcptw->tw_ts_recent_stamp &&
 		    tcp_tw_remember_stamp(tw))
-			inet_twsk_schedule(tw, &tcp_death_row, tw->tw_timeout,
+			inet_twsk_schedule(tw, &tcp_death_row[rte_lcore_id()], tw->tw_timeout,
 					   TCP_TIMEWAIT_LEN);
 		else
-			inet_twsk_schedule(tw, &tcp_death_row, TCP_TIMEWAIT_LEN,
+			inet_twsk_schedule(tw, &tcp_death_row[rte_lcore_id()], TCP_TIMEWAIT_LEN,
 					   TCP_TIMEWAIT_LEN);
 		return TCP_TW_ACK;
 	}
@@ -192,12 +203,12 @@ kill_with_rst:
 			 */
 			if (sysctl_tcp_rfc1337 == 0) {
 kill:
-				inet_twsk_deschedule(tw, &tcp_death_row);
+				inet_twsk_deschedule(tw, &tcp_death_row[rte_lcore_id()]);
 				inet_twsk_put(tw);
 				return TCP_TW_SUCCESS;
 			}
 		}
-		inet_twsk_schedule(tw, &tcp_death_row, TCP_TIMEWAIT_LEN,
+		inet_twsk_schedule(tw, &tcp_death_row[rte_lcore_id()], TCP_TIMEWAIT_LEN,
 				   TCP_TIMEWAIT_LEN);
 
 		if (tmp_opt.saw_tstamp) {
@@ -248,7 +259,7 @@ kill:
 		 * Do not reschedule in the last case.
 		 */
 		if (paws_reject || th->ack)
-			inet_twsk_schedule(tw, &tcp_death_row, TCP_TIMEWAIT_LEN,
+			inet_twsk_schedule(tw, &tcp_death_row[rte_lcore_id()], TCP_TIMEWAIT_LEN,
 					   TCP_TIMEWAIT_LEN);
 
 		/* Send ACK. Note, we do not put the bucket,
@@ -271,10 +282,10 @@ void tcp_time_wait(struct sock *sk, int state, int timeo)
 	const struct tcp_sock *tp = tcp_sk(sk);
 	bool recycle_ok = false;
 
-	if (tcp_death_row.sysctl_tw_recycle && tp->rx_opt.ts_recent_stamp)
+	if (tcp_death_row[rte_lcore_id()].sysctl_tw_recycle && tp->rx_opt.ts_recent_stamp)
 		recycle_ok = tcp_remember_stamp(sk);
 
-	if (tcp_death_row.tw_count < tcp_death_row.sysctl_max_tw_buckets)
+	if (tcp_death_row[rte_lcore_id()].tw_count < tcp_death_row[rte_lcore_id()].sysctl_max_tw_buckets)
 		tw = inet_twsk_alloc(sk, state);
 
 	if (tw != NULL) {
@@ -323,7 +334,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo)
 #endif
 
 		/* Linkage updates. */
-		__inet_twsk_hashdance(tw, sk, &tcp_hashinfo);
+		__inet_twsk_hashdance(tw, sk, &tcp_hashinfo[rte_lcore_id()]);
 
 		/* Get the TIME_WAIT timeout firing. */
 		if (timeo < rto)
@@ -337,7 +348,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo)
 				timeo = TCP_TIMEWAIT_LEN;
 		}
 
-		inet_twsk_schedule(tw, &tcp_death_row, timeo,
+		inet_twsk_schedule(tw, &tcp_death_row[rte_lcore_id()], timeo,
 				   TCP_TIMEWAIT_LEN);
 		inet_twsk_put(tw);
 	} else {

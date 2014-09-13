@@ -249,10 +249,12 @@ EXPORT_SYMBOL(prandom_u32_state);
  */
 u32 prandom_u32(void)
 {
-	unsigned long r;
+	unsigned long r = 0;
+#if 0
 	struct rnd_state *state = &get_cpu_var(net_rand_state);
 	r = prandom_u32_state(state);
 	put_cpu_var(state);
+#endif
 	return r;
 }
 EXPORT_SYMBOL(prandom_u32);

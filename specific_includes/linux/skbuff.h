@@ -553,6 +553,7 @@ struct sk_buff {
 	atomic_t		users;
 	char *last_seen_file;
 	int last_seen_line;
+	int last_core_id;
 }__attribute__ ((aligned (CACHE_LINE_SIZE)));
 
 #define SKB_ALLOC_FCLONE	0x01
@@ -665,7 +666,7 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t priority, int flags,
 			    int node);
 struct sk_buff *build_skb(struct rte_mbuf *data, unsigned int frag_size);
 #ifndef DEBUG_SKBUFF_LEAKAGE
-#define TRACE_SKB(skb) {skb->last_seen_file = __FILE__; skb->last_seen_line = __LINE__;}
+#define TRACE_SKB(skb) {skb->last_seen_file = __FILE__; skb->last_seen_line = __LINE__; skb->last_core_id = rte_lcore_id();}
 static inline struct sk_buff *alloc_skb(unsigned int size,
 					gfp_t priority)
 {
@@ -700,7 +701,7 @@ static inline void dump_skbs()
 	dump_head_cache();
 	while(1);
 }
-#define TRACE_SKB(skb) {skb->last_seen_file = __FILE__; skb->last_seen_line = __LINE__;}
+#define TRACE_SKB(skb) {skb->last_seen_file = __FILE__; skb->last_seen_line = __LINE__;skb->last_core_id = rte_lcore_id();}
 #define alloc_skb(size,priority) (\
 { \
 	struct sk_buff *ret_skb; \

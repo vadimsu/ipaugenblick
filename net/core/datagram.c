@@ -316,10 +316,10 @@ EXPORT_SYMBOL(skb_kill_datagram);
  *
  *	Note: the iovec is modified during the copy.
  */
-uint64_t skb_copy_datagram_iovec_failed = 0;
-uint64_t skb_copy_datagram_iovec_called = 0;
-uint64_t skb_copy_csum_datagram_iovec_failed = 0;
-uint64_t skb_copy_csum_datagram_iovec_called = 0;
+atomic_long_t skb_copy_datagram_iovec_failed = 0;
+atomic_long_t skb_copy_datagram_iovec_called = 0;
+atomic_long_t skb_copy_csum_datagram_iovec_failed = 0;
+atomic_long_t skb_copy_csum_datagram_iovec_called = 0;
 int skb_copy_datagram_iovec(const struct sk_buff *skb, int offset,
 			    struct iovec *to, int len)
 {
@@ -330,7 +330,7 @@ int skb_copy_datagram_iovec(const struct sk_buff *skb, int offset,
 		printf("CANNOT ADJUST MBUF %s %d %d %d %d\n",__FILE__,__LINE__,offset,len,skb->header_mbuf->pkt.data_len);
 		goto fault;
 	}
-	skb_copy_datagram_iovec_called++;
+	atomic_long_inc(&skb_copy_datagram_iovec_called);
 	trace_skb_copy_datagram_iovec(skb, len);
 
 	/* Copy header. */
@@ -408,7 +408,7 @@ int skb_copy_datagram_iovec(const struct sk_buff *skb, int offset,
 		return 0;
 
 fault:
-    skb_copy_datagram_iovec_failed++;
+atomic_long_inc(&skb_copy_datagram_iovec_failed);
 	return -EFAULT;
 }
 EXPORT_SYMBOL(skb_copy_datagram_iovec);
@@ -512,10 +512,10 @@ fault:
 EXPORT_SYMBOL(skb_copy_datagram_const_iovec);
 void print_skb_iov_stats()
 {
-	printf("skb_copy_datagram_iovec_failed %"PRIu64"\n",skb_copy_datagram_iovec_failed);
-	printf("skb_copy_datagram_iovec_called %"PRIu64"\n",skb_copy_datagram_iovec_called);
-	printf("skb_copy_csum_datagram_iovec_failed %"PRIu64"\n",skb_copy_csum_datagram_iovec_failed);
-	printf("skb_copy_csum_datagram_iovec_called %"PRIu64"\n",skb_copy_csum_datagram_iovec_called);
+	printf("skb_copy_datagram_iovec_failed %"PRIu64"\n",atomic_long_read(&skb_copy_datagram_iovec_failed));
+	printf("skb_copy_datagram_iovec_called %"PRIu64"\n",atomic_long_read(&skb_copy_datagram_iovec_called));
+	printf("skb_copy_csum_datagram_iovec_failed %"PRIu64"\n",atomic_long_read(&skb_copy_csum_datagram_iovec_failed));
+	printf("skb_copy_csum_datagram_iovec_called %"PRIu64"\n",atomic_long_read(&skb_copy_csum_datagram_iovec_called));
 }
 #if 0 /* NO AF_PACKET & AF_UNIX */
 /**
@@ -843,7 +843,7 @@ int skb_copy_and_csum_datagram_iovec(struct sk_buff *skb,
 	}
 	return 0;
 #else
-	skb_copy_csum_datagram_iovec_called++;
+	atomic_long_inc(&skb_copy_csum_datagram_iovec_called);
 	if (!chunk)
 		return 0;
 	if (__skb_checksum_complete(skb))
@@ -855,10 +855,10 @@ int skb_copy_and_csum_datagram_iovec(struct sk_buff *skb,
 	return 0;
 #endif
 csum_error:
-    skb_copy_csum_datagram_iovec_failed++;
+	atomic_long_inc(&skb_copy_csum_datagram_iovec_failed);
 	return -EINVAL;
 fault:
-    skb_copy_csum_datagram_iovec_failed++;
+	atomic_long_inc(&skb_copy_csum_datagram_iovec_failed);
 	return -EFAULT;
 }
 EXPORT_SYMBOL(skb_copy_and_csum_datagram_iovec);

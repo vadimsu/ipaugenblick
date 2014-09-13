@@ -6,14 +6,5 @@
 #include <specific_includes/linux/socket.h>
 #include <api.h>
 
-//void *create_client_socket(char *peer_ip_addr,unsigned short port);
 
-//void *create_server_socket(char *my_ip_addr,unsigned short port);
 
-void app_main_loop();
-struct socket *raw_socket = NULL;
-void app_init(char *my_ip_addr,unsigned short port)
-{
-	raw_socket = create_raw_socket(my_ip_addr,port);
-	app_main_loop();
-}

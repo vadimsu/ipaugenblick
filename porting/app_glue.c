@@ -45,15 +45,27 @@
 #include <porting/libinit.h>
 #include <user_callbacks.h>
 
-TAILQ_HEAD(read_ready_socket_list_head, socket) read_ready_socket_list_head;
-TAILQ_HEAD(closed_socket_list_head, socket) closed_socket_list_head;
-TAILQ_HEAD(write_ready_socket_list_head, socket) write_ready_socket_list_head;
-TAILQ_HEAD(accept_ready_socket_list_head, socket) accept_ready_socket_list_head;
-uint64_t working_cycles_stat = 0;
-uint64_t total_cycles_stat = 0;
-uint64_t work_prev = 0;
-uint64_t total_prev = 0;
+TAILQ_HEAD(read_ready_socket_list_head, socket) read_ready_socket_list_head[MAXCPU];
+TAILQ_HEAD(closed_socket_list_head, socket) closed_socket_list_head[MAXCPU];
+TAILQ_HEAD(write_ready_socket_list_head, socket) write_ready_socket_list_head[MAXCPU];
+TAILQ_HEAD(accept_ready_socket_list_head, socket) accept_ready_socket_list_head[MAXCPU];
+/* These are in translation of micros to cycles */
+static uint64_t app_glue_drv_poll_interval[MAXCPU];
+static uint64_t app_glue_timer_poll_interval[MAXCPU];
+static uint64_t app_glue_tx_ready_sockets_poll_interval[MAXCPU];
+static uint64_t app_glue_rx_ready_sockets_poll_interval[MAXCPU];
 
+static uint64_t app_glue_drv_last_poll_ts[MAXCPU];
+static uint64_t app_glue_timer_last_poll_ts[MAXCPU];
+static uint64_t app_glue_tx_ready_sockets_last_poll_ts[MAXCPU];
+static uint64_t app_glue_rx_ready_sockets_last_poll_ts[MAXCPU];
+uint64_t working_cycles_stat[MAXCPU];
+uint64_t total_cycles_stat[MAXCPU];
+uint64_t total_prev[MAXCPU];
+uint64_t work_prev[MAXCPU];
+uint64_t app_glue_periodic_called[MAXCPU];
+uint64_t app_glue_tx_queues_process[MAXCPU];
+uint64_t app_glue_rx_queues_process[MAXCPU];
 /*
  * This callback function is invoked when data arrives to socket.
  * It inserts the socket into a list of readable sockets
@@ -77,7 +89,7 @@ static void app_glue_sock_readable(struct sock *sk, int len)
 		return;
 	}
 	sk->sk_socket->read_queue_present = 1;
-	TAILQ_INSERT_TAIL(&read_ready_socket_list_head,sk->sk_socket,read_queue_entry);
+	TAILQ_INSERT_TAIL(&read_ready_socket_list_head[rte_lcore_id()],sk->sk_socket,read_queue_entry);
 }
 /*
  * This callback function is invoked when data canbe transmitted on socket.
@@ -98,7 +110,7 @@ static void app_glue_sock_write_space(struct sock *sk)
 			return;
 		}
 		sk->sk_socket->write_queue_present = 1;
-		TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sk->sk_socket,write_queue_entry);
+		TAILQ_INSERT_TAIL(&write_ready_socket_list_head[rte_lcore_id()],sk->sk_socket,write_queue_entry);
 	}
 }
 /*
@@ -116,7 +128,7 @@ static void app_glue_sock_error_report(struct sock *sk)
 			return;
 		}
 		sk->sk_socket->closed_queue_present = 1;
-		TAILQ_INSERT_TAIL(&closed_socket_list_head,sk->sk_socket,closed_queue_entry);
+		TAILQ_INSERT_TAIL(&closed_socket_list_head[rte_lcore_id()],sk->sk_socket,closed_queue_entry);
 	}
 }
 /*
@@ -133,18 +145,19 @@ static void app_glue_sock_wakeup(struct sock *sk)
 	struct sock *sock;
 
 	sock = __inet_lookup_listener(&init_net/*sk->sk_net*/,
-			&tcp_hashinfo,
+			&tcp_hashinfo[rte_lcore_id()],
 			sk->sk_daddr,
 			sk->sk_dport/*__be16 sport*/,
 			sk->sk_rcv_saddr,
 			sk->sk_num/*const unsigned short hnum*/,
 			sk->sk_bound_dev_if);
+
 	if(sock) {
 		if(sock->sk_socket->accept_queue_present) {
 			return;
 		}
 		sock->sk_socket->accept_queue_present = 1;
-		TAILQ_INSERT_TAIL(&accept_ready_socket_list_head,sock->sk_socket,accept_queue_entry);
+		TAILQ_INSERT_TAIL((&accept_ready_socket_list_head[rte_lcore_id()]),sock->sk_socket,accept_queue_entry);
 	}
 	sock_reset_flag(sk,SOCK_USE_WRITE_QUEUE);
 	sk->sk_data_ready = app_glue_sock_readable;
@@ -343,10 +356,22 @@ static void app_glue_poll(int port_num)
  */
 void app_glue_init()
 {
-	TAILQ_INIT(&read_ready_socket_list_head);
-	TAILQ_INIT(&write_ready_socket_list_head);
-	TAILQ_INIT(&accept_ready_socket_list_head);
-	TAILQ_INIT(&closed_socket_list_head);
+	printf("%s %d %p\n",__FILE__,__LINE__,&accept_ready_socket_list_head[rte_lcore_id()]);
+	TAILQ_INIT(&read_ready_socket_list_head[rte_lcore_id()]);
+	TAILQ_INIT(&write_ready_socket_list_head[rte_lcore_id()]);
+	TAILQ_INIT(&accept_ready_socket_list_head[rte_lcore_id()]);
+	TAILQ_INIT(&closed_socket_list_head[rte_lcore_id()]);
+	app_glue_drv_last_poll_ts[rte_lcore_id()] = 0;
+	app_glue_timer_last_poll_ts[rte_lcore_id()] = 0;
+	app_glue_tx_ready_sockets_last_poll_ts[rte_lcore_id()] = 0;
+	app_glue_rx_ready_sockets_last_poll_ts[rte_lcore_id()] = 0;
+	app_glue_periodic_called[rte_lcore_id()] = 0;
+	app_glue_tx_queues_process[rte_lcore_id()] = 0;
+	app_glue_rx_queues_process[rte_lcore_id()] = 0;
+	working_cycles_stat[rte_lcore_id()] = 0;
+	total_cycles_stat[rte_lcore_id()] = 0;
+	total_prev[rte_lcore_id()] = 0;
+	work_prev[rte_lcore_id()] = 0;
 }
 /*
  * This function walks on closable, acceptable and readable lists and calls.
@@ -359,26 +384,27 @@ static void process_rx_ready_sockets()
 {
 	struct socket *sock;
 
-	while(!TAILQ_EMPTY(&closed_socket_list_head)) {
-		sock = TAILQ_FIRST(&closed_socket_list_head);
+	while(!TAILQ_EMPTY(&closed_socket_list_head[rte_lcore_id()])) {
+		sock = TAILQ_FIRST(&closed_socket_list_head[rte_lcore_id()]);
 		user_on_socket_fatal(sock);
 		sock->closed_queue_present = 0;
-		TAILQ_REMOVE(&closed_socket_list_head,sock,closed_queue_entry);
+		TAILQ_REMOVE(&closed_socket_list_head[rte_lcore_id()],sock,closed_queue_entry);
 		kernel_close(sock);
 	}
-	while(!TAILQ_EMPTY(&accept_ready_socket_list_head)) {
+	while(!TAILQ_EMPTY(&accept_ready_socket_list_head[rte_lcore_id()])) {
 
-		sock = TAILQ_FIRST(&accept_ready_socket_list_head);
+		sock = TAILQ_FIRST(&accept_ready_socket_list_head[rte_lcore_id()]);
+//		printf("%s %d %d\n",__FILE__,__LINE__,rte_lcore_id());
 		user_on_accept(sock);
 		sock->accept_queue_present = 0;
-		TAILQ_REMOVE(&accept_ready_socket_list_head,sock,accept_queue_entry);
+		TAILQ_REMOVE(&accept_ready_socket_list_head[rte_lcore_id()],sock,accept_queue_entry);
 	}
 
-	while(!TAILQ_EMPTY(&read_ready_socket_list_head)) {
-		sock = TAILQ_FIRST(&read_ready_socket_list_head);
+	while(!TAILQ_EMPTY(&read_ready_socket_list_head[rte_lcore_id()])) {
+		sock = TAILQ_FIRST(&read_ready_socket_list_head[rte_lcore_id()]);
 		user_data_available_cbk(sock);
 		sock->read_queue_present = 0;
-		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
+		TAILQ_REMOVE(&read_ready_socket_list_head[rte_lcore_id()],sock,read_queue_entry);
 	}
 }
 /*
@@ -392,29 +418,19 @@ static void process_tx_ready_sockets()
 {
 	struct socket *sock;
 
-	if(!TAILQ_EMPTY(&write_ready_socket_list_head)) {
-		sock = TAILQ_FIRST(&write_ready_socket_list_head);
-		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
+	if(!TAILQ_EMPTY(&write_ready_socket_list_head[rte_lcore_id()])) {
+		sock = TAILQ_FIRST(&write_ready_socket_list_head[rte_lcore_id()]);
+		TAILQ_REMOVE(&write_ready_socket_list_head[rte_lcore_id()],sock,write_queue_entry);
 		if(user_on_transmission_opportunity(sock) > 0) {
 		    sock->write_queue_present = 0;
 		    set_bit(SOCK_NOSPACE, &sock->flags);
 		}
 		else {
-			TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sock,write_queue_entry);
+			TAILQ_INSERT_TAIL(&write_ready_socket_list_head[rte_lcore_id()],sock,write_queue_entry);
 			clear_bit(SOCK_NOSPACE, &sock->flags);
 		}
 	}
 }
-/* These are in translation of micros to cycles */
-static uint64_t app_glue_drv_poll_interval = 0;
-static uint64_t app_glue_timer_poll_interval = 0;
-static uint64_t app_glue_tx_ready_sockets_poll_interval = 0;
-static uint64_t app_glue_rx_ready_sockets_poll_interval = 0;
-
-static uint64_t app_glue_drv_last_poll_ts = 0;
-static uint64_t app_glue_timer_last_poll_ts = 0;
-static uint64_t app_glue_tx_ready_sockets_last_poll_ts = 0;
-static uint64_t app_glue_rx_ready_sockets_last_poll_ts = 0;
 
 /*
  * This function must be called by application to initialize.
@@ -433,17 +449,15 @@ void app_glue_init_poll_intervals(int drv_poll_interval,
 			drv_poll_interval,timer_poll_interval,tx_ready_sockets_poll_interval,
 			rx_ready_sockets_poll_interval);
 	float cycles_in_micro = rte_get_tsc_hz()/1000000;
-	app_glue_drv_poll_interval = cycles_in_micro*(float)drv_poll_interval;
-	app_glue_timer_poll_interval = cycles_in_micro*(float)timer_poll_interval;
-	app_glue_tx_ready_sockets_poll_interval = cycles_in_micro*(float)tx_ready_sockets_poll_interval;
-	app_glue_rx_ready_sockets_poll_interval = cycles_in_micro*(float)rx_ready_sockets_poll_interval;
+	app_glue_drv_poll_interval[rte_lcore_id()] = cycles_in_micro*(float)drv_poll_interval;
+	app_glue_timer_poll_interval[rte_lcore_id()] = cycles_in_micro*(float)timer_poll_interval;
+	app_glue_tx_ready_sockets_poll_interval[rte_lcore_id()] = cycles_in_micro*(float)tx_ready_sockets_poll_interval;
+	app_glue_rx_ready_sockets_poll_interval[rte_lcore_id()] = cycles_in_micro*(float)rx_ready_sockets_poll_interval;
 	printf("%s %d %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64"\n",__func__,__LINE__,
-			app_glue_drv_poll_interval,app_glue_timer_poll_interval,
-			app_glue_tx_ready_sockets_poll_interval,app_glue_rx_ready_sockets_poll_interval);
+			app_glue_drv_poll_interval[rte_lcore_id()],app_glue_timer_poll_interval[rte_lcore_id()],
+			app_glue_tx_ready_sockets_poll_interval[rte_lcore_id()],app_glue_rx_ready_sockets_poll_interval[rte_lcore_id()]);
 }
-uint64_t app_glue_periodic_called = 0;
-uint64_t app_glue_tx_queues_process = 0;
-uint64_t app_glue_rx_queues_process = 0;
+
 /*
  * This function must be called by application periodically.
  * This is the heart of the system, it performs all the driver/IP stack work
@@ -458,41 +472,41 @@ uint64_t app_glue_rx_queues_process = 0;
 void app_glue_periodic(int call_flush_queues)
 {
 	uint64_t ts,ts2,ts3,ts4;
-	app_glue_periodic_called++;
+	app_glue_periodic_called[rte_lcore_id()]++;
 	ts = rte_rdtsc();
-	if((ts - app_glue_drv_last_poll_ts) >= app_glue_drv_poll_interval) {
+	if((ts - app_glue_drv_last_poll_ts[rte_lcore_id()]) >= app_glue_drv_poll_interval[rte_lcore_id()]) {
 		ts4 = rte_rdtsc();
 		app_glue_poll(0);
-		app_glue_drv_last_poll_ts = ts;
-		working_cycles_stat += rte_rdtsc() - ts4;
+		app_glue_drv_last_poll_ts[rte_lcore_id()] = ts;
+		working_cycles_stat[rte_lcore_id()] += rte_rdtsc() - ts4;
 	}
-	if((ts - app_glue_timer_last_poll_ts) >= app_glue_timer_poll_interval) {
+	if((ts - app_glue_timer_last_poll_ts[rte_lcore_id()]) >= app_glue_timer_poll_interval[rte_lcore_id()]) {
 		ts3 = rte_rdtsc();
 		rte_timer_manage();
-		app_glue_timer_last_poll_ts = ts;
-		working_cycles_stat += rte_rdtsc() - ts3;
+		app_glue_timer_last_poll_ts[rte_lcore_id()] = ts;
+		working_cycles_stat[rte_lcore_id()] += rte_rdtsc() - ts3;
 	}
 	if(call_flush_queues) {
-		if((ts - app_glue_tx_ready_sockets_last_poll_ts) >= app_glue_tx_ready_sockets_poll_interval) {
+		if((ts - app_glue_tx_ready_sockets_last_poll_ts[rte_lcore_id()]) >= app_glue_tx_ready_sockets_poll_interval[rte_lcore_id()]) {
 			ts2 = rte_rdtsc();
-			app_glue_tx_queues_process++;
+			app_glue_tx_queues_process[rte_lcore_id()]++;
 			process_tx_ready_sockets();
-			working_cycles_stat += rte_rdtsc() - ts2;
-			app_glue_tx_ready_sockets_last_poll_ts = ts;
+			working_cycles_stat[rte_lcore_id()] += rte_rdtsc() - ts2;
+			app_glue_tx_ready_sockets_last_poll_ts[rte_lcore_id()] = ts;
 		}
-		if((ts - app_glue_rx_ready_sockets_last_poll_ts) >= app_glue_rx_ready_sockets_poll_interval) {
+		if((ts - app_glue_rx_ready_sockets_last_poll_ts[rte_lcore_id()]) >= app_glue_rx_ready_sockets_poll_interval[rte_lcore_id()]) {
 			ts2 = rte_rdtsc();
-			app_glue_rx_queues_process++;
+			app_glue_rx_queues_process[rte_lcore_id()]++;
 			process_rx_ready_sockets();
-			working_cycles_stat += rte_rdtsc() - ts2;
-			app_glue_rx_ready_sockets_last_poll_ts = ts;
+			working_cycles_stat[rte_lcore_id()] += rte_rdtsc() - ts2;
+			app_glue_rx_ready_sockets_last_poll_ts[rte_lcore_id()] = ts;
 		}
 	}
 	else {
-		app_glue_tx_ready_sockets_last_poll_ts = ts;
-		app_glue_rx_ready_sockets_last_poll_ts = ts;
+		app_glue_tx_ready_sockets_last_poll_ts[rte_lcore_id()] = ts;
+		app_glue_rx_ready_sockets_last_poll_ts[rte_lcore_id()] = ts;
 	}
-	total_cycles_stat += rte_rdtsc() - ts;
+	total_cycles_stat[rte_lcore_id()] += rte_rdtsc() - ts;
 }
 /*
  * This function may be called to attach user's data to the socket.
@@ -540,10 +554,10 @@ void *app_glue_get_next_closed()
 {
 	struct socket *sock;
 	void *user_data;
-	if(!TAILQ_EMPTY(&closed_socket_list_head)) {
-		sock = TAILQ_FIRST(&closed_socket_list_head);
+	if(!TAILQ_EMPTY(&closed_socket_list_head[rte_lcore_id()])) {
+		sock = TAILQ_FIRST(&closed_socket_list_head[rte_lcore_id()]);
 		sock->closed_queue_present = 0;
-		TAILQ_REMOVE(&closed_socket_list_head,sock,closed_queue_entry);
+		TAILQ_REMOVE(&closed_socket_list_head[rte_lcore_id()],sock,closed_queue_entry);
 		if(sock->sk)
 			user_data = sock->sk->user_data;
 			//kernel_close(sock);
@@ -561,10 +575,10 @@ void *app_glue_get_next_writer()
 {
 	struct socket *sock;
 
-	if(!TAILQ_EMPTY(&write_ready_socket_list_head)) {
-		sock = TAILQ_FIRST(&write_ready_socket_list_head);
+	if(!TAILQ_EMPTY(&write_ready_socket_list_head[rte_lcore_id()])) {
+		sock = TAILQ_FIRST(&write_ready_socket_list_head[rte_lcore_id()]);
 		sock->write_queue_present = 0;
-		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
+		TAILQ_REMOVE(&write_ready_socket_list_head[rte_lcore_id()],sock,write_queue_entry);
 		if(sock->sk)
 		    return sock->sk->user_data;
   	    printf("PANIC: socket->sk is NULL\n");
@@ -580,10 +594,10 @@ void *app_glue_get_next_writer()
 void *app_glue_get_next_reader()
 {
 	struct socket *sock;
-	if(!TAILQ_EMPTY(&read_ready_socket_list_head)) {
-		sock = TAILQ_FIRST(&read_ready_socket_list_head);
+	if(!TAILQ_EMPTY(&read_ready_socket_list_head[rte_lcore_id()])) {
+		sock = TAILQ_FIRST(&read_ready_socket_list_head[rte_lcore_id()]);
 		sock->read_queue_present = 0;
-		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
+		TAILQ_REMOVE(&read_ready_socket_list_head[rte_lcore_id()],sock,read_queue_entry);
 		if(sock->sk)
 		    return sock->sk->user_data;
 	    printf("PANIC: socket->sk is NULL\n");
@@ -599,11 +613,11 @@ void *app_glue_get_next_reader()
 void *app_glue_get_next_listener()
 {
 	struct socket *sock;
-	if(!TAILQ_EMPTY(&accept_ready_socket_list_head))
+	if(!TAILQ_EMPTY(&accept_ready_socket_list_head[rte_lcore_id()]))
 	{
-		sock = TAILQ_FIRST(&accept_ready_socket_list_head);
+		sock = TAILQ_FIRST(&accept_ready_socket_list_head[rte_lcore_id()]);
 		sock->accept_queue_present = 0;
-		TAILQ_REMOVE(&accept_ready_socket_list_head,sock,accept_queue_entry);
+		TAILQ_REMOVE(&accept_ready_socket_list_head[rte_lcore_id()],sock,accept_queue_entry);
 		if(sock->sk)
 	        return sock->sk->user_data;
 	    printf("PANIC: socket->sk is NULL\n");
@@ -621,19 +635,19 @@ void app_glue_close_socket(void *sk)
 {
 	struct socket *sock = (struct socket *)sk;
 	if(sock->read_queue_present) {
-		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
+		TAILQ_REMOVE(&read_ready_socket_list_head[rte_lcore_id()],sock,read_queue_entry);
 		sock->read_queue_present = 0;
 	}
 	if(sock->write_queue_present) {
-		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
+		TAILQ_REMOVE(&write_ready_socket_list_head[rte_lcore_id()],sock,write_queue_entry);
 		sock->write_queue_present = 0;
 	}
 	if(sock->accept_queue_present) {
-		TAILQ_REMOVE(&accept_ready_socket_list_head,sock,accept_queue_entry);
+		TAILQ_REMOVE(&accept_ready_socket_list_head[rte_lcore_id()],sock,accept_queue_entry);
 		sock->accept_queue_present = 0;
 	}
 	if(sock->closed_queue_present) {
-		TAILQ_REMOVE(&closed_socket_list_head,sock,closed_queue_entry);
+		TAILQ_REMOVE(&closed_socket_list_head[rte_lcore_id()],sock,closed_queue_entry);
 		sock->closed_queue_present = 0;
 	}
 	if(sock->sk)
@@ -683,12 +697,15 @@ struct rte_mbuf *app_glue_get_buffer()
 void app_glue_print_stats()
 {
 	float ratio;
+	int cpu_idx;
 
-	ratio = (float)(total_cycles_stat - total_prev)/(float)(working_cycles_stat - work_prev);
-	total_prev = total_cycles_stat;
-	work_prev = working_cycles_stat;
-	printf("total %"PRIu64" work %"PRIu64" ratio %f\n",total_cycles_stat,working_cycles_stat,ratio);
-	printf("app_glue_periodic_called %"PRIu64"\n",app_glue_periodic_called);
-	printf("app_glue_tx_queues_process %"PRIu64"\n",app_glue_tx_queues_process);
-	printf("app_glue_rx_queues_process %"PRIu64"\n",app_glue_rx_queues_process);
+	for(cpu_idx = 0;cpu_idx < 4;cpu_idx++) {
+		ratio = (float)(total_cycles_stat[cpu_idx] - total_prev[cpu_idx])/(float)(working_cycles_stat[cpu_idx] - work_prev[cpu_idx]);
+		total_prev[cpu_idx] = total_cycles_stat[cpu_idx];
+		work_prev[cpu_idx] = working_cycles_stat[cpu_idx];
+		printf("total %"PRIu64" work %"PRIu64" ratio %f\n",total_cycles_stat[cpu_idx],working_cycles_stat[cpu_idx],ratio);
+		printf("app_glue_periodic_called %"PRIu64"\n",app_glue_periodic_called[cpu_idx]);
+		printf("app_glue_tx_queues_process %"PRIu64"\n",app_glue_tx_queues_process[cpu_idx]);
+		printf("app_glue_rx_queues_process %"PRIu64"\n",app_glue_rx_queues_process[cpu_idx]);
+	}
 }

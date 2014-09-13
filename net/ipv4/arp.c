@@ -156,36 +156,8 @@ static const struct neigh_ops arp_broken_ops = {
 	.output =		neigh_compat_output,
 	.connected_output =	neigh_compat_output,
 };
-
-struct neigh_table arp_tbl = {
-	.family		= AF_INET,
-	.key_len	= 4,
-	.hash		= arp_hash,
-	.constructor	= arp_constructor,
-	.proxy_redo	= parp_redo,
-	.id		= "arp_cache",
-	.parms		= {
-		.tbl			= &arp_tbl,
-		.reachable_time		= 30 * HZ,
-		.data	= {
-			[NEIGH_VAR_MCAST_PROBES] = 3,
-			[NEIGH_VAR_UCAST_PROBES] = 3,
-			[NEIGH_VAR_RETRANS_TIME] = 1 * HZ,
-			[NEIGH_VAR_BASE_REACHABLE_TIME] = 30 * HZ,
-			[NEIGH_VAR_DELAY_PROBE_TIME] = 5 * HZ,
-			[NEIGH_VAR_GC_STALETIME] = 60 * HZ,
-			[NEIGH_VAR_QUEUE_LEN_BYTES] = 64 * 1024,
-			[NEIGH_VAR_PROXY_QLEN] = 64,
-			[NEIGH_VAR_ANYCAST_DELAY] = 1 * HZ,
-			[NEIGH_VAR_PROXY_DELAY]	= (8 * HZ) / 10,
-			[NEIGH_VAR_LOCKTIME] = 1 * HZ,
-		},
-	},
-	.gc_interval	= 30 * HZ,
-	.gc_thresh1	= 128,
-	.gc_thresh2	= 512,
-	.gc_thresh3	= 1024,
-};
+/* Initialization is moved to function */
+struct neigh_table arp_tbl[MAXCPU];
 EXPORT_SYMBOL(arp_tbl);
 
 int arp_mc_map(__be32 addr, u8 *haddr, struct net_device *dev, int dir)
@@ -374,7 +346,7 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 			return;
 		}
 	}
-
+        on_arp_request();
 	arp_send(ARPOP_REQUEST, ETH_P_ARP, target, dev, saddr,
 		 dst_hw, dev->dev_addr, NULL);
 }
@@ -480,7 +452,7 @@ int arp_find(unsigned char *haddr, struct sk_buff *skb)
 			       paddr, dev))
 		return 0;
 
-	n = __neigh_lookup(&arp_tbl, &paddr, dev, 1);
+	n = __neigh_lookup(&arp_tbl[rte_lcore_id()], &paddr, dev, 1);
 
 	if (n) {
 		n->used = jiffies;
@@ -857,7 +829,7 @@ static int arp_process(struct sk_buff *skb)
 			if (!dont_send && IN_DEV_ARPFILTER(in_dev))
 				dont_send = arp_filter(sip, tip, dev);
 			if (!dont_send) {
-				n = neigh_event_ns(&arp_tbl, sha, &sip, dev);
+				n = neigh_event_ns(&arp_tbl[rte_lcore_id()], sha, &sip, dev);
 				if (n) {
 					arp_send(ARPOP_REPLY, ETH_P_ARP, sip,
 						 dev, tip, sha, dev->dev_addr,
@@ -871,8 +843,8 @@ static int arp_process(struct sk_buff *skb)
 			    (arp_fwd_proxy(in_dev, dev, rt) ||
 			     arp_fwd_pvlan(in_dev, dev, rt, sip, tip) ||
 			     (rt->dst.dev != dev &&
-			      pneigh_lookup(&arp_tbl, net, &tip, dev, 0)))) {
-				n = neigh_event_ns(&arp_tbl, sha, &sip, dev);
+			      pneigh_lookup(&arp_tbl[rte_lcore_id()], net, &tip, dev, 0)))) {
+				n = neigh_event_ns(&arp_tbl[rte_lcore_id()], sha, &sip, dev);
 				if (n)
 					neigh_release(n);
 
@@ -883,7 +855,7 @@ static int arp_process(struct sk_buff *skb)
 						 dev, tip, sha, dev->dev_addr,
 						 sha);
 				} else {
-					pneigh_enqueue(&arp_tbl,
+					pneigh_enqueue(&arp_tbl[rte_lcore_id()],
 						       in_dev->arp_parms, skb);
 					return 0;
 				}
@@ -894,7 +866,7 @@ static int arp_process(struct sk_buff *skb)
 
 	/* Update our ARP tables */
 
-	n = __neigh_lookup(&arp_tbl, &sip, dev, 0);
+	n = __neigh_lookup(&arp_tbl[rte_lcore_id()], &sip, dev, 0);
 
 	if (IN_DEV_ARP_ACCEPT(in_dev)) {
 		/* Unsolicited ARP is not accepted by default.
@@ -907,7 +879,7 @@ static int arp_process(struct sk_buff *skb)
 		if (n == NULL &&
 		    ((arp->ar_op == htons(ARPOP_REPLY)  &&
 		      inet_addr_type(net, sip) == RTN_UNICAST) || is_garp))
-			n = __neigh_lookup(&arp_tbl, &sip, dev, 1);
+			n = __neigh_lookup(&arp_tbl[rte_lcore_id()], &sip, dev, 1);
 	}
 
 	if (n) {
@@ -1018,7 +990,7 @@ static int arp_req_set_public(struct net *net, struct arpreq *r,
 			return -ENODEV;
 	}
 	if (mask) {
-		if (pneigh_lookup(&arp_tbl, net, &ip, dev, 1) == NULL)
+		if (pneigh_lookup(&arp_tbl[rte_lcore_id()], net, &ip, dev, 1) == NULL)
 			return -ENOBUFS;
 		return 0;
 	}
@@ -1070,7 +1042,7 @@ static int arp_req_set(struct net *net, struct arpreq *r,
 		break;
 	}
 
-	neigh = __neigh_lookup_errno(&arp_tbl, &ip, dev);
+	neigh = __neigh_lookup_errno(&arp_tbl[rte_lcore_id()], &ip, dev);
 	err = PTR_ERR(neigh);
 	if (!IS_ERR(neigh)) {
 		unsigned int state = NUD_STALE;
@@ -1105,7 +1077,7 @@ static int arp_req_get(struct arpreq *r, struct net_device *dev)
 	struct neighbour *neigh;
 	int err = -ENXIO;
 
-	neigh = neigh_lookup(&arp_tbl, &ip, dev);
+	neigh = neigh_lookup(&arp_tbl[rte_lcore_id()], &ip, dev);
 	if (neigh) {
 		read_lock_bh(&neigh->lock);
 		memcpy(r->arp_ha.sa_data, neigh->ha, dev->addr_len);
@@ -1121,7 +1093,7 @@ static int arp_req_get(struct arpreq *r, struct net_device *dev)
 
 static int arp_invalidate(struct net_device *dev, __be32 ip)
 {
-	struct neighbour *neigh = neigh_lookup(&arp_tbl, &ip, dev);
+	struct neighbour *neigh = neigh_lookup(&arp_tbl[rte_lcore_id()], &ip, dev);
 	int err = -ENXIO;
 
 	if (neigh) {
@@ -1142,7 +1114,7 @@ static int arp_req_delete_public(struct net *net, struct arpreq *r,
 	__be32 mask = ((struct sockaddr_in *)&r->arp_netmask)->sin_addr.s_addr;
 
 	if (mask == htonl(0xFFFFFFFF))
-		return pneigh_delete(&arp_tbl, net, &ip, dev);
+		return pneigh_delete(&arp_tbl[rte_lcore_id()], net, &ip, dev);
 
 	if (mask)
 		return -EINVAL;
@@ -1245,16 +1217,21 @@ static int arp_netdev_event(struct notifier_block *this, unsigned long event,
 {
 	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
 	struct netdev_notifier_change_info *change_info;
+	int cpu_idx;
 
 	switch (event) {
 	case NETDEV_CHANGEADDR:
-		neigh_changeaddr(&arp_tbl, dev);
+		for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		    neigh_changeaddr(&arp_tbl[cpu_idx], dev);
+		}
 		rt_cache_flush(dev_net(dev));
 		break;
 	case NETDEV_CHANGE:
 		change_info = ptr;
 		if (change_info->flags_changed & IFF_NOARP)
-			neigh_changeaddr(&arp_tbl, dev);
+			for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+				neigh_changeaddr(&arp_tbl[cpu_idx], dev);
+			}
 		break;
 	default:
 		break;
@@ -1273,7 +1250,7 @@ static struct notifier_block arp_netdev_notifier = {
  */
 void arp_ifdown(struct net_device *dev)
 {
-	neigh_ifdown(&arp_tbl, dev);
+	neigh_ifdown(&arp_tbl[rte_lcore_id()], dev);
 }
 
 
@@ -1287,15 +1264,43 @@ static struct packet_type arp_packet_type __read_mostly = {
 };
 
 static int arp_proc_init(void);
-
+void neigh_per_core_init();
 void __init arp_init(void)
 {
-	neigh_table_init(&arp_tbl);
+	int cpu_idx;
+    /* The same as original static initializations */
+	neigh_per_core_init();
+	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		arp_tbl[cpu_idx].family		= AF_INET;
+		arp_tbl[cpu_idx].key_len	= 4;
+		arp_tbl[cpu_idx].hash		= arp_hash;
+		arp_tbl[cpu_idx].constructor	= arp_constructor;
+		arp_tbl[cpu_idx].proxy_redo	= parp_redo;
+		arp_tbl[cpu_idx].id		= strdup("arp_cache");
+		arp_tbl[cpu_idx].parms.tbl	= &arp_tbl[cpu_idx];
+		arp_tbl[cpu_idx].parms.reachable_time = /*30 * HZ*/HZ/*since load_balancer is primitive, faster ARP response - VADIM */;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_MCAST_PROBES] = 3;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_UCAST_PROBES] = 3;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_RETRANS_TIME] = 1 * HZ;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_BASE_REACHABLE_TIME] = /*30 * HZ*/HZ/100;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_DELAY_PROBE_TIME] = 5 * HZ;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_GC_STALETIME] = 60 * HZ;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_QUEUE_LEN_BYTES] = 64 * 1024;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_PROXY_QLEN] = 64;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_ANYCAST_DELAY] = 1 * HZ;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_PROXY_DELAY]	= (8 * HZ) / 10;
+		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_LOCKTIME] = 1 * HZ;
+		arp_tbl[cpu_idx].gc_interval	= 30 * HZ;
+		arp_tbl[cpu_idx].gc_thresh1	= 128;
+		arp_tbl[cpu_idx].gc_thresh2	= 512;
+		arp_tbl[cpu_idx].gc_thresh3	= 1024;
+		neigh_table_init(&arp_tbl[cpu_idx],cpu_idx);
+	}
 
 	dev_add_pack(&arp_packet_type);
 	arp_proc_init();
 #ifdef CONFIG_SYSCTL
-	neigh_sysctl_register(NULL, &arp_tbl.parms, NULL);
+//	neigh_sysctl_register(NULL, &arp_tbl.parms, NULL);
 #endif
 	register_netdevice_notifier(&arp_netdev_notifier);
 }

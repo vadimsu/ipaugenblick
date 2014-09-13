@@ -100,7 +100,7 @@ static int tcp_v4_md5_hash_hdr(char *md5_hash, const struct tcp_md5sig_key *key,
 			       __be32 daddr, __be32 saddr, const struct tcphdr *th);
 #endif
 
-struct inet_hashinfo tcp_hashinfo;
+struct inet_hashinfo tcp_hashinfo[MAXCPU];
 EXPORT_SYMBOL(tcp_hashinfo);
 
 static inline __u32 tcp_v4_init_sequence(const struct sk_buff *skb)
@@ -205,7 +205,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 			tp->write_seq	   = 0;
 	}
 
-	if (tcp_death_row.sysctl_tw_recycle &&
+	if (tcp_death_row[rte_lcore_id()].sysctl_tw_recycle &&
 	    !tp->rx_opt.ts_recent_stamp && fl4->daddr == daddr)
 		tcp_fetch_timewait_stamp(sk, &rt->dst);
 
@@ -224,7 +224,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 * complete initialization after this.
 	 */
 	tcp_set_state(sk, TCP_SYN_SENT);
-	err = inet_hash_connect(&tcp_death_row, sk);
+	err = inet_hash_connect(&tcp_death_row[rte_lcore_id()], sk);
 	if (err)
 		goto failure;
 
@@ -351,7 +351,7 @@ void tcp_v4_err(struct sk_buff *icmp_skb, u32 info)
 		return;
 	}
 
-	sk = inet_lookup(net, &tcp_hashinfo, iph->daddr, th->dest,
+	sk = inet_lookup(net, &tcp_hashinfo[rte_lcore_id()], iph->daddr, th->dest,
 			iph->saddr, th->source, inet_iif(icmp_skb));
 	if (!sk) {
 		ICMP_INC_STATS_BH(net, ICMP_MIB_INERRORS);
@@ -645,7 +645,7 @@ static void tcp_v4_send_reset(struct sock *sk, struct sk_buff *skb)
 		 * no RST generated if md5 hash doesn't match.
 		 */
 		sk1 = __inet_lookup_listener(dev_net(skb_dst(skb)->dev),
-					     &tcp_hashinfo, ip_hdr(skb)->saddr,
+					     &tcp_hashinfo[rte_lcore_id()], ip_hdr(skb)->saddr,
 					     th->source, ip_hdr(skb)->daddr,
 					     ntohs(th->source), inet_iif(skb));
 		/* don't send rst if it can't find key */
@@ -1532,7 +1532,7 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 		 * are made in the function processing timewait state.
 		 */
 		if (tmp_opt.saw_tstamp &&
-		    tcp_death_row.sysctl_tw_recycle &&
+		    tcp_death_row[rte_lcore_id()].sysctl_tw_recycle &&
 		    (dst = inet_csk_route_req(sk, &fl4, req)) != NULL &&
 		    fl4.daddr == saddr) {
 			if (!tcp_peer_is_proven(req, dst, true)) {
@@ -1729,7 +1729,7 @@ static struct sock *tcp_v4_hnd_req(struct sock *sk, struct sk_buff *skb)
 	if (req)
 		return tcp_check_req(sk, skb, req, prev, false);
 
-	nsk = inet_lookup_established(sock_net(sk), &tcp_hashinfo, iph->saddr,
+	nsk = inet_lookup_established(sock_net(sk), &tcp_hashinfo[rte_lcore_id()], iph->saddr,
 			th->source, iph->daddr, th->dest, inet_iif(skb));
 
 	if (nsk) {
@@ -1868,7 +1868,7 @@ void tcp_v4_early_demux(struct sk_buff *skb)
 	if (th->doff < sizeof(struct tcphdr) / 4)
 		return;
 
-	sk = __inet_lookup_established(dev_net(skb->dev), &tcp_hashinfo,
+	sk = __inet_lookup_established(dev_net(skb->dev), &tcp_hashinfo[rte_lcore_id()],
 				       iph->saddr, th->source,
 				       iph->daddr, ntohs(th->dest),
 				       skb->skb_iif);
@@ -1979,7 +1979,7 @@ int tcp_v4_rcv(struct sk_buff *skb)
 	TCP_SKB_CB(skb)->ip_dsfield = ipv4_get_dsfield(iph);
 	TCP_SKB_CB(skb)->sacked	 = 0;
 
-	sk = __inet_lookup_skb(&tcp_hashinfo, skb, th->source, th->dest);
+	sk = __inet_lookup_skb(&tcp_hashinfo[rte_lcore_id()], skb, th->source, th->dest);
 	if (!sk)
 		goto no_tcp_socket;
 
@@ -2068,12 +2068,12 @@ do_time_wait:
 	switch (tcp_timewait_state_process(inet_twsk(sk), skb, th)) {
 	case TCP_TW_SYN: {
 		struct sock *sk2 = inet_lookup_listener(dev_net(skb->dev),
-							&tcp_hashinfo,
+							&tcp_hashinfo[rte_lcore_id()],
 							iph->saddr, th->source,
 							iph->daddr, th->dest,
 							inet_iif(skb));
 		if (sk2) {
-			inet_twsk_deschedule(inet_twsk(sk), &tcp_death_row);
+			inet_twsk_deschedule(inet_twsk(sk), &tcp_death_row[rte_lcore_id()]);
 			inet_twsk_put(inet_twsk(sk));
 			sk = sk2;
 			goto process;
@@ -2215,13 +2215,13 @@ static void *listening_get_next(struct seq_file *seq, void *cur)
 	struct net *net = seq_file_net(seq);
 
 	if (!sk) {
-		ilb = &tcp_hashinfo.listening_hash[st->bucket];
+		ilb = &tcp_hashinfo[rte_lcore_id()].listening_hash[st->bucket];
 		spin_lock_bh(&ilb->lock);
 		sk = sk_nulls_head(&ilb->head);
 		st->offset = 0;
 		goto get_sk;
 	}
-	ilb = &tcp_hashinfo.listening_hash[st->bucket];
+	ilb = &tcp_hashinfo[rte_lcore_id()].listening_hash[st->bucket];
 	++st->num;
 	++st->offset;
 
@@ -2277,7 +2277,7 @@ start_req:
 	spin_unlock_bh(&ilb->lock);
 	st->offset = 0;
 	if (++st->bucket < INET_LHTABLE_SIZE) {
-		ilb = &tcp_hashinfo.listening_hash[st->bucket];
+		ilb = &tcp_hashinfo[rte_lcore_id()].listening_hash[st->bucket];
 		spin_lock_bh(&ilb->lock);
 		sk = sk_nulls_head(&ilb->head);
 		goto get_sk;
@@ -2305,7 +2305,7 @@ static void *listening_get_idx(struct seq_file *seq, loff_t *pos)
 
 static inline bool empty_bucket(const struct tcp_iter_state *st)
 {
-	return hlist_nulls_empty(&tcp_hashinfo.ehash[st->bucket].chain);
+	return hlist_nulls_empty(&tcp_hashinfo[rte_lcore_id()].ehash[st->bucket].chain);
 }
 
 /*
@@ -2319,17 +2319,17 @@ static void *established_get_first(struct seq_file *seq)
 	void *rc = NULL;
 
 	st->offset = 0;
-	for (; st->bucket <= tcp_hashinfo.ehash_mask; ++st->bucket) {
+	for (; st->bucket <= tcp_hashinfo[rte_lcore_id()].ehash_mask; ++st->bucket) {
 		struct sock *sk;
 		struct hlist_nulls_node *node;
-		spinlock_t *lock = inet_ehash_lockp(&tcp_hashinfo, st->bucket);
+		spinlock_t *lock = inet_ehash_lockp(&tcp_hashinfo[rte_lcore_id()], st->bucket);
 
 		/* Lockless fast path for the common case of empty buckets */
 		if (empty_bucket(st))
 			continue;
 
 		spin_lock_bh(lock);
-		sk_nulls_for_each(sk, node, &tcp_hashinfo.ehash[st->bucket].chain) {
+		sk_nulls_for_each(sk, node, &tcp_hashinfo[rte_lcore_id()].ehash[st->bucket].chain) {
 			if (sk->sk_family != st->family ||
 			    !net_eq(sock_net(sk), net)) {
 				continue;
@@ -2360,7 +2360,7 @@ static void *established_get_next(struct seq_file *seq, void *cur)
 			return sk;
 	}
 
-	spin_unlock_bh(inet_ehash_lockp(&tcp_hashinfo, st->bucket));
+	spin_unlock_bh(inet_ehash_lockp(&tcp_hashinfo[rte_lcore_id()], st->bucket));
 	++st->bucket;
 	return established_get_first(seq);
 }
@@ -2418,7 +2418,7 @@ static void *tcp_seek_last_pos(struct seq_file *seq)
 		st->state = TCP_SEQ_STATE_ESTABLISHED;
 		/* Fallthrough */
 	case TCP_SEQ_STATE_ESTABLISHED:
-		if (st->bucket > tcp_hashinfo.ehash_mask)
+		if (st->bucket > tcp_hashinfo[rte_lcore_id()].ehash_mask)
 			break;
 		rc = established_get_first(seq);
 		while (offset-- && rc)
@@ -2495,11 +2495,11 @@ static void tcp_seq_stop(struct seq_file *seq, void *v)
 		}
 	case TCP_SEQ_STATE_LISTENING:
 		if (v != SEQ_START_TOKEN)
-			spin_unlock_bh(&tcp_hashinfo.listening_hash[st->bucket].lock);
+			spin_unlock_bh(&tcp_hashinfo[rte_lcore_id()].listening_hash[st->bucket].lock);
 		break;
 	case TCP_SEQ_STATE_ESTABLISHED:
 		if (v)
-			spin_unlock_bh(inet_ehash_lockp(&tcp_hashinfo, st->bucket));
+			spin_unlock_bh(inet_ehash_lockp(&tcp_hashinfo[rte_lcore_id()], st->bucket));
 		break;
 	}
 }
@@ -2760,7 +2760,7 @@ struct proto tcp_prot = {
 //	.slab_flags		= SLAB_DESTROY_BY_RCU,
 	.twsk_prot		= &tcp_timewait_sock_ops,
 	.rsk_prot		= &tcp_request_sock_ops,
-	.h.hashinfo		= &tcp_hashinfo,
+	.h.hashinfo		= tcp_hashinfo,
 	.no_autobind		= true,
 #ifdef CONFIG_COMPAT
 	.compat_setsockopt	= compat_tcp_setsockopt,
@@ -2786,7 +2786,7 @@ static void __net_exit tcp_sk_exit(struct net *net)
 
 static void __net_exit tcp_sk_exit_batch(struct list_head *net_exit_list)
 {
-	inet_twsk_purge(&tcp_hashinfo, &tcp_death_row, AF_INET);
+	inet_twsk_purge(&tcp_hashinfo[rte_lcore_id()], &tcp_death_row[rte_lcore_id()], AF_INET);
 }
 
 static struct pernet_operations __net_initdata tcp_sk_ops = {
@@ -2797,7 +2797,10 @@ static struct pernet_operations __net_initdata tcp_sk_ops = {
 
 void __init tcp_v4_init(void)
 {
-	inet_hashinfo_init(&tcp_hashinfo);
+	int i;
+	for(i = 0;i < MAXCPU;i++) {
+		inet_hashinfo_init(&tcp_hashinfo[i]);
+	}
 	if (register_pernet_subsys(&tcp_sk_ops))
 		panic("Failed to create the TCP control socket.\n");
 }

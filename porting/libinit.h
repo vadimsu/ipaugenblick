@@ -19,14 +19,6 @@ void *get_buffer();
 void *get_data_ptr(void *buf);
 /* this function releases the rte_mbuf */
 void release_buffer(void *buf);
-/*
- * This function must be called prior any other in this package.
- * It initializes all the DPDK libs, reads the configuration, initializes the stack's
- * subsystems, allocates mbuf pools etc.
- * Parameters: refer to DPDK EAL parameters.
- * For example -c <core mask> -n <memory channels> -- -p <port mask>
- */
-int dpdk_linux_tcpip_init(int argc,char **argv);
 /* this function returns an available mbufs count */
 int get_buffer_count();
 /*
