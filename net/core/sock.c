@@ -1277,19 +1277,15 @@ static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
 			else
 				sk_prot_clear_nulls(sk, prot->obj_size);
 		}
-	} else
-		sk = kmalloc(prot->obj_size, priority);
+	}
+	kmemcheck_annotate_bitfield(sk, flags);
 
-	if (sk != NULL) {
-		kmemcheck_annotate_bitfield(sk, flags);
-
-		if (security_sk_alloc(sk, family, priority))
-			goto out_free;
+	if (security_sk_alloc(sk, family, priority))
+		goto out_free;
 
 //		if (!try_module_get(prot->owner))
 //			goto out_free_sec;
-		sk_tx_queue_clear(sk);
-	}
+	sk_tx_queue_clear(sk);
 
 	return sk;
 
