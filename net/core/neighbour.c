@@ -1644,7 +1644,7 @@ static int neigh_delete(struct sk_buff *skb, struct nlmsghdr *nlh)
 	struct net_device *dev = NULL;
 	int err = -EINVAL;
 
-//	ASSERT_RTNL();
+	ASSERT_RTNL();
 	if (nlmsg_len(nlh) < sizeof(*ndm))
 		goto out;
 

@@ -4683,10 +4683,8 @@ static bool tcp_prune_ofo_queue(struct sock *sk)
 static int tcp_prune_queue(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
-#if 0
-	return -1;
-#endif
-//	SOCK_DEBUG(sk, "prune_queue: c=%x\n", tp->copied_seq);
+
+	SOCK_DEBUG(sk, "prune_queue: c=%x\n", tp->copied_seq);
 
 	NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_PRUNECALLED);
 

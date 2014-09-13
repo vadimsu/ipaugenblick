@@ -1462,7 +1462,6 @@ static int call_netdevice_notifier(struct notifier_block *nb, unsigned long val,
 
 	netdev_notifier_info_init(&info, dev);
 	return nb->notifier_call(nb, val, &info);
-    return 0;
 }
 
 static int dev_boot_phase = 1;
@@ -2841,7 +2840,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 	int rc = -ENOMEM;
 
 	skb_reset_mac_header(skb);
-#if 1 /* VADIM */
+
 	/* Disable soft irqs for various locks below. Also
 	 * stops preemption for RCU.
 	 */
@@ -2913,9 +2912,6 @@ recursion_alert:
 out:
 	rcu_read_unlock_bh();
 	return rc;
-#else
-	return 0;
-#endif
 }
 
 int dev_queue_xmit(struct sk_buff *skb)
