@@ -807,11 +807,7 @@ struct sk_buff *sk_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp)
 
 	skb = alloc_skb_fclone(size + sk->sk_prot->max_header, gfp);
 	if (skb) {
-#ifndef OPTIMIZE_SENDPAGES
 		if (sk_wmem_schedule(sk, skb->truesize)) {
-#else
-			if(sk_wmem_schedule(sk, skb->truesize)) {
-#endif
 			skb_reserve(skb, sk->sk_prot->max_header);
 			/*
 			 * Make sure that we have exactly size bytes
