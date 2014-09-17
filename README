@@ -1,125 +1,360 @@
-The top:
-- kmem_cache is ported to rte_mempool
-- kmalloc/kfree are ported to rte_malloc/rte_free
-- timer is ported to rte_timer
-- workqueue & tasklets are ported to direct calls
-- delayed workqueue is ported to rte_timer
-- list_rcu is just list
-- all rcu code is removed
-- user credentials, access check etc is removed
-- struct page wrapps the rte_mbuf
-- mmap functions (protocol specific) are dummy
-- sendmsg functions (protocol specific) are dummy
-- all spinlocks, mutexes are removed, there are also two assumptions about the socket: it is now owned by user (which prevents pre-queueing
-  the packets), on other hand, it assumes the code is executing in the process's context so the received data can be directly queued)
-core/datagram.c
-- receiver_wake_function
-    Not relevant in current porting
-- skb_copy_datagram_iovec
-    1. rte_mbuf data pointer and length are adjusted before placing in the iovec
-    2. app_glue_data_available_cbk is called
-- skb_copy_and_csum_datagram
-    1. csum_and_copy_to_user is replaced with csum_and_to_user since data always remains in the rte_mbufs
-- skb_copy_and_csum_datagram_iovec
-    1. Instead of walking through the iovec, copying each time a portion of skb with prior checksumming, checksum the skb and copy
-       the rte_mbuf pointers into the modifyed iovec
+Intro
 
-core/neighbor.c
-- neigh_invalidate
-   error report is disabled since it attempts to put a part of buffer of failed skb into the icmp message. The porting currently is
-   not designed to send more than max headers in the head fragment
-- __neigh_notify
-  returned immediately since rtnetlink is not supported in current implementation
-core/sock.c
- - skb_page_frag_refill
-   page_frag's page is provided with rte_mbuf
- - __release_sock
-  does nothing (original code manages to process backlog queue)
+At the end of April 2014, I started the poring of Linux TCP/IP into the user space and integrating it with DPDK, after I had done the same with FreeBSD for the company I worked for. Today, almost 5 months (or 20 weekends) later, I decided to publish it. Please feel free to contact me for any question you may have. In case you have questions/difficulties to wirk with the package, you can also ask me to schedule a skype session, if you wish. Contact me to schedule. I'll be glad to help
 
- - sk_wait_data
-   is dummy
- - sock_no_sendpage
-   is dummy
- - sock_def_wakeup
-   calls app_glue_on_accept if state is TCP_ESTABLISHED
- - sk_send_sigurg
-   is dummy 
- - timestamping functions are dummy
-ipv4/ip_fragment.c
- - ip_check_defrag
-   instead of skb_copy_bits, skb_copy_from_linear_data_offset is used to copy the data
-   from received skb since currently no option for non-linear skb on the receive path
-ipv4/ip_output.c
- - ip_fragment
-   skb_copy_bits2 is called instead of skb_copy_bits (see sk_buff changes)
- - __ip_append_data
-   some changes related to page_frag and page (since page is a wrapper for rte_mbuf)
-ipv4/tcp.c
- - tcp_poll is not supported currently
- - tcp_splice_* functions are not supported currently
- - tcp_sendmsg is not supported, tcp_sendpage is used
- - urgent data processing is not supported
- - tcp_read_sock is not supported
-ipv4/tcp_input.c
- - tcp_collapse
-   call to skb_copy_bits changed to match the prototype (see sk_buff changes)
- - tcp_data_snd_check 
-   calls app_glue_on_transmission_opportunity to let user check where can it transmit
- - tcp_copy_to_iovec
-   call to skb_copy_datagram_iovec is changed to match the prototype (see sk_buff changes)
-socket.c
-  is undiffable, it contains wrappers for kernel_send etc functions (calls protocol specific function)
-sk_buff.c + sk_buff.h
-struct sk_buff changes
-  - shinfo is a part of sk_buff structure
-  - new field header_mbuf is a pointer to rte_mbuf
-  - data field is initialized to the same address rte_mbuf.pkt.data points to
-  - __skb_fill_page_desc
-    a fragment's page.p field is initialized to point to page parameter's mbuf field (of type rte_mbuf)
-  - skb_frag_page returns fragment's page.p field (rte_mbuf)
-sk_buff.h:
-  - __skb_frag_ref calls rte_pktmbuf_refcnt_update with a pointer to rte_mbuf and 1 (increment)
-  - __skb_frag_unref calls rte_pktmbuf_free_seg which will decrement the reference and free rte_mbuf if reached 0
-  - skb_frag_address returns page_address plus the offset in the fragment. page_address receives a pointer to
-    rte_mbuf (returned by skb_frag_page)
-  - __skb_frag_set_page assigns fragment's page.p to pointer to rte_mbuf (page), passed as parameter
-  - skb_header_pointer calls skb_copy_bits2 which is original skb_copy_bits. skb_copy_bits is optimized to copy pointers rather than data
-  - skb_copy_from_linear_data, skb_copy_from_linear_data_offset, skb_copy_to_linear_data, skb_copy_to_linear_data_offset
-    call rte_memcpy
-sk_buff.c
-  - skb_copy_bits
-    This function loops on the source skb's frags array and copies the lengths, offsets and pointers to rte_mbufs to destination ones.
-    It also sets the the destination's nr_frags to the source's nr_frags. This function does not copy the headers 
-    (pointed by header_mbuf.pkt.data field)
-  - skb_copy_bits2
-    This is just original skb_copy_bits (this copies the headers as well as the data (memcpy rather than copying the pointers)
-  - __alloc_skb
-    allocates skb (sk_buff, header_mbuf, shinfo) and sets the pointers accordingly
-  - build_skb is modified similarly
-  - skb_add_rx_frag 
-    page argument is struct page * rather than void *
-  - skb_coalesce_rx_frag is not currently used
-  - skb_free_head does nothing (freed in other place)
-  - skb_release_data
-    frees header_mbuf (by calling rte_pktmbuf_free_seg)
-  - kfree_skbmem frees header_mbuf, if has not been freed erarlier
-  - __skb_clone
-    added reference count increment for header_mbuf and frags rte_mbufs
-  - skb_copy_ubufs
-    is dummy
-  - skb_copy
-    copies headers and calls skb_copy_bits (original code calls it as well, but the prototype is changed. skb_copy_bits copies the
-    only pointers to rte_mbufs the framents point to)
-  - pskb_expand_head
-    header_mbuf is reallocated (similar change as in __alloc_skb). Since the data is stored in rte_mbufs which are pointed from
-    the frags, it does not make sense to touch it, this code is dropped
-  - skb_copy_expand
-    calls skb_copy_protocol_headers and the skb_copy_bits rather than original code which calls skb_copy_bits only. This is because
-    the original skb_copy_bits copies all the data and modified skb_copy_bits copies the only pointers to rte_mbufs containing data and
-    does not copy the headers.
-  - skb_put tries to allocate a fragment (rte_mbuf) if no sufficient space
-  - __pskb_pull_tail may be called on the receive path when there is no space in the tail. It is very unlikely to happen and 
-      is currently "to be done", does nothing and returns 0
-  - skb_append_datato_frags is currently dummy
-  - kfree_skb_partial frees header_mbuf, if not freed earlier
-  - skb_try_coalesce returns false (no coalescing)
+Porting detailed info:
+
+    Linux kernel version IPAugenblick is based on: 3.14.2
+    Resolving header files conflicts:
+
+       since DPDK itself uses header files in /usr/include/,
+       all Linux TCP/IP stack headers are placed in special_includes to avoid conflicts. In source files the paths are fixed correspondigly.
+
+    Kernel subsystems porting:
+
+    kmem_cache is ported to rte_mempool
+    kmalloc/kfree (and other heap memory allocation functions) are ported to rte_malloc/rte_free
+    timer is ported to rte_timer
+    workqueue & tasklets are ported to direct calls
+    delayed workqueue is ported to rte_timer
+    list_rcu is just list
+    all rcu code is removed
+    all bindings to file systems is removed
+    user credentials, access check etc is removed
+    jiffies are incremented with DPDK rte_timer
+    struct iovec is ported to hold a list of rte_mbufs
+    struct page wrapps the rte_mbuf
+    mmap functions (protocol specific) are dummy
+    sendmsg functions (protocol specific) are dummy
+    all spinlocks, mutexes are removed (empty macros),
+      there are also two assumptions about the socket: it is now owned by user (which prevents pre-queueingthe packets), on other hand, it assumes the code is executing in the process's context so the received data can be directly queued)
+    inter-core communication where needed, is done using rte_ring
+
+Getting struct skbuff work with rte_mbuf, skbuff.c & skbuff.h changes:
+
+struct skbuff:
+
+instead of porting complex struct skbuff into rte_mbuf, skbuff is made to hold pointers to rte_mbuf.
+
+header_mbuf field is added. This is a pointer to DPDK's rte_mbuf.
+
+The memory the data field points to is not allocated from the heap with kmalloc. It rather points to the same memory header_mbuf->pkt.data points to.
+
+shinfo is allocated at the moment skbuff it self is allocated. This will save few cycles
+
+On the transmit path (when skb comes from either tcp_sendpage, udp_sendmsg or raw_sendmsg), the headers are placed in the memory data/header_mbuf points to while user's data is hold in the fragment's array (struct page wraps the struct rte_mbuf).
+
+On the receive path, currently the data is hold together with headers in header_mbuf.
+
+Across all the stack rte_mbuf->pkt.data, rte_mbuf->pkt.data_len & rte_mbuf->pkt.pkt_len are not modified, stack moves skbuff's data/len with regular skb_put, skb_push etc. There is however a limited nuber of places  the rte_mbuf's fields are adjusted:
+
+- In the functions which copy to/from iovec
+
+- In the driver - before transmitting and upon packet arrival, when skb is initialized.
+
+- skb_copy_bits is modified in such a way it copies the pointers to the rte_mbufs rather than data the point to
+
+- skb_copy_bits2 - is exactly the original skb_copy_bits
+
+    Sending optimizations for TCP
+
+- Controlled by OPTIMIZE_SENDPAGES build switch (main Makefile)
+
+- If defined, tcp_sendpage will:
+
+    ignore the page argument
+    while size (passed as argument) and size_gloal (calculated at the beginning of the function) are greater than zero,  for each calculated mss user_get_buffer function will be called to get filled by user rte_mbuf. This function receives a maximal size of the buffer and updates it.
+    user_get_buffer is called only when mss & size_goal are calculated and skb is alllocated, and all the data written to rte_mbuf (up to the max size passed to user_get_buffer) is placed in socket's write queue. Therefore, no dealing with partial writes
+
+- Otherwise,if not defined, tcp_sendpage will retrieve from struct page (wrapper structure for rte_mbuf) a filled rte_mbuf attach to skb and send, if size_goal and mss allow.
+
+     Receiving optimizations for TCP
+
+- Controlled by OPTIMIZE_TCP_RECEIVE build switch (main Makefile)
+
+Since all the processing is done in one single context, backlog queue becomes unnecessary. This switch helps to ensure the received (if not out of order) data is queued directly into ucopy's iovec (in tcp control block)
+
+    ip_ouput changes
+
+__ip_append_append_data calls does_protocol_use_flat_buf to determine whether the data is in array of frags or in buffer (rte_mbuf), pointed by skb->header_buf. Currently all protocols except ICMP are expected to hold data in frags.
+
+skb_copy_datagram_iovec and similar functions:
+
+These functions are adapted to operate the modified struct iovec
+
+Multicore branch:
+
+All (I hope) stack structures are made per-cpu. That means hash tables as well.
+
+Core equals thread.
+
+Poller: a thread which calls PMD interface (such as rte_eth_tx_burst) for both receive and transmit paths. It communicates other cores using the rte_rings - per core - for the received packets and using on designated rte_ring for the outgoing traffic.
+
+Load balancer - a primitive module which is responsible to route the received packets to cores. It keeps TCP connection sticky to a core by deriving the core number from the source port. All non-TCP traffic except ARP replies is routed to poller's core. The ARP replies must be routed to core which originated ARP request. Temporary solution is to raise per-core flag upon issuing the ARP request and testing the flags upon ARP reply arrival.
+
+Caution: if you open a listening socket, it must be open on all the cores the incomingTCP traffic may be distributed. Caution#2: currently the load balancer must be initialized with power of 2 number of cores to operate. The poller is not counted, it may be among these cores or an additional one. Caution#3: all non-TCP traffic is routed to be processed by poller thread. The exception is ARP replies which must arrive to a core which originated ARP request. Currently I use some dirty trick - raise a flag per core upon sending ARP request and test the per-core flags upon arrival of ARP reply.
+
+Hopefully, one day we'll have RSS working and get rid off this weird module.
+
+Flows:
+
+Initialization flow:
+
+- DPDK subsystems and IP stack are initialized  (dpdk_linux_tcpip_init is called)
+  - dpdk_ip_stack_config.txt must be present in the executable's directory
+  - The file format is:  <port number> <ip address of the port> <subnet mask of the port>
+  - Example: 0 192.168.1.1 255.255.255.0
+- API functions are called to open sockets. Socket's structure corresponding fields
+  sk_data_ready, sk_write_space, sk_state_change are assigned in app_glue functions which open the sockets.
+
+Transmit flow:
+
+- User calls app_glue_periodic function. This calls driver's function which correspondingly calls the PMD driver function.
+- As a result, IP stack may receive a packet and decide the socket became writable.
+- If socket is writable, app_glue_write_space is called by the stack and the socket is placed in
+  writable queue. Then user defined function is called to transmit.
+- User allocates an rte_mbuf and copies there the data to be sent
+- Corresponding APi function is called (kernel_sendmsg/kernel_sendpage) and the pointer  to rte_mbuf is passed.
+- The rte_mbuf is placed in fragments array, the headers are setup in another mbuf, pointed by skbuff's header_mbuf.
+- Finally, driver's xmit is called. This is the point where the fields in rte_mbuf structure are adjusted, mbufs are chained, detached
+  from the skbuff and passed to PMD
+Receive flow:
+- User calls app_glue_periodic function. This calls driver's function which correspondingly calls the PMD driver function.
+- If there are mbufs received, an skbuff is allocated and setup, the header_mbuf is set to point the received mbuf (currently no
+scattered receive) and netif_receive_skb is called.
+- Inside of the stack, when it is determined the data is ready, app_glue_data_ready is called.
+- These functions place socket to corresponding list which is later called (when app_glue_periodic is called).
+- In case of received data, no copying is performed, the user receives pointers to rte_mbufs (which are adjusted accordingly no strip headers)
+Accept flow:
+- User calls app_glue_periodic function.
+- This calls driver's function which correspondingly calls the PMD driver function.
+- As a result, IP stack may receive a packet resulting in establishing a new connection.
+- app_glue_wakeup if a new connection is accepted is called. This places socket to corresponding list which is later called (when app_glue_periodic is called).
+
+Performance
+
+Since I've developed it at home, I didn't have proper lab environment.
+
+Most of the way, I worked on the setup QuadCore - 1G NIC - 4G RAM <--> 100M NIC - Quad Core - 4G RAM directly connected PCs,
+
+at the later stages I got two 10G NICs and worked with QuadCore - 10G - 4G RAM <--> DualCore - 10G NIC - 2G RAM directly connected PCs.
+
+On the first one I exhausted 100M connection(bottleneck) with 22000 connections and it was stable for days (didn't try weeks) while on the second one I reached 2GBit/s and it was stable hours (didn't try to run 24H yet),
+
+in both the cases the bottleneck was at the IPAugenblick's peer which reached almost 0% idle (almost 100% of CPU power was spread between kernel's system/soft interrupt/hard interrupt contexted). Also I observed 5 times shorted latency at the DPDK side no matter what was the load.
+
+In next days I'll try to swap the PCs and prove that x2 stronger PC (4G vs 2G RAM, 4 core vs 2 cores) will not be a bottleneck while running agains IPAugenblick
+
+Supported functionality
+
+    TCP
+
+socket open, bind, connect, listen, accept, ioctls,close
+
+tcp_sendpage
+
+(through kernel_sendpage)
+
+tcp_recvmsg
+
+(through kernel_recvmsg)
+
+most of TCP options
+
+    UDP
+
+socket open, bind, ioctls, close
+
+udp_sendmsg
+
+(through kernel_sendmsg)
+
+udp_recvmsg
+
+(through kernel_recvmsg)
+
+    RAW
+
+socket open, bind, ioctls,close
+
+raw_sendmsg
+
+(through kernel_sendmsg)
+
+raw_recvmsg
+
+(through kernel_recvmsg)
+
+Multiple NICs:
+
+I have not tried yet to work simultaneously with more than one NIC, although the code is written to support that.
+
+Multiple cores:
+
+There is a branch for multicore (master is for single-core). Please consult Kernel subsystems porting details
+
+Not supported yet:
+
+tcp_sendmsg
+
+tcp_read_sock
+
+tcp_splice*
+
+tcp_poll (no poll at all)
+
+corking
+
+skb_cow_data
+
+skb_to_sgvec
+
+skb_seq_read, sequential operations
+
+Offloading features (see roadmap)
+
+IP fragmentation/defragmentation (not tested)
+
+Multicast is not tested
+
+Known issues:
+
+- TCP sockets remain sometimes open after corresponding connection is dead
+
+- Total memory to be used by protocol is set empirically. Refer to nr_free_buffer_pages under porting/mm_porting.c Must be fixed in future versions.
+
+- MIB stats does not work in muticore (disabled currently)
+
+Please do not hesitate to report any bug you may find.
+
+To get IP Augenblick source code:
+
+git clone https://github.com/vadimsu/ipaugenblick.git
+
+there are two branches: master (single core) and multicore
+
+Build:
+
+I've built the project under Ubuntu 12.04 and Fedora 20
+
+To build, run ./buildall.sh
+
+The output (relatively to project's root):
+
+    build/libnetinet.a - Linux TCP/IP ported to user land
+    dpdk_libs/libdpdk.a - all DPDK libs packed into one library
+    Executalbles (benchmark_app*/bm*)
+
+Test programs and scripts:
+
+git clone https://github.com/vadimsu/tests
+
+To build test programs, invoke corresponding build_* script in under tests
+
+Running examples:
+
+Please don't forget to setup the huge pages (I use about 1600-1700 2M pages, as many as was possible to allocate, I used tools/setup.py script, you can do it with grub)
+
+Before the first run, do:
+
+sudo ifconfig <interface name> down
+
+load uio & igb_uio (run load_modules.sh from the project's root directory) - this  mustbe done before the step below
+
+Then invoke tools/setup script under DPDK root directory and bind the port(s) to IGB_UIO
+
+The following examples are provided:
+
+benchmark_app - opens TCP listening socket (on 192.168.1.1:7777, hardcoded in bm_app.c), accept connections, then sends and receives the data. On peer machine, run one of bm1* scripts.
+benchmark_app2 - opens TCP connecting socket (to 192.168.1.2:7777, hardcoded in bm_app2.c), when connected sends and receives the data. On peer machine, run bm2_test.sh script
+benchmark_app3 - opens UDP socket (on 192.168.1.1:7777), sends (to 192.168.1.2:7777, hardcoded in bm_app.c) and receives the data. On peer machine, run bm3_test.sh script
+benchmark_app4 - opens RAW socket (on 192.168.1.1, steals protocol number from OSPF - 89), sends and receives the data. On peer machine, run bm4_test.sh script
+To run, go to benchmark_app*, invoke sudo ./run.sh
+The applications are tested: single core - with core mask 0x3 (2 cores, 1 for data path, one for printing statistics), multicore - with core mask 0xF (4 cores, 1 - for printing statistics, 3 for data path from which 2 - for TCP connections handling and one for interaction with PMD and processing non-TCP. ARP is distributed between all the cores)
+
+If you need to customize memory allocations, PMD setting - look at build your app
+
+IPAugenblick interfaces IP addresses and masks are configured in dpdk_ip_stack.txt (in the same directory as the executable)
+
+Pre-build customization:
+
+- Customize pool sizes in pool.h
+
+- Customize burst size in Makefile
+
+- Customize PMD driver settings in libinit.c
+
+Initialization:
+
+- call  dpdk_linux_tcpip_init (prototype changed in multicore branch)
+This function must be called prior any other in this package.
+It initializes all the DPDK libs, reads the configuration, initializes the stack's subsystems, allocates mbuf pools, creates netdev and attaches it to the stack.
+
+Configuration:
+
+PMD is currently configured in libinit.c, I've just copied the configuration from DPDK provided examples. IP address configuration comes from dpdk_ip_stack_config.txt. I've not tried to work with more than 1 NIC at time, probably there are places in app_glue.c where the port number is hardcoded to 0. Benchmark apps's IP addresses and ports to connect/bind are hardcoded in bm_app*.c
+Opening sockets:
+
+- call create_raw_socket/create_udp_socket/create_client_socket/create_server_socket
+
+Initialize polling:
+- call app_glue_init_poll_intervals
+
+Run time:
+- call app_glue_periodic periodically
+
+This is the heart of the system, it performs all the driver/IP stack work and timers
+You can tell it whether to call user callbacks on socket events automatically or not (in that case you have to call app_glue_get_next_* functions)
+
+You can attach your applicative data to socket:
+
+- call app_glue_set_user_data to set
+
+- call app_glue_get_user_data to get
+
+The following set of functions are provided in case you want to process socket events outside periodic function
+
+- app_glue_get_next_closed
+
+- app_glue_get_next_writer
+
+- app_glue_get_next_reader
+
+- app_glue_get_next_listener
+
+- app_glue_close_socket
+
+This functions helps to estimate how much data could be sent on socket (however, since the stack performs one more test for overall protocol's memory allocation, attempt to send may fail even if a greater than 0 is returned)
+
+- app_glue_calc_size_of_data_to_send(void *sock);
+
+This function allocates an rte_mbuf from pool, allocated at the time of initialization in dpdk_linux_tcpip_init
+
+- app_glue_get_buffer
+
+
+Roadmap:
+
+     Stabilizing the code
+    Getting RSS working, getting rid off primitive load_balancer
+     Implement offloading features
+    Ensure conntrack, netfilter, tproxy etc features work
+    Creation of eco-system (adapt various widely used utilities such as ip configuration, ip tables, tcpdump etc)
+    Get more protocols work with IPAugenblick
+
+Contribute
+
+I'm looking for motivated developers to work together on this project. Any suggestion/bug report/bug fix is welcome. Please feel free to contact me for any question you may have
+
+My name is Vadim Suraev, I am a software engineer with over 16 years of experience in networking, embedded and Linux kernel areas:
+
+    TCP/IP
+    Routing: OSPF, BGP. ISIS
+    MPLS,RSVP-TE,LDP
+    HTTP
+    Developed a proprietary wireless stack with MAC, transport and routing capabilities for security forces of one of Asian countries
+    Contributed to open source projects:  Quagga (former Zebra) OSPF, DPDK
+    Device drivers
+    Openstack
+contact e-mail: vadim.suraev@gmail.com
+
