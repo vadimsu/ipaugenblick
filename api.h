@@ -62,10 +62,12 @@ extern void app_glue_init_poll_intervals(int drv_poll_interval,
  * are processed and user's functions are called.
  * Alternatively, call_flush_queues can be 0 and the application may call
  * app_glue_get_next* functions to get readable, acceptable, closable and writable sockets
+ * ports_to_poll - an array of port numbers to poll
+ * ports_to_poll_count - asize of array of ports to poll
  * Returns: None
  *
  */
-extern void app_glue_periodic(int call_flush_queues);
+extern void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to_poll_count);
 /*
  * This function may be called to attach user's data to the socket.
  * Paramters: a pointer  to socket (returned, for example, by create_*_socket)

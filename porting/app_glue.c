@@ -455,14 +455,17 @@ uint64_t app_glue_rx_queues_process = 0;
  * Returns: None
  *
  */
-void app_glue_periodic(int call_flush_queues)
+void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to_poll_count)
 {
 	uint64_t ts,ts2,ts3,ts4;
+    uint8_t port_idx;
+
 	app_glue_periodic_called++;
 	ts = rte_rdtsc();
 	if((ts - app_glue_drv_last_poll_ts) >= app_glue_drv_poll_interval) {
 		ts4 = rte_rdtsc();
-		app_glue_poll(0);
+		for(port_idx = 0;port_idx < ports_to_poll_count;port_idx++)
+		    app_glue_poll(ports_to_poll[port_idx]);
 		app_glue_drv_last_poll_ts = ts;
 		working_cycles_stat += rte_rdtsc() - ts4;
 	}

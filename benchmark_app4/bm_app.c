@@ -192,6 +192,7 @@ int user_on_accept(struct socket *sock)
 extern struct socket *raw_socket;
 void app_main_loop()
 {
+    uint8_t ports_to_poll[1] = { 0 };
 	int skip = 0;
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
 
@@ -199,7 +200,7 @@ void app_main_loop()
 				1000 /*timer_poll_interval*/,
 				drv_poll_interval/10,drv_poll_interval/10);
 	while(1) {
-		app_glue_periodic(0);
+		app_glue_periodic(0,ports_to_poll,1);
 		skip++;
 		skip++;
 		if(skip == 100) {
