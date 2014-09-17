@@ -198,13 +198,14 @@ static void app_init(char *my_ip_addr,unsigned short my_port,char *peer_ip_addr,
 }
 int app_main_loop(void *dummy)
 {
+        uint8_t ports_to_poll[1] = { 0 };
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
 	app_glue_init_poll_intervals(drv_poll_interval/2,
 			1000 /*timer_poll_interval*/,
 			drv_poll_interval/10,drv_poll_interval/10);
 	app_init(MY_IP_ADDR,0,PEER_IP_ADDR,7777);
 	while(1) {
-		app_glue_periodic(1);
+		app_glue_periodic(1,ports_to_poll,1);
 	}
         return 0;
 }

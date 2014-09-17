@@ -330,9 +330,11 @@ void *create_netdev(int port_num)
 	struct net_device *netdev;
 	dpdk_dev_priv_t *priv;
 	char ring_name[1024];
+        char dev_name[20];
 	int cpu_idx;
 
-	netdev = alloc_netdev_mqs(sizeof(dpdk_dev_priv_t),"dpdk_if",ether_setup,1,1);
+        sprintf(dev_name,"dpdk_if%d",port_num);
+	netdev = alloc_netdev_mqs(sizeof(dpdk_dev_priv_t),dev_name,ether_setup,1,1);
 	if(netdev == NULL) {
 		printf("cannot allocate netdevice %s %d\n",__FILE__,__LINE__);
 		return NULL;

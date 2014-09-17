@@ -200,6 +200,7 @@ static void app_init(char *my_ip_addr,unsigned short port)
 }
 int app_main_loop(void *dummy)
 {
+        uint8_t ports_to_poll[1] = { 0 };
 	int skip = 0;
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
 
@@ -208,7 +209,7 @@ int app_main_loop(void *dummy)
 				drv_poll_interval/10,drv_poll_interval/10);
 	app_init(MY_IP_ADDR,89/*ospf*/);
 	while(1) {
-		app_glue_periodic(0);
+		app_glue_periodic(0,ports_to_poll,1);
 		skip++;
 		skip++;
 		if(skip == 100) {
