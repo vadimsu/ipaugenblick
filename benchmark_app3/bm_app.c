@@ -192,10 +192,10 @@ int user_on_accept(struct socket *sock)
 		//user_accept_pending_cbk(newsock);
 	}
 }
-struct socket *udp_socket = NULL;
+struct socket *udp_socket[MAXCPU];
 void app_init(char *my_ip_addr,unsigned short port)
 {
-	udp_socket = create_udp_socket(my_ip_addr,port);
+	udp_socket[rte_lcore_id()] = create_udp_socket(my_ip_addr,port);
 }
 int app_main_loop(void *dummy)
 {
@@ -211,8 +211,8 @@ int app_main_loop(void *dummy)
 		app_glue_periodic(0,ports_to_poll,1);
 		skip++;
 		if(skip == 100) {
-			user_on_transmission_opportunity(udp_socket);
-			user_data_available_cbk(udp_socket);
+			user_on_transmission_opportunity(udp_socket[rte_lcore_id()]);
+			user_data_available_cbk(udp_socket[rte_lcore_id()]);
 			skip = 0;
 		}
 	}

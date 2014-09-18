@@ -489,7 +489,7 @@ void __ip_select_ident(struct iphdr *iph, struct dst_entry *dst, int more)
 	struct net *net = dev_net(dst->dev);
 	struct inet_peer *peer;
 
-	peer = inet_getpeer_v4(net->ipv4.peers, iph->daddr, 1);
+	peer = inet_getpeer_v4(net->ipv4.peers[rte_lcore_id()], iph->daddr, 1);
 	if (peer) {
 		iph->id = htons(inet_getid(peer, more));
 		inet_putpeer(peer);
@@ -850,7 +850,7 @@ void ip_rt_send_redirect(struct sk_buff *skb)
 	rcu_read_unlock();
 
 	net = dev_net(rt->dst.dev);
-	peer = inet_getpeer_v4(net->ipv4.peers, ip_hdr(skb)->saddr, 1);
+	peer = inet_getpeer_v4(net->ipv4.peers[rte_lcore_id()], ip_hdr(skb)->saddr, 1);
 	if (!peer) {
 		icmp_send(skb, ICMP_REDIRECT, ICMP_REDIR_HOST,
 			  rt_nexthop(rt, ip_hdr(skb)->daddr));
@@ -935,7 +935,7 @@ static int ip_error(struct sk_buff *skb)
 		break;
 	}
 
-	peer = inet_getpeer_v4(net->ipv4.peers, ip_hdr(skb)->saddr, 1);
+	peer = inet_getpeer_v4(net->ipv4.peers[rte_lcore_id()], ip_hdr(skb)->saddr, 1);
 
 	send = true;
 	if (peer) {
@@ -2688,22 +2688,30 @@ static __net_initdata struct pernet_operations rt_genid_ops = {
 
 static int __net_init ipv4_inetpeer_init(struct net *net)
 {
-	struct inet_peer_base *bp = kmalloc(sizeof(*bp), GFP_KERNEL);
+        int cpu_idx;
+	struct inet_peer_base *bp;
 
-	if (!bp)
+        for(cpu_idx = 0;cpu_idx < rte_lcore_count();cpu_idx++) {
+            bp = kmalloc(sizeof(*bp), GFP_KERNEL);
+	    if (!bp)
 		return -ENOMEM;
-	inet_peer_base_init(bp);
-	net->ipv4.peers = bp;
+	    inet_peer_base_init(bp);
+	    net->ipv4.peers[cpu_idx] = bp;
+        }
 	return 0;
 }
 
 static void __net_exit ipv4_inetpeer_exit(struct net *net)
 {
-	struct inet_peer_base *bp = net->ipv4.peers;
+        int cpu_idx;
+  
+        for(cpu_idx = 0;cpu_idx < rte_lcore_count();cpu_idx++) {
+  	    struct inet_peer_base *bp = net->ipv4.peers[cpu_idx];
 
-	net->ipv4.peers = NULL;
-	inetpeer_invalidate_tree(bp);
-	kfree(bp);
+	    net->ipv4.peers[cpu_idx] = NULL;
+	    inetpeer_invalidate_tree(bp);
+	    kfree(bp);
+        }
 }
 
 static __net_initdata struct pernet_operations ipv4_inetpeer_ops = {

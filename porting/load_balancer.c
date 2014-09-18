@@ -48,6 +48,7 @@ static uint8_t load_balancer_poller_core_id = 0;
 static uint8_t  idx_to_core_ids[MAXCPU];
 static uint64_t load_balancer_stats[MAXCPU];
 static uint8_t load_balancer_percpu_arp[MAXCPU];
+static uint8_t load_balancer_next_core_for_udp = 0;
 
 /* This is a dirty trick for one-to-one setup, must be rewritten */
 void on_arp_request()
@@ -91,10 +92,18 @@ int load_balancer_get_core_to_process_packet(struct sk_buff *skb)
 		return load_balancer_poller_core_id;
 	} else if (len < (iph->ihl*4))
 		return load_balancer_poller_core_id;
-	if(iph->protocol != IPPROTO_TCP) {
+	if((iph->protocol != IPPROTO_TCP)&&(iph->protocol != IPPROTO_UDP)) {
 		return load_balancer_poller_core_id;/* not yet load balancing except TCP */
 	}
-	th = (struct tcphdr *)(skb->data + iph->ihl*4);
+        if(iph->protocol == IPPROTO_UDP) {
+            if(load_balancer_total_cpus == load_balancer_next_core_for_udp) {
+                load_balancer_next_core_for_udp = 0;
+                return load_balancer_poller_core_id;
+            }
+            rc = idx_to_core_ids[load_balancer_next_core_for_udp++];
+	    return rc;
+        }
+        th = (struct tcphdr *)(skb->data + iph->ihl*4);
 	load_balancer_stats[load_balancer_cpu_mask & th->source]++;
 	return idx_to_core_ids[load_balancer_cpu_mask & th->source];
 }
