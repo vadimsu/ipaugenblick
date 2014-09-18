@@ -192,10 +192,10 @@ int user_on_accept(struct socket *sock)
 		//user_accept_pending_cbk(newsock);
 	}
 }
-struct socket *raw_socket = NULL;
+struct socket *raw_socket[MAXCPU];
 static void app_init(char *my_ip_addr,unsigned short port)
 {
-	raw_socket = create_raw_socket(my_ip_addr,port);
+	raw_socket[rte_lcore_id()] = create_raw_socket(my_ip_addr,port);
 	app_main_loop();
 }
 int app_main_loop(void *dummy)
@@ -211,10 +211,9 @@ int app_main_loop(void *dummy)
 	while(1) {
 		app_glue_periodic(0,ports_to_poll,1);
 		skip++;
-		skip++;
 		if(skip == 100) {
-			user_on_transmission_opportunity(raw_socket);
-			user_data_available_cbk(raw_socket);
+			user_on_transmission_opportunity(raw_socket[rte_lcore_id()]);
+			user_data_available_cbk(raw_socket[rte_lcore_id()]);
 			skip = 0;
 		}
 	}
