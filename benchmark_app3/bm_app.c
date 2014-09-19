@@ -118,7 +118,7 @@ int user_on_transmission_opportunity(struct socket *sock,int idx)
 	if(likely(to_send_this_time > 0))
 	{
 		mbuf = app_glue_get_buffer();
-	    if (unlikely(mbuf == NULL)) {
+	        if (unlikely(mbuf == NULL)) {
 			user_on_tx_opportunity_cannot_get_buff++;
 			return 0;
 		}
@@ -136,11 +136,12 @@ int user_on_transmission_opportunity(struct socket *sock,int idx)
 		msghdr.msg_flags = 0;
 		sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
 		i = kernel_sendmsg(sock, &msghdr, 1448);
-		if(i <= 0)
+		if(i <= 0) {
+                        rte_pktmbuf_free(mbuf);
 			user_on_tx_opportunity_api_failed++;
+                }
 	}
-	else
-	{
+	else {
 		user_on_tx_opportunity_api_not_called++;
 	}
 	user_on_tx_opportunity_cycles += rte_rdtsc() - ts;
@@ -156,8 +157,7 @@ void user_data_available_cbk(struct socket *sock)
 	int i,dummy = 1;
 	user_on_rx_opportunity_called++;
 	memset(&vec,0,sizeof(vec));
-	if(unlikely(sock == NULL))
-	{
+	if(unlikely(sock == NULL)) {
 		return;
 	}
 	msg.msg_namelen = sizeof(sockaddrin);
@@ -165,8 +165,7 @@ void user_data_available_cbk(struct socket *sock)
 	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0))
 	{
 		dummy = 0;
-		while(unlikely(mbuf = msg.msg_iov->head))
-		{
+		while(unlikely(mbuf = msg.msg_iov->head)) {
 			msg.msg_iov->head = msg.msg_iov->head->pkt.next;
 			//printf("received %d\n",i);
 			rte_pktmbuf_free_seg(mbuf);

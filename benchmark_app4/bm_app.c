@@ -136,8 +136,10 @@ int user_on_transmission_opportunity(struct socket *sock)
 		msghdr.msg_flags = 0;
 		sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
 		i = kernel_sendmsg(sock, &msghdr, 1448/*40*/);
-		if(i <= 0)
+		if(i <= 0) {
+                        rte_pktmbuf_free(mbuf);
 			user_on_tx_opportunity_api_failed++;
+                }
 	}
 	else
 	{
@@ -156,17 +158,14 @@ void user_data_available_cbk(struct socket *sock)
 	int i,dummy = 1;
 	user_on_rx_opportunity_called++;
 	memset(&vec,0,sizeof(vec));
-	if(unlikely(sock == NULL))
-	{
+	if(unlikely(sock == NULL)) {
 		return;
 	}
 	msg.msg_namelen = sizeof(sockaddrin);
 	msg.msg_name = &sockaddrin;
-	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0))
-	{
+	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0)) {
 		dummy = 0;
-		while(unlikely(mbuf = msg.msg_iov->head))
-		{
+		while(unlikely(mbuf = msg.msg_iov->head)) {
 			msg.msg_iov->head = msg.msg_iov->head->pkt.next;
 			//printf("received %d\n",i);
 			rte_pktmbuf_free_seg(mbuf);
