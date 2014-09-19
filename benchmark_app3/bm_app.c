@@ -102,7 +102,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 	}
 	return mbuf;
 }
-int user_on_transmission_opportunity(struct socket *sock)
+int user_on_transmission_opportunity(struct socket *sock,int idx)
 {
 	struct rte_mbuf *mbuf;
 	struct msghdr msghdr;
@@ -125,7 +125,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 		mbuf->pkt.data_len = 1448;
 		sockaddrin.sin_family = AF_INET;
 		sockaddrin.sin_addr.s_addr = inet_addr("192.168.1.2");
-		sockaddrin.sin_port = 7777;
+		sockaddrin.sin_port = htons(7777 + idx);
 		msghdr.msg_namelen = sizeof(sockaddrin);
 		msghdr.msg_name = &sockaddrin;
 		msghdr.msg_iov = &iov;
@@ -192,15 +192,16 @@ int user_on_accept(struct socket *sock)
 		//user_accept_pending_cbk(newsock);
 	}
 }
-struct socket *udp_socket[MAXCPU];
+struct socket *udp_socket[MAXCPU][2];
 void app_init(char *my_ip_addr,unsigned short port)
 {
-	udp_socket[rte_lcore_id()] = create_udp_socket(my_ip_addr,port);
+	udp_socket[rte_lcore_id()][0] = create_udp_socket(my_ip_addr,port);
+        udp_socket[rte_lcore_id()][1] = create_udp_socket(my_ip_addr,port+1);
 }
 int app_main_loop(void *dummy)
 {
         uint8_t ports_to_poll[1] = { 0 };
-	int skip = 0;
+	int skip = 0,sock_idx = 0;
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
 
 	app_glue_init_poll_intervals(drv_poll_interval/2,
@@ -210,9 +211,12 @@ int app_main_loop(void *dummy)
 	while(1) {
 		app_glue_periodic(0,ports_to_poll,1);
 		skip++;
-		if(skip == 100) {
-			user_on_transmission_opportunity(udp_socket[rte_lcore_id()]);
-			user_data_available_cbk(udp_socket[rte_lcore_id()]);
+		if(skip == 50) {
+			user_on_transmission_opportunity(udp_socket[rte_lcore_id()][sock_idx],sock_idx);
+			user_data_available_cbk(udp_socket[rte_lcore_id()][sock_idx]);
+                        sock_idx++;
+                        if(sock_idx == 2)
+                            sock_idx = 0;
 			skip = 0;
 		}
 	}
