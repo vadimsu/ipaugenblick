@@ -133,8 +133,10 @@ int user_on_transmission_opportunity(struct socket *sock)
 		msghdr.msg_flags = 0;
 		sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
 		i = kernel_sendmsg(sock, &msghdr, 1448/*40*/);
-		if(i <= 0)
+		if(i <= 0) {
+                        rte_pktmbuf_free(mbuf);
 			user_on_tx_opportunity_api_failed++;
+                }
 	}
 	else
 	{
