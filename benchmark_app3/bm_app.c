@@ -122,7 +122,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 		mbuf->pkt.data_len = 1448;
 		sockaddrin.sin_family = AF_INET;
 		sockaddrin.sin_addr.s_addr = inet_addr("192.168.1.2");
-		sockaddrin.sin_port = 7777;
+		sockaddrin.sin_port = htons(7777);
 		msghdr.msg_namelen = sizeof(sockaddrin);
 		msghdr.msg_name = &sockaddrin;
 		msghdr.msg_iov = &iov;
