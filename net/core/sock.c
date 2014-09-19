@@ -1760,7 +1760,8 @@ struct sk_buff *sock_alloc_send_pskb(struct sock *sk, unsigned long header_len,
 			if (signal_pending(current))
 				goto interrupted;
 			timeo = sock_wait_for_wmem(sk, timeo);
-			continue;
+//			continue;
+                        goto failure;
 		}
 
 		err = -ENOBUFS;
