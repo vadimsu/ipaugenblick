@@ -115,7 +115,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 	if(likely(to_send_this_time > 0))
 	{
 		mbuf = app_glue_get_buffer();
-	    if (unlikely(mbuf == NULL)) {
+	        if (unlikely(mbuf == NULL)) {
 			user_on_tx_opportunity_cannot_get_buff++;
 			return 0;
 		}
@@ -133,8 +133,10 @@ int user_on_transmission_opportunity(struct socket *sock)
 		msghdr.msg_flags = 0;
 		sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
 		i = kernel_sendmsg(sock, &msghdr, 1448);
-		if(i <= 0)
+		if(i <= 0) {
+                        rte_pktmbuf_free(mbuf);
 			user_on_tx_opportunity_api_failed++;
+                }
 	}
 	else
 	{
