@@ -518,7 +518,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 
 		printf("done: \n");
 
-		rte_eth_promiscuous_enable(portid);
+//		rte_eth_promiscuous_enable(portid);
 	}
 	rte_set_log_type(RTE_LOGTYPE_PMD,1);
 	rte_set_log_level(RTE_LOG_DEBUG);	

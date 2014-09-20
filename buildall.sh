@@ -29,6 +29,14 @@ cd ../benchmark_app3
 rm -rf build
 make CURRENT_DIR=$(pwd)/ clean
 make CURRENT_DIR=$(pwd)/
+cd ../benchmark_app_udp_1
+rm -rf build
+make CURRENT_DIR=$(pwd)/ clean
+make CURRENT_DIR=$(pwd)/
+cd ../benchmark_app_udp_2
+rm -rf build
+make CURRENT_DIR=$(pwd)/ clean
+make CURRENT_DIR=$(pwd)/
 ./build_test.sh
 cd ../benchmark_app4
 rm -rf build
