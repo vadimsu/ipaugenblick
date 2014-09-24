@@ -61,6 +61,7 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
 	int size = MAX_PKT_BURST,ret,i,frag_idx,assigned_core_id;
 	struct rte_mbuf *mbufs[MAX_PKT_BURST],*m;
 	struct sk_buff *skb,*skbs[MAX_PKT_BURST];
+        struct ethhdr *eth;
 	dpdk_dev_priv_t *priv = netdev_priv(netdev);
 
 	if(load_balancer_get_poller_core_id() == rte_lcore_id()) {
@@ -92,6 +93,16 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
 				abort();
 			}
 #endif
+                        /* removing vlan tagg */
+                        eth = (struct ethhdr *)skb->data;
+                        if(eth->h_proto == htons(ETH_P_8021Q)) {
+                            unsigned i = 0;
+                            uint8_t *hdr_str = (uint8_t *) skb->data;
+                            for(i = 0; i < 12 ; i++)
+                                hdr_str[(11 - i) + 4] = hdr_str[(11-i)];
+                            skb->data = &hdr_str[4];
+                            skb->len = skb->len - 4;
+                        }	
 			skb->protocol = eth_type_trans(skb, netdev);
 			skb->ip_summed = CHECKSUM_UNNECESSARY;
 			skb->dev = netdev;
