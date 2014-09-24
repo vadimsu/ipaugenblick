@@ -959,7 +959,7 @@ new_segment:
 		skb = sk_stream_alloc_skb(sk, 0, sk->sk_allocation);
 		if (!skb)
 			goto out;
-
+                i = 0;
 		copy = min_t(int, size_goal,size);
 		copy = min_t(int, copy, mss_now);
 		if(likely(((mbuf = user_get_buffer(sk,&copy)) != NULL)))
