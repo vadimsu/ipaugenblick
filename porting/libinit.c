@@ -156,9 +156,10 @@ static const struct rte_eth_conf port_conf = {
 	.rxmode = {
 		.split_hdr_size = 0,
 		.header_split   = 0, /**< Header Split disabled */
-		.hw_ip_checksum = 0, /**< IP checksum offload disabled */
+		.hw_ip_checksum = 1, /**< IP checksum offload disabled */
 		.hw_vlan_filter = 0, /**< VLAN filtering disabled */
-		.jumbo_frame    = 0, /**< Jumbo Frame Support disabled */
+		.jumbo_frame    = 1, /**< Jumbo Frame Support disabled */
+                .max_rx_pkt_len = 0x2000,
 		.hw_strip_crc   = 0, /**< CRC stripped by hardware */
 		.mq_mode = ETH_MQ_RX_NONE/*ETH_MQ_RX_RSS*/,
 	},
@@ -186,7 +187,7 @@ static const struct rte_eth_txconf tx_conf = {
 	.tx_free_thresh = /*0*/MAX_PKT_BURST, /* Use PMD default values */
 	.tx_rs_thresh = /*0*/MAX_PKT_BURST, /* Use PMD default values */
         .txq_flags = ((uint32_t)/*ETH_TXQ_FLAGS_NOMULTSEGS | \*/
-			    ETH_TXQ_FLAGS_NOOFFLOADS),
+			    /*ETH_TXQ_FLAGS_NOOFFLOADS*/0),
 };
 
 static int parse_portmask(const char *portmask)

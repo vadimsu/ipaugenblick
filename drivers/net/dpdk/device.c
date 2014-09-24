@@ -34,6 +34,7 @@
 #include <specific_includes/linux/if_macvlan.h>
 #include <specific_includes/linux/if_arp.h>
 #include <specific_includes/dpdk_drv_iface.h>
+#include <specific_includes/linux/netdev_features.h>
 #include <string.h>
 #include <rte_config.h>
 #include <rte_common.h>
@@ -137,6 +138,26 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 		mbuf = &((*mbuf)->pkt.next);
 	}
 	head->pkt.pkt_len = pkt_len;
+
+        if ((skb->protocol == htons(ETH_P_IP))&&(ip_hdr(skb)->protocol == IPPROTO_TCP)&&(i> 0)) {
+                 struct iphdr *iph = ip_hdr(skb);
+                 head->pkt.vlan_macip.data = skb_network_header_len(skb) | (skb_network_offset(skb) << 9);
+                 head->pkt.hash.sched = skb_transport_offset(skb) + tcp_hdrlen(skb); /* ugly, but no other place */
+                 head->ol_flags = PKT_TX_TCP_CKSUM | PKT_TX_IP_CKSUM;
+#if 0
+                 iph->tot_len = 0;
+                 iph->check = 0; 
+                 tcp_hdr(skb)->check = ~csum_tcpudp_magic(iph->saddr,
+                                                          iph->daddr, 0,
+                                                          IPPROTO_TCP,
+                                                          0);
+//                 type_tucmd |= IXGBE_ADVTXD_TUCMD_IPV4;
+//                 first->tx_flags |= IXGBE_TX_FLAGS_TSO |
+ //                                   IXGBE_TX_FLAGS_CSUM |
+  //                                  IXGBE_TX_FLAGS_IPV4;
+#endif
+        }
+
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
 	kfree_skb(skb);
@@ -323,7 +344,7 @@ void *create_netdev(int port_num)
 	memset(priv, 0, sizeof(dpdk_dev_priv_t));
 	priv->port_number = port_num;
 	netdev->netdev_ops = &dpdk_netdev_ops;
-	netdev->features = NETIF_F_SG;
+	netdev->features = NETIF_F_SG | NETIF_F_GSO /*| NETIF_F_ALL_CSUM*/;
 	netdev->hw_features = 0;
 
 	netdev->vlan_features = 0;
