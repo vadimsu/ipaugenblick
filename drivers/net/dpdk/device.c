@@ -142,9 +142,10 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
         if ((skb->protocol == htons(ETH_P_IP))&&(ip_hdr(skb)->protocol == IPPROTO_TCP)&&(i> 0)) {
                  struct iphdr *iph = ip_hdr(skb);
                  head->pkt.vlan_macip.data = skb_network_header_len(skb) | (skb_network_offset(skb) << 9);
-                 head->pkt.hash.sched = skb_transport_offset(skb) + tcp_hdrlen(skb); /* ugly, but no other place */
+                 head->pkt.hash.fdir.hash = tcp_hdrlen(skb); /* ugly, but no other place */
+                 head->pkt.hash.fdir.id = skb_transport_offset(skb);
                  head->ol_flags = PKT_TX_TCP_CKSUM | PKT_TX_IP_CKSUM;
-#if 0
+#if 1
                  iph->tot_len = 0;
                  iph->check = 0; 
                  tcp_hdr(skb)->check = ~csum_tcpudp_magic(iph->saddr,

@@ -583,7 +583,7 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		if (tx_ol_req) {
 			/* If new context need be built or reuse the exist ctx. */
 			ctx = what_advctx_update(txq, tx_ol_req,
-				vlan_macip_lens,tx_pkt->pkt.hash.sched);
+				vlan_macip_lens,tx_pkt->pkt.hash.fdir.hash);
 			/* Only allocate context descriptor if required*/
 			new_ctx = (ctx == IXGBE_CTX_NUM);
 			ctx = txq->ctx_curr;
@@ -698,9 +698,11 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		 */
 		cmd_type_len = IXGBE_ADVTXD_DTYP_DATA |
 			IXGBE_ADVTXD_DCMD_IFCS | IXGBE_ADVTXD_DCMD_DEXT;
+#define IXGBE_TX_FLAGS_TSO 0x2
                 if(tx_ol_req) {
-printf("%s %d %d %d %d\n",__FILE__,__LINE__,pkt_len,tx_pkt->pkt.hash.sched,tx_pkt->pkt.vlan_macip.data);
-                    olinfo_status = (pkt_len - tx_pkt->pkt.hash.sched) << IXGBE_ADVTXD_PAYLEN_SHIFT;
+                    olinfo_status = (pkt_len - (tx_pkt->pkt.hash.fdir.hash + tx_pkt->pkt.hash.fdir.id)) << IXGBE_ADVTXD_PAYLEN_SHIFT;
+                    cmd_type_len |= ((IXGBE_TX_FLAGS_TSO <= IXGBE_ADVTXD_DCMD_TSE) ? (IXGBE_TX_FLAGS_TSO * (IXGBE_ADVTXD_DCMD_TSE / IXGBE_TX_FLAGS_TSO)) : \
+          (IXGBE_TX_FLAGS_TSO / (IXGBE_TX_FLAGS_TSO / IXGBE_ADVTXD_DCMD_TSE)));
                 }
                 else {
 		    olinfo_status = (pkt_len << IXGBE_ADVTXD_PAYLEN_SHIFT);
@@ -731,7 +733,7 @@ printf("%s %d %d %d %d\n",__FILE__,__LINE__,pkt_len,tx_pkt->pkt.hash.sched,tx_pk
 				}
 
 				ixgbe_set_xmit_ctx(txq, ctx_txd, tx_ol_req,
-				    vlan_macip_lens,tx_pkt->pkt.hash.sched);
+				    vlan_macip_lens,tx_pkt->pkt.hash.fdir.hash);
 
 				txe->last_id = tx_last;
 				tx_id = txe->next_id;
