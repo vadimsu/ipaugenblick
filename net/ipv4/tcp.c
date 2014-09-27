@@ -854,7 +854,6 @@ static unsigned int tcp_xmit_size_goal(struct sock *sk, u32 mss_now,
 				       sk->sk_gso_max_size - 1 - hlen);
 
 		xmit_size_goal = tcp_bound_to_half_wnd(tp, xmit_size_goal);
-
 		/* We try hard to avoid divides here */
 		old_size_goal = tp->xmit_size_goal_segs * mss_now;
 
@@ -888,6 +887,10 @@ static ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset,
 	int mss_now, size_goal;
 	int err;
 	ssize_t copied;
+        struct rte_mbuf *mbuf;
+	struct page _page;
+        struct sk_buff *skb;
+	int copy, i,saved_copy;
 	long timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 
 	/* Wait for a connection to finish. One exception is TCP Fast Open
@@ -914,11 +917,10 @@ static ssize_t do_tcp_sendpages(struct sock *sk, struct page *page, int offset,
 	if (sk->sk_err || (sk->sk_shutdown & SEND_SHUTDOWN)) {
 		goto out_err;
 	}
-	while (size > 0) {
-		struct sk_buff *skb;
-		int copy, i;
-		bool can_coalesce;
 #ifndef OPTIMIZE_SENDPAGES
+	while (size > 0) {	
+		bool can_coalesce;
+
 		skb = tcp_write_queue_tail(sk);
 		if (!tcp_send_head(sk) || (copy = size_goal - skb->len) <= 0) {
 new_segment:
@@ -941,8 +943,7 @@ new_segment:
 			tcp_mark_push(tp, skb);
 			goto new_segment;
 		}
-		if (!sk_wmem_schedule(sk, copy))
-		{
+		if (!sk_wmem_schedule(sk, copy)) {
 			TRACE_SKB(skb);
 			goto wait_for_memory;
 		}
@@ -953,29 +954,6 @@ new_segment:
 		//			get_page(page);
 			skb_fill_page_desc(skb, i, page, offset, copy);
 		}
-#else
-		struct rte_mbuf *mbuf;
-		struct page _page;
-		skb = sk_stream_alloc_skb(sk, 0, sk->sk_allocation);
-		if (!skb)
-			goto out;
-                i = 0;
-		copy = min_t(int, size_goal,size);
-		copy = min_t(int, copy, mss_now);
-		if(likely(((mbuf = user_get_buffer(sk,&copy)) != NULL)))
-		{
-			skb_entail(sk, skb);
-			_page.mbuf = mbuf;
-			skb_fill_page_desc(skb, i, &_page, 0/*offset*/, copy);
-			sk_wmem_schedule(sk, copy);
-			tcp_mark_push(tp, skb);
-		}
-		else
-		{
-			__kfree_skb(skb);
-			goto out;
-		}
-#endif
 
 		skb_shinfo(skb)->tx_flags |= SKBTX_SHARED_FRAG;
 
@@ -1018,6 +996,68 @@ wait_for_memory:
 
 		mss_now = tcp_send_mss(sk, &size_goal, flags);
 	}
+#else
+//        copy = min_t(int, size_goal,size);
+//printf("size_goal %d mss_now %d\n",size_goal,mss_now);
+        copy = size_goal;
+//	copy = min_t(int, copy, mss_now);
+        skb = NULL;
+        i = 0;
+        saved_copy = copy;
+	if(likely(((mbuf = user_get_buffer(sk,&copy)) == NULL))) {
+            goto out;
+        } 
+        copy = saved_copy - copy;
+        while(mbuf) {
+            struct rte_mbuf *next;
+            
+            if(!skb)
+                skb = sk_stream_alloc_skb(sk, 0, sk->sk_allocation);
+	    if (!skb) {
+                rte_pktmbuf_free(mbuf);
+                copied = 0;
+		goto out;
+            }
+            next = mbuf->pkt.next;
+            mbuf->pkt.next = NULL;
+	    _page.mbuf = mbuf;
+	    skb_fill_page_desc(skb, i++, &_page, 0/*offset*/, mbuf->pkt.data_len); 
+            copied += mbuf->pkt.data_len; 
+            if ((i >= MAX_SKB_FRAGS)||(!next)) {
+                i = 0;
+                skb_entail(sk, skb);
+                sk_wmem_schedule(sk, copied);
+		tcp_mark_push(tp, skb);
+ 	        skb_shinfo(skb)->tx_flags |= SKBTX_SHARED_FRAG;
+
+	        skb->len += copied;
+	        skb->data_len += copied;
+	        skb->truesize += copied;
+	        sk->sk_wmem_queued += copied;
+	        sk_mem_charge(sk, copied);
+	        skb->ip_summed = CHECKSUM_PARTIAL;
+	        tp->write_seq += copied;
+	        TCP_SKB_CB(skb)->end_seq += copied;
+                skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss_now);
+                skb_shinfo(skb)->gso_size = mss_now;
+
+	        if (!copied)
+		    TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_PSH;
+	        
+                copied = 0;
+                if (!(skb->len < size_goal || (flags & MSG_OOB))) {
+	            if (forced_push(tp)) {
+		        tcp_mark_push(tp, skb);
+		        __tcp_push_pending_frames(sk, mss_now, TCP_NAGLE_PUSH);
+	            } else if (skb == tcp_send_head(sk))
+		        tcp_push_one(sk, mss_now);
+                }
+                skb = NULL;
+           }
+           mbuf = next;
+      }
+      copied = copy;
+#endif
 
 out:
 	if (copied && !(flags & MSG_SENDPAGE_NOTLAST))

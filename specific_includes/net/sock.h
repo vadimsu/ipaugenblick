@@ -1560,8 +1560,7 @@ static inline void sk_wmem_free_skb(struct sock *sk, struct sk_buff *skb)
 	struct rte_mbuf *mbuf;
 	int i;
 
-	for (i = 0; i < (int)skb_shinfo(skb)->nr_frags; i++)
-	{
+	for (i = 0; i < (int)skb_shinfo(skb)->nr_frags; i++) {
 		mbuf = skb_shinfo(skb)->frags[i].page.p;
 		user_transmitted_callback(mbuf);
 	}
@@ -1921,7 +1920,7 @@ struct dst_entry *sk_dst_check(struct sock *sk, u32 cookie);
 
 static inline bool sk_can_gso(const struct sock *sk)
 {
-#if 0
+#if 1
 	return net_gso_ok(sk->sk_route_caps, sk->sk_gso_type);
 #else
     return false;

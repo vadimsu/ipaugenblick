@@ -281,7 +281,7 @@ static int print_stats(__attribute__((unused)) void *dummy)
 		printf("stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
 		print_skb_iov_stats();
 #endif
-		sleep(10);
+		sleep(1);
 	}
 	return 0;
 }
