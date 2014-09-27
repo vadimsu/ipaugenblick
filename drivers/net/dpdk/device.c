@@ -137,6 +137,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 		pkt_len += (*mbuf)->pkt.data_len;
 		mbuf = &((*mbuf)->pkt.next);
 	}
+        *mbuf = NULL;
 	head->pkt.pkt_len = pkt_len;
 
         if ((skb->protocol == htons(ETH_P_IP))&&(ip_hdr(skb)->protocol == IPPROTO_TCP)&&(i> 0)) {
