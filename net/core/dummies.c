@@ -211,6 +211,20 @@ void get_random_bytes(void *buf, int nbytes)
 {
 //	trace_get_random_bytes(nbytes, _RET_IP_);
 //	extract_entropy(&nonblocking_pool, buf, nbytes, 0, 0);
+    int idx;
+    int r,intnum = nbytes/sizeof(int);
+    char *p;
+
+    if(intnum == 0) {
+        r = rand();
+        memcpy(buf,&r,nbytes);
+        return;
+    }
+    p = (char *)buf;
+    for(idx = 0;idx < intnum;idx+=sizeof(int)) {
+        r = rand();
+        memcpy(&p[idx],&r,sizeof(int));
+    }
 }
 
 int net_ratelimit(void)
