@@ -177,7 +177,7 @@ struct page_frag {
  * Since GRO uses frags we allocate at least 16 regardless of page
  * size.
  */
-#define MAX_SKB_FRAGS (1)
+#define MAX_SKB_FRAGS (10)
 //#define page rte_mbuf
 typedef struct skb_frag_struct skb_frag_t;
 

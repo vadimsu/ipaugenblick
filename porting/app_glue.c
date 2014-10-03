@@ -143,13 +143,15 @@ static void app_glue_sock_error_report(struct sock *sk)
 static void app_glue_sock_wakeup(struct sock *sk)
 {
 	struct sock *sock;
+        struct tcp_sock *tp;
+        tp = tcp_sk(sk);
 
 	sock = __inet_lookup_listener(&init_net/*sk->sk_net*/,
 			&tcp_hashinfo[rte_lcore_id()],
 			sk->sk_daddr,
 			sk->sk_dport/*__be16 sport*/,
 			sk->sk_rcv_saddr,
-			sk->sk_num/*const unsigned short hnum*/,
+			ntohs(tp->inet_conn.icsk_inet.inet_sport),//sk->sk_num/*const unsigned short hnum*/,
 			sk->sk_bound_dev_if);
 
 	if(sock) {
@@ -324,7 +326,7 @@ void *create_server_socket(const char *my_ip_addr,unsigned short port)
 	else {
 		printf("FATAL %s %d\n",__FILE__,__LINE__);exit(0);
 	}
-	if(kernel_listen(server_sock,1000)) {
+	if(kernel_listen(server_sock,32000)) {
 		printf("cannot listen %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
@@ -646,6 +648,11 @@ void app_glue_close_socket(void *sk)
 		sock->write_queue_present = 0;
 	}
 	if(sock->accept_queue_present) {
+        struct socket *newsock = NULL;
+
+        while(kernel_accept(sock, &newsock, 0) == 0) {
+                   kernel_close(newsock);
+        }
 		TAILQ_REMOVE(&accept_ready_socket_list_head[rte_lcore_id()],sock,accept_queue_entry);
 		sock->accept_queue_present = 0;
 	}

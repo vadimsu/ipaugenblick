@@ -350,7 +350,7 @@ ixgbe_xmit_pkts_simple(void *tx_queue, struct rte_mbuf **tx_pkts,
 static inline void
 ixgbe_set_xmit_ctx(struct igb_tx_queue* txq,
 		volatile struct ixgbe_adv_tx_context_desc *ctx_txd,
-		uint16_t ol_flags, uint32_t vlan_macip_lens)
+		uint16_t ol_flags, uint32_t vlan_macip_lens,uint32_t mss_l4len)
 {
 	uint32_t type_tucmd_mlhl;
 	uint32_t mss_l4len_idx;
@@ -372,6 +372,7 @@ ixgbe_set_xmit_ctx(struct igb_tx_queue* txq,
 
 	/* Specify which HW CTX to upload. */
 	mss_l4len_idx = (ctx_idx << IXGBE_ADVTXD_IDX_SHIFT);
+//        mss_l4len_idx = 0;
 	switch (ol_flags & PKT_TX_L4_MASK) {
 	case PKT_TX_UDP_CKSUM:
 		type_tucmd_mlhl |= IXGBE_ADVTXD_TUCMD_L4T_UDP |
@@ -382,7 +383,8 @@ ixgbe_set_xmit_ctx(struct igb_tx_queue* txq,
 	case PKT_TX_TCP_CKSUM:
 		type_tucmd_mlhl |= IXGBE_ADVTXD_TUCMD_L4T_TCP |
 				IXGBE_ADVTXD_DTYP_CTXT | IXGBE_ADVTXD_DCMD_DEXT;
-		mss_l4len_idx |= sizeof(struct tcp_hdr) << IXGBE_ADVTXD_L4LEN_SHIFT;
+		mss_l4len_idx |= mss_l4len << IXGBE_ADVTXD_L4LEN_SHIFT;
+                mss_l4len_idx |= 1448 << IXGBE_ADVTXD_MSS_SHIFT;
 		cmp_mask |= TX_MACIP_LEN_CMP_MASK;
 		break;
 	case PKT_TX_SCTP_CKSUM:
@@ -401,6 +403,7 @@ ixgbe_set_xmit_ctx(struct igb_tx_queue* txq,
 	txq->ctx_cache[ctx_idx].cmp_mask = cmp_mask;
 	txq->ctx_cache[ctx_idx].vlan_macip_lens.data =
 		vlan_macip_lens & cmp_mask;
+        txq->ctx_cache[ctx_idx].mss_l4_len = mss_l4len;
 
 	ctx_txd->type_tucmd_mlhl = rte_cpu_to_le_32(type_tucmd_mlhl);
 	ctx_txd->vlan_macip_lens = rte_cpu_to_le_32(vlan_macip_lens);
@@ -414,12 +417,13 @@ ixgbe_set_xmit_ctx(struct igb_tx_queue* txq,
  */
 static inline uint32_t
 what_advctx_update(struct igb_tx_queue *txq, uint16_t flags,
-		uint32_t vlan_macip_lens)
+		uint32_t vlan_macip_lens,uint32_t mss_l4_len)
 {
 	/* If match with the current used context */
 	if (likely((txq->ctx_cache[txq->ctx_curr].flags == flags) &&
 		(txq->ctx_cache[txq->ctx_curr].vlan_macip_lens.data ==
-		(txq->ctx_cache[txq->ctx_curr].cmp_mask & vlan_macip_lens)))) {
+		(txq->ctx_cache[txq->ctx_curr].cmp_mask & vlan_macip_lens))&&
+                (txq->ctx_cache[txq->ctx_curr].mss_l4_len == mss_l4_len))) {
 			return txq->ctx_curr;
 	}
 
@@ -427,7 +431,8 @@ what_advctx_update(struct igb_tx_queue *txq, uint16_t flags,
 	txq->ctx_curr ^= 1;
 	if (likely((txq->ctx_cache[txq->ctx_curr].flags == flags) &&
 		(txq->ctx_cache[txq->ctx_curr].vlan_macip_lens.data ==
-		(txq->ctx_cache[txq->ctx_curr].cmp_mask & vlan_macip_lens)))) {
+		(txq->ctx_cache[txq->ctx_curr].cmp_mask & vlan_macip_lens))&&
+                (txq->ctx_cache[txq->ctx_curr].mss_l4_len == mss_l4_len))) {
 			return txq->ctx_curr;
 	}
 
@@ -578,7 +583,7 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		if (tx_ol_req) {
 			/* If new context need be built or reuse the exist ctx. */
 			ctx = what_advctx_update(txq, tx_ol_req,
-				vlan_macip_lens);
+				vlan_macip_lens,tx_pkt->pkt.hash.fdir.hash);
 			/* Only allocate context descriptor if required*/
 			new_ctx = (ctx == IXGBE_CTX_NUM);
 			ctx = txq->ctx_curr;
@@ -693,7 +698,15 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		 */
 		cmd_type_len = IXGBE_ADVTXD_DTYP_DATA |
 			IXGBE_ADVTXD_DCMD_IFCS | IXGBE_ADVTXD_DCMD_DEXT;
-		olinfo_status = (pkt_len << IXGBE_ADVTXD_PAYLEN_SHIFT);
+#define IXGBE_TX_FLAGS_TSO 0x2
+                if(tx_ol_req) {
+                    olinfo_status = (pkt_len - (tx_pkt->pkt.hash.fdir.hash + tx_pkt->pkt.hash.fdir.id)) << IXGBE_ADVTXD_PAYLEN_SHIFT;
+                    cmd_type_len |= ((IXGBE_TX_FLAGS_TSO <= IXGBE_ADVTXD_DCMD_TSE) ? (IXGBE_TX_FLAGS_TSO * (IXGBE_ADVTXD_DCMD_TSE / IXGBE_TX_FLAGS_TSO)) : \
+          (IXGBE_TX_FLAGS_TSO / (IXGBE_TX_FLAGS_TSO / IXGBE_ADVTXD_DCMD_TSE)));
+                }
+                else {
+		    olinfo_status = (pkt_len << IXGBE_ADVTXD_PAYLEN_SHIFT);
+                }
 #ifdef RTE_LIBRTE_IEEE1588
 		if (ol_flags & PKT_TX_IEEE1588_TMST)
 			cmd_type_len |= IXGBE_ADVTXD_MAC_1588;
@@ -720,7 +733,7 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 				}
 
 				ixgbe_set_xmit_ctx(txq, ctx_txd, tx_ol_req,
-				    vlan_macip_lens);
+				    vlan_macip_lens,tx_pkt->pkt.hash.fdir.hash);
 
 				txe->last_id = tx_last;
 				tx_id = txe->next_id;
@@ -757,6 +770,9 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 				rte_cpu_to_le_32(cmd_type_len | slen);
 			txd->read.olinfo_status =
 				rte_cpu_to_le_32(olinfo_status);
+                        if (tx_ol_req) {
+                            olinfo_status = 0;
+                        }
 			txe->last_id = tx_last;
 			tx_id = txe->next_id;
 			txe = txn;

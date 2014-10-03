@@ -41,6 +41,7 @@ uint64_t user_on_tx_opportunity_cannot_get_buff[MAXCPU];
 uint64_t user_on_rx_opportunity_called[MAXCPU];
 uint64_t user_on_rx_opportunity_called_wo_result[MAXCPU];
 uint64_t user_rx_mbufs[MAXCPU];
+uint64_t user_on_tx_opportunity_api_mbufs_sent[MAXCPU];
 
 #ifdef OPTIMIZE_SENDPAGES
 /* this is called from tcp_sendpages when tcp knows exactly
@@ -51,21 +52,29 @@ uint64_t user_rx_mbufs[MAXCPU];
  */
 struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 {
-	struct rte_mbuf *mbuf;
+	struct rte_mbuf *mbuf, *first = NULL,*prev;
 	user_on_tx_opportunity_getbuff_called[rte_lcore_id()]++;
 
-	mbuf = app_glue_get_buffer();
-	if (unlikely(mbuf == NULL)) {
-		user_on_tx_opportunity_cannot_get_buff[rte_lcore_id()]++;
-		return NULL;
-	}
-	mbuf->pkt.data_len = (*copy) > 1448 ? 1448 : (*copy);
-	*copy = mbuf->pkt.data_len;
-	if(unlikely(mbuf->pkt.data_len == 0)) {
-		rte_pktmbuf_free_seg(mbuf);
-		return NULL;
-	}
-	return mbuf;
+    while(*copy != 0) {
+	    mbuf = app_glue_get_buffer();
+	    if (unlikely(mbuf == NULL)) {
+		    user_on_tx_opportunity_cannot_get_buff[rte_lcore_id()]++;
+		    return first;
+	    }
+	    mbuf->pkt.data_len = (*copy) > 1448 ? 1448 : (*copy);
+	    (*copy) -= mbuf->pkt.data_len;
+	    if(unlikely(mbuf->pkt.data_len == 0)) {
+		    rte_pktmbuf_free_seg(mbuf);
+		    return first;
+	    }
+            if(!first)
+                first = mbuf;
+            else
+                prev->pkt.next = mbuf;
+            prev = mbuf;
+            user_on_tx_opportunity_api_mbufs_sent[rte_lcore_id()]++;
+        }
+	return first;
 }
 #endif
 int user_on_transmission_opportunity(struct socket *sock)
@@ -154,7 +163,7 @@ int user_on_accept(struct socket *sock)
 {
 	struct socket *newsock = NULL;
 	while(likely(kernel_accept(sock, &newsock, 0) == 0)) {
-		newsock->sk->sk_route_caps |= NETIF_F_SG |NETIF_F_ALL_CSUM;
+		newsock->sk->sk_route_caps |= NETIF_F_SG |NETIF_F_ALL_CSUM|NETIF_F_GSO;
 	}
 }
 
@@ -193,5 +202,6 @@ void print_user_stats()
 		printf("user_on_rx_opportunity_called %"PRIu64"\n",user_on_rx_opportunity_called[i]);
 		printf("user_on_rx_opportunity_called_wo_result %"PRIu64"\n",user_on_rx_opportunity_called_wo_result[i]);
 		printf("user_rx_mbufs %"PRIu64"\n",user_rx_mbufs[i]);
+        printf("user_on_tx_opportunity_api_mbufs_sent %"PRIu64"\n",user_on_tx_opportunity_api_mbufs_sent[i]);
 	}
 }
