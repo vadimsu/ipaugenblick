@@ -158,8 +158,8 @@ static const struct rte_eth_conf port_conf = {
 		.header_split   = 0, /**< Header Split disabled */
 		.hw_ip_checksum = 1, /**< IP checksum offload disabled */
 		.hw_vlan_filter = 0, /**< VLAN filtering disabled */
-		.jumbo_frame    = 1, /**< Jumbo Frame Support disabled */
-                .max_rx_pkt_len = 0x2000,
+		//.jumbo_frame    = 1, /**< Jumbo Frame Support disabled */
+                //.max_rx_pkt_len = 0x2000,
 		.hw_strip_crc   = 0, /**< CRC stripped by hardware */
 		.mq_mode = ETH_MQ_RX_NONE/*ETH_MQ_RX_RSS*/,
 	},
@@ -315,6 +315,10 @@ typedef struct
 }dpdk_dev_config_t;
 
 static dpdk_dev_config_t dpdk_dev_config[RTE_MAX_ETHPORTS];
+char *get_first_ip_from_config()
+{
+    return dpdk_dev_config[0].ip_addr_str;
+}
 static void *dpdk_devices[RTE_MAX_ETHPORTS];
 /* This function returns a pointer to kernel's interface structure, required to access the driver */
 void *get_dpdk_dev_by_port_num(int port_num)

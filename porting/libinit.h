@@ -15,6 +15,7 @@
 void *get_dpdk_dev_by_port_num(int port_num);
 /* This function allocates rte_mbuf */
 void *get_buffer();
+char *get_first_ip_from_config();
 /* this function gets a pointer to data in the newly allocated rte_mbuf */
 void *get_data_ptr(void *buf);
 /* this function releases the rte_mbuf */
