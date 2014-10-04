@@ -316,12 +316,10 @@ typedef struct
 
 #define ALIASES_MAX_NUMBER 4
 static dpdk_dev_config_t dpdk_dev_config[RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER];
-
 char *get_first_ip_from_config()
 {
     return dpdk_dev_config[0].ip_addr_str;
 }
-
 static void *dpdk_devices[RTE_MAX_ETHPORTS];
 /* This function returns a pointer to kernel's interface structure, required to access the driver */
 void *get_dpdk_dev_by_port_num(int port_num)
