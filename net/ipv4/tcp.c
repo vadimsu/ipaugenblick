@@ -997,14 +997,11 @@ wait_for_memory:
 		mss_now = tcp_send_mss(sk, &size_goal, flags);
 	}
 #else
-//        copy = min_t(int, size_goal,size);
-//printf("size_goal %d mss_now %d\n",size_goal,mss_now);
         copy = size_goal;
-//	copy = min_t(int, copy, mss_now);
         skb = NULL;
         i = 0;
         saved_copy = copy;
-	if(likely(((mbuf = user_get_buffer(sk,&copy)) == NULL))) {
+	if(likely(((mbuf = user_get_buffer(sk,&copy,page)) == NULL))) {
             goto out;
         } 
         copy = saved_copy - copy;

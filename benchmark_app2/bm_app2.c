@@ -82,7 +82,7 @@ uint64_t user_on_rx_opportunity_called = 0;
 uint64_t user_on_rx_opportunity_called_wo_result = 0;
 
 #ifdef OPTIMIZE_SENDPAGES
-struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
+struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy,void *dummy)
 {
 	struct rte_mbuf *mbuf;
 	user_on_tx_opportunity_getbuff_called++;

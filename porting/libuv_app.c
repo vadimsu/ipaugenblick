@@ -212,18 +212,28 @@ int libuv_app_recvmsg(int fd, void *arg, int len,int flags,void (*copy_to_iovec)
     user_on_rx_opportunity_called_wo_result++;
     return 0;
 }
-struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
+typedef struct
+{
+    void *arg;
+    int (*copy_from_iovec)(void *,char *,int);
+    int to_copy;
+}tcp_sendpage_arg_wrapper_t;
+
+struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy,void *arg)
 {
 	struct rte_mbuf *mbuf, *first = NULL,*prev;
+        tcp_sendpage_arg_wrapper_t *tcp_sendpage_arg_wrapper = (tcp_sendpage_arg_wrapper_t *)arg;
 	user_on_tx_opportunity_getbuff_called++;
 
-        while(*copy != 0) {
+        while((*copy != 0)&&(tcp_sendpage_arg_wrapper->to_copy > 0)) {
   	    mbuf = app_glue_get_buffer();
 	    if (unlikely(mbuf == NULL)) {
 		user_on_tx_opportunity_cannot_get_buff++;
 		return first;
 	    }
-	    mbuf->pkt.data_len = (*copy) > 1448 ? 1448 : (*copy);
+            mbuf->pkt.data_len = 
+                tcp_sendpage_arg_wrapper->copy_from_iovec(tcp_sendpage_arg_wrapper->arg,mbuf->pkt.data,min(tcp_sendpage_arg_wrapper->to_copy,(*copy)));
+            tcp_sendpage_arg_wrapper->to_copy -= mbuf->pkt.data_len;
 	    (*copy) -= mbuf->pkt.data_len;
 	    if(unlikely(mbuf->pkt.data_len == 0)) {
 	    	    rte_pktmbuf_free_seg(mbuf);
@@ -238,12 +248,77 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
         }
 	return first;
 }
-int libuv_app_sendmsg(int fd,void *arg,int len,int flags, unsigned int addr,unsigned short port,int (*copy_from_iovec)(void *,char *,int))
+int libuv_app_tcp_sendmsg(int fd,void *arg,int len,int flags, int (*copy_from_iovec)(void *,char *,int))
+{
+    tcp_sendpage_arg_wrapper_t tcp_sendpage_arg_wrapper;
+    if(!libuv_is_fd_known(fd))
+        return -1;
+    tcp_sendpage_arg_wrapper.arg = arg;
+    tcp_sendpage_arg_wrapper.copy_from_iovec = copy_from_iovec;
+    tcp_sendpage_arg_wrapper.to_copy = len;
+    return kernel_sendpage(fd_2_socket[fd],(void *)&tcp_sendpage_arg_wrapper , 0,/*offset*/len /* size*/, 0 /*flags*/);
+}
+
+int libuv_app_udp_sendmsg(int fd,void *arg,int len,int flags, unsigned int addr,unsigned short port,int (*copy_from_iovec)(void *,char *,int))
 {
     struct page page;
     if(!libuv_is_fd_known(fd))
         return -1;
-    return kernel_sendpage(fd_2_socket[fd], &page, 0,/*offset*/len /* size*/, 0 /*flags*/);
+    if(len > 1460) {
+        return -2;
+    }
+    mbuf = app_glue_get_buffer();
+    if (unlikely(mbuf == NULL)) {
+       user_on_tx_opportunity_cannot_get_buff++;
+       return 0;
+    }
+    mbuf->pkt.data_len = copy_from_iovec(arg,mbuf->pkt.data,len);
+    sockaddrin.sin_family = AF_INET;
+    sockaddrin.sin_addr.s_addr = addr;
+    sockaddrin.sin_port = port;
+    msghdr.msg_namelen = sizeof(sockaddrin);
+    msghdr.msg_name = &sockaddrin;
+    msghdr.msg_iov = &iov;
+    iov.head = mbuf;
+    msghdr.msg_iovlen = 1;
+    msghdr.msg_controllen = 0;
+    msghdr.msg_control = 0;
+    msghdr.msg_flags = 0;
+    sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
+    i = kernel_sendmsg(sock, &msghdr, mbuf->pkt.data_len);
+    if(i <= 0) {
+       rte_pktmbuf_free(mbuf);
+       user_on_tx_opportunity_api_failed++;
+       return 0
+    }
+    return i;
+}
+
+int libuv_app_tcp_receive(int fd,char *buf,int len)
+{
+    struct msghdr msg;
+    struct iovec vec;
+    struct rte_mbuf *mbuf;
+    int i,copied = 0,to_copy;
+
+    if(!libuv_is_fd_known(fd))
+        return -1;
+   
+    memset(&vec,0,sizeof(vec));
+    i = kernel_recvmsg(fd_2_socket[fd], &msg, &vec, 1 /*num*/, len /*size*/, 0 /*flags*/);
+    if(i <= 0)
+        return i;
+    while(unlikely(mbuf = msg.msg_iov->head)) {
+	msg.msg_iov->head = msg.msg_iov->head->pkt.next;
+        if(copied < len) {
+            to_copy = min(len - copied, mbuf->pkt.data_len);
+            memcpy(&buf[copied],mbuf->pkt.data,to_copy);
+            copied += to_copy;
+        }
+        user_rx_mbufs++;
+	rte_pktmbuf_free_seg(mbuf);
+    }
+    return copied;
 }
 
 int libuv_app_getsockname(int fd,struct sockaddr *addr,int *addrlen)

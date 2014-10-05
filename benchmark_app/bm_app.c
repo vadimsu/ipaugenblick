@@ -49,7 +49,7 @@ uint64_t user_rx_mbufs = 0;
  * A user can also set a socket's user private data
  * for its applicative needs
  */
-struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
+struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy,void *dummy)
 {
 	struct rte_mbuf *mbuf, *first = NULL,*prev;
 	user_on_tx_opportunity_getbuff_called++;
