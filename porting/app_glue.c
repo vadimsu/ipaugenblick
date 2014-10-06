@@ -128,7 +128,7 @@ static void app_glue_sock_error_report(struct sock *sk)
  * Returns: void
  *
  */
-static void app_glue_sock_wakeup(struct sock *sk)
+void app_glue_sock_wakeup(struct sock *sk)
 {
 	struct sock *sock;
         struct tcp_sock *tp;

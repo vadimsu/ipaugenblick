@@ -43,4 +43,8 @@ rm -rf build
 make CURRENT_DIR=$(pwd)/ clean
 make CURRENT_DIR=$(pwd)/
 ./build_test.sh
+cd ../libuv_app
+rm -rf build
+make CURRENT_DIR=$(pwd)/ clean
+make CURRENT_DIR=$(pwd)/
 echo "DONE"
