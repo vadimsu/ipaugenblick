@@ -340,6 +340,22 @@ int libuv_app_tcp_receive(int fd,char *buf,int len)
     return copied;
 }
 
+int libuv_app_accept(int fd)
+{
+    struct socket *newsock;
+    if(!libuv_is_fd_known(fd))
+        return -1;
+    if(kernel_accept(fd_2_socket[fd], &newsock, 0) == 0) {
+        int new_fd = get_free_fd();
+        if(new_fd == MAX_FDS) {
+            kernel_close(newsock);
+            return -1;
+        }
+        fd_2_socket[new_fd] = newsock;
+        return new_fd;
+    }
+}
+
 int libuv_app_getsockname(int fd,struct sockaddr *addr,int *addrlen)
 {
     if(!libuv_is_fd_known(fd))

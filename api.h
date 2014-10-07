@@ -141,4 +141,12 @@ extern int dpdk_linux_tcpip_init(int argc,char **argv);
  */
 extern struct rte_mbuf *app_glue_get_buffer();
 
+/*
+ * This function may be called to calculate driver's optimal polling interval .
+ * Paramters: a pointer to socket structure
+ * Returns: None
+ *
+ */
+extern int get_max_drv_poll_interval_in_micros(int port_num);
+
 #endif /* __API_H_ */

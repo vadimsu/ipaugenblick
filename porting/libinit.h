@@ -30,12 +30,5 @@ void release_buffer(void *buf);
 int dpdk_linux_tcpip_init(int argc,char **argv);
 /* this function returns an available mbufs count */
 int get_buffer_count();
-/*
- * This function may be called to calculate driver's optimal polling interval .
- * Paramters: a pointer to socket structure
- * Returns: None
- *
- */
-int get_max_drv_poll_interval_in_micros(int port_num);
 
 #endif /* __LIBINIT_H_ */
