@@ -521,7 +521,7 @@ void app_glue_set_user_data(void *socket,void *data)
 	if(sock->sk)
 		sock->sk->user_data = data;
 	else
-		printf("PANIC: socket->sk is NULL\n");while(1);
+		while(1)printf("PANIC: socket->sk is NULL\n");
 }
 /*
  * This function may be called to get attached to the socket user's data .
