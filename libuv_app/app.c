@@ -6,10 +6,9 @@
 #include <specific_includes/linux/socket.h>
 #include <api.h>
 
-void app_main_loop();
+void app_main_loop(char *my_ip_addr,unsigned short port);
 
 void app_init(char *my_ip_addr,unsigned short port)
 {
-	create_server_socket(my_ip_addr,port);
-	app_main_loop();
+	app_main_loop(my_ip_addr,port);
 }
