@@ -235,17 +235,19 @@ typedef struct
 struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy,void *arg)
 {
 	struct rte_mbuf *mbuf, *first = NULL,*prev;
+        int copy2;
         tcp_sendpage_arg_wrapper_t *tcp_sendpage_arg_wrapper = (tcp_sendpage_arg_wrapper_t *)arg;
 	user_on_tx_opportunity_getbuff_called++;
-
         while((*copy != 0)&&(tcp_sendpage_arg_wrapper->to_copy > 0)) {
   	    mbuf = app_glue_get_buffer();
 	    if (unlikely(mbuf == NULL)) {
 		user_on_tx_opportunity_cannot_get_buff++;
 		return first;
 	    }
+            copy2 = min(tcp_sendpage_arg_wrapper->to_copy,(*copy));
+            copy2 = min(copy2,1448);
             mbuf->pkt.data_len = 
-                tcp_sendpage_arg_wrapper->copy_from_iovec(tcp_sendpage_arg_wrapper->arg,mbuf->pkt.data,min(tcp_sendpage_arg_wrapper->to_copy,(*copy)));
+                tcp_sendpage_arg_wrapper->copy_from_iovec(tcp_sendpage_arg_wrapper->arg,mbuf->pkt.data,copy2);
             tcp_sendpage_arg_wrapper->to_copy -= mbuf->pkt.data_len;
 	    (*copy) -= mbuf->pkt.data_len;
 	    if(unlikely(mbuf->pkt.data_len == 0)) {
