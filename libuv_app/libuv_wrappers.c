@@ -282,6 +282,17 @@ int libuv_app_tcp_sendmsg(int fd,void *arg,int len,int flags, int (*copy_from_io
     return kernel_sendpage(fd_2_socket[fd],(void *)&tcp_sendpage_arg_wrapper , 0,/*offset*/len /* size*/, 0 /*flags*/);
 }
 
+int libuv_app_is_socket_writable(int fd)
+{
+    if(!libuv_is_fd_known(fd))
+        return 0;
+    if(!fd_2_socket[fd]->sk)
+        return 0;
+    if(sock_writeable(fd_2_socket[fd]->sk)) {
+        return app_glue_get_user_data(fd_2_socket[fd]);
+    }
+}
+
 int libuv_app_udp_sendmsg(int fd,void *arg,int len,int flags, unsigned int addr,unsigned short port,int (*copy_from_iovec)(void *,char *,int))
 {
     struct page page;

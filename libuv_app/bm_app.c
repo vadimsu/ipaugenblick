@@ -182,10 +182,12 @@ static void on_recv(uv_udp_t* handle,
   ASSERT(0 == uv_udp_send(req, handle, &sndbuf, 1, addr, on_send));
 #else
 //  ASSERT(nread > 0);
+  if(nread == 0)
+      return;
   req = malloc(sizeof(*req));
   ASSERT(req != NULL);
-
   sndbuf = *rcvbuf;
+  sndbuf.len = nread;
   ASSERT(0 == uv_udp_send(req, handle, &sndbuf, 1, addr, on_send));
 #endif
 }

@@ -34,4 +34,6 @@ extern int libuv_app_getsockname(int fd,struct sockaddr *addr,int *addrlen);
 
 extern int libuv_app_getpeername(int fd,struct sockaddr *addr,int *addrlen);
 
+extern int libuv_app_is_socket_writable(int fd);
+
 #endif
