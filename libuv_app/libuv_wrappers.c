@@ -119,7 +119,6 @@ int libuv_app_socket(int family,int type,int port)
 	sock->sk->sk_data_ready = app_glue_sock_readable;
 	sock->sk->sk_write_space = app_glue_sock_write_space;
 	sock->sk->sk_error_report = app_glue_sock_error_report;
-printf("%s %d\n",__FILE__,__LINE__);
     }
     return fd;
 }
@@ -127,14 +126,13 @@ printf("%s %d\n",__FILE__,__LINE__);
 int libuv_app_bind(int fd,struct sockaddr *addr,int addr_len)
 {
     struct sockaddr_in *sin = (struct sockaddr_in *)addr;
- printf("%s %d %d\n",__FILE__,__LINE__,sin->sin_port);  
+  
     if(!libuv_is_fd_known(fd))
         return -1;
     if(kernel_bind(fd_2_socket[fd],addr,addr_len)) {
 	printf("cannot bind %s %d\n",__FILE__,__LINE__);
 	return -2;
     }
-printf("%s %d\n",__FILE__,__LINE__);
     return 0;
 }
 
@@ -206,21 +204,25 @@ void libuv_app_set_user_data(int fd,void *data)
     app_glue_set_user_data(fd_2_socket[fd],data);
 }
 
-int libuv_app_recvmsg(int fd, void *arg, int len,int flags,void (*copy_to_iovec)(void *,char *,int))
+int libuv_app_recvmsg(int fd, void *arg, int len,int flags,void (*copy_to_iovec)(void *,char *,int,void *))
 {
     struct msghdr msg;
     struct iovec vec;
     struct rte_mbuf *mbuf;
+    struct sockaddr_in sockaddrin;
     int i;
+ 
     user_on_rx_opportunity_called++;
     memset(&vec,0,sizeof(vec));
     
     if(!libuv_is_fd_known(fd))
         return -1;
-    
+
+    msg.msg_namelen = sizeof(sockaddrin);
+    msg.msg_name = &sockaddrin;    
     if(unlikely((i = kernel_recvmsg(fd_2_socket[fd], &msg,&vec, 1 /*vec size*/, len, 0 /*flags*/)) > 0)) {
 	while(unlikely(mbuf = msg.msg_iov->head)) {
-            copy_to_iovec(arg,mbuf->pkt.data,mbuf->pkt.data_len);
+            copy_to_iovec(arg,mbuf->pkt.data,mbuf->pkt.data_len,&sockaddrin);
  	    msg.msg_iov->head = msg.msg_iov->head->pkt.next;
             user_rx_mbufs++;
 	    rte_pktmbuf_free_seg(mbuf);

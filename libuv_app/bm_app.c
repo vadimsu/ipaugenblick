@@ -181,17 +181,12 @@ static void on_recv(uv_udp_t* handle,
   sndbuf = *rcvbuf;
   ASSERT(0 == uv_udp_send(req, handle, &sndbuf, 1, addr, on_send));
 #else
-  struct sockaddr_in saddr;
-printf("%s %d\n",__FILE__,__LINE__);
-  saddr.sin_family = AF_INET;
-  saddr.sin_addr.s_addr = inet_addr("192.168.1.2");
-  saddr.sin_port = htons(7777);
 //  ASSERT(nread > 0);
   req = malloc(sizeof(*req));
   ASSERT(req != NULL);
 
   sndbuf = *rcvbuf;
-  ASSERT(0 == uv_udp_send(req, handle, &sndbuf, 1, &saddr, on_send));
+  ASSERT(0 == uv_udp_send(req, handle, &sndbuf, 1, addr, on_send));
 #endif
 }
 
