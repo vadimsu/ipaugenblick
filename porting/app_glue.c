@@ -62,7 +62,7 @@ uint64_t total_prev = 0;
  * Returns: void
  *
  */
-static void app_glue_sock_readable(struct sock *sk, int len)
+void app_glue_sock_readable(struct sock *sk, int len)
 {
 	const struct tcp_sock *tp = tcp_sk(sk);
 	int target = sock_rcvlowat(sk, 0, INT_MAX);
@@ -87,7 +87,7 @@ static void app_glue_sock_readable(struct sock *sk, int len)
  * Returns: void
  *
  */
-static void app_glue_sock_write_space(struct sock *sk)
+void app_glue_sock_write_space(struct sock *sk)
 {
 	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
@@ -109,7 +109,7 @@ static void app_glue_sock_write_space(struct sock *sk)
  * Returns: void
  *
  */
-static void app_glue_sock_error_report(struct sock *sk)
+void app_glue_sock_error_report(struct sock *sk)
 {
 	if(sk->sk_socket) {
 		if(sk->sk_socket->closed_queue_present) {

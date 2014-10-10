@@ -60,8 +60,6 @@ uint64_t user_rx_mbufs = 0;
 
 static struct socket *fd_2_socket[MAX_FDS];
 
-void app_glue_sock_wakeup(struct sock *sk);
-
 void libuv_app_init()
 {
     memset(fd_2_socket,0,sizeof(fd_2_socket));
@@ -116,19 +114,27 @@ int libuv_app_socket(int family,int type,int port)
 		sock->sk->sk_state_change = app_glue_sock_wakeup;
 	}
     }
+    else if(type == SOCK_DGRAM) {
+        sock_reset_flag(sock->sk,SOCK_USE_WRITE_QUEUE);
+	sock->sk->sk_data_ready = app_glue_sock_readable;
+	sock->sk->sk_write_space = app_glue_sock_write_space;
+	sock->sk->sk_error_report = app_glue_sock_error_report;
+printf("%s %d\n",__FILE__,__LINE__);
+    }
     return fd;
 }
 
 int libuv_app_bind(int fd,struct sockaddr *addr,int addr_len)
 {
-    struct sockaddr_in sin;
-   
+    struct sockaddr_in *sin = (struct sockaddr_in *)addr;
+ printf("%s %d %d\n",__FILE__,__LINE__,sin->sin_port);  
     if(!libuv_is_fd_known(fd))
         return -1;
     if(kernel_bind(fd_2_socket[fd],addr,addr_len)) {
 	printf("cannot bind %s %d\n",__FILE__,__LINE__);
 	return -2;
     }
+printf("%s %d\n",__FILE__,__LINE__);
     return 0;
 }
 

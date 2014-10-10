@@ -171,7 +171,7 @@ static void on_recv(uv_udp_t* handle,
                     unsigned flags) {
   uv_udp_send_t* req;
   uv_buf_t sndbuf;
-printf("%s %d\n",__FILE__,__LINE__);
+#if 0
   ASSERT(nread > 0);
   ASSERT(addr->sa_family == AF_INET);
 
@@ -180,12 +180,26 @@ printf("%s %d\n",__FILE__,__LINE__);
 
   sndbuf = *rcvbuf;
   ASSERT(0 == uv_udp_send(req, handle, &sndbuf, 1, addr, on_send));
+#else
+  struct sockaddr_in saddr;
+printf("%s %d\n",__FILE__,__LINE__);
+  saddr.sin_family = AF_INET;
+  saddr.sin_addr.s_addr = inet_addr("192.168.1.2");
+  saddr.sin_port = htons(7777);
+//  ASSERT(nread > 0);
+  req = malloc(sizeof(*req));
+  ASSERT(req != NULL);
+
+  sndbuf = *rcvbuf;
+  ASSERT(0 == uv_udp_send(req, handle, &sndbuf, 1, &saddr, on_send));
+#endif
 }
 
 
 static void on_send(uv_udp_send_t* req, int status) {
   ASSERT(status == 0);
   free(req);
+printf("%s %d\n",__FILE__,__LINE__);
 }
 
 
@@ -224,53 +238,25 @@ static int tcp4_echo_start(int port) {
   return 0;
 }
 
-
-static int tcp6_echo_start(int port) {
-  struct sockaddr_in6 addr6;
-  int r;
-
-  ASSERT(0 == uv_ip6_addr("::1", port, &addr6));
-
-  server = (uv_handle_t*)&tcpServer;
-  serverType = TCP;
-
-  r = uv_tcp_init(loop, &tcpServer);
-  if (r) {
-    /* TODO: Error codes */
-    fprintf(stderr, "Socket creation error\n");
-    return 1;
-  }
-
-  /* IPv6 is optional as not all platforms support it */
-  r = uv_tcp_bind(&tcpServer, (const struct sockaddr*) &addr6, 0);
-  if (r) {
-    /* show message but return OK */
-    fprintf(stderr, "IPv6 not supported\n");
-    return 0;
-  }
-
-  r = uv_listen((uv_stream_t*)&tcpServer, SOMAXCONN, on_connection);
-  if (r) {
-    /* TODO: Error codes */
-    fprintf(stderr, "Listen error\n");
-    return 1;
-  }
-
-  return 0;
-}
-
-
 static int udp4_echo_start(int port) {
+  struct sockaddr_in addr;
   int r;
 
   server = (uv_handle_t*)&udpServer;
   serverType = UDP;
+  
+  ASSERT(0 == uv_ip4_addr(gIpAddr, port, &addr));
 
   r = uv_udp_init(loop, &udpServer);
   if (r) {
     fprintf(stderr, "uv_udp_init: %s\n", uv_strerror(r));
     return 1;
   }
+  
+  r = uv_udp_bind(server, (const struct sockaddr*) &addr, 0);
+  ASSERT(r == 0);
+
+  libuv_app_set_user_data(udpServer.io_watcher.fd, &udpServer);
 
   r = uv_udp_recv_start(&udpServer, echo_alloc, on_recv);
   if (r) {
@@ -283,27 +269,23 @@ static int udp4_echo_start(int port) {
 
 int tcp4_echo_server() 
 {
-  loop = uv_default_loop();
-
   if (tcp4_echo_start(gPort))
     return 1;
 
-  uv_run(loop, UV_RUN_DEFAULT);
   return 0;
 }
 
-int udp4_echo_server() {
-  loop = uv_default_loop();
+int udp4_echo_server() { 
 
   if (udp4_echo_start(gPort))
     return 1;
-
-  uv_run(loop, UV_RUN_DEFAULT);
+ 
   return 0;
 }
 
 void app_main_loop(char *my_ip_addr,unsigned short port)
 {
+    loop = uv_default_loop();
 #if 0
     uint8_t ports_to_poll[1] = { 0 };
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
@@ -317,6 +299,8 @@ void app_main_loop(char *my_ip_addr,unsigned short port)
 #endif
     strcpy(gIpAddr,my_ip_addr);
     gPort = port;
-    tcp4_echo_server();
+//    tcp4_echo_server();
+    udp4_echo_server();
+    uv_run(loop, UV_RUN_DEFAULT);
 }
 

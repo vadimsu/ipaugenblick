@@ -149,4 +149,46 @@ extern struct rte_mbuf *app_glue_get_buffer();
  */
 extern int get_max_drv_poll_interval_in_micros(int port_num);
 
+/*
+ * This callback function is invoked when data arrives to socket.
+ * It inserts the socket into a list of readable sockets
+ * which is processed in periodic function app_glue_periodic
+ * Paramters: a pointer to struct sock, len (dummy)
+ * Returns: void
+ *
+ */
+void app_glue_sock_readable(struct sock *sk, int len);
+
+/*
+ * This callback function is invoked when data canbe transmitted on socket.
+ * It inserts the socket into a list of writable sockets
+ * which is processed in periodic function app_glue_periodic
+ * Paramters: a pointer to struct sock
+ * Returns: void
+ *
+ */
+void app_glue_sock_write_space(struct sock *sk);
+
+/*
+ * This callback function is invoked when an error occurs on socket.
+ * It inserts the socket into a list of closable sockets
+ * which is processed in periodic function app_glue_periodic
+ * Paramters: a pointer to struct sock
+ * Returns: void
+ *
+ */
+void app_glue_sock_error_report(struct sock *sk);
+
+/*
+ * This callback function is invoked when a new connection can be accepted on socket.
+ * It looks up the parent (listening) socket for the newly established connection
+ * and inserts it into the accept queue
+ * which is processed in periodic function app_glue_periodic
+ * Paramters: a pointer to struct sock
+ * Returns: void
+ *
+ */
+void app_glue_sock_wakeup(struct sock *sk);
+
+
 #endif /* __API_H_ */
