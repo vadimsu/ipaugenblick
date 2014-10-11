@@ -184,6 +184,8 @@ static void on_recv(uv_udp_t* handle,
 //  ASSERT(nread > 0);
   if(nread == 0)
       return;
+  if(!libuv_app_is_socket_writable(udpServer.io_watcher.fd))
+      return;
   req = malloc(sizeof(*req));
   ASSERT(req != NULL);
   sndbuf = *rcvbuf;
@@ -196,7 +198,6 @@ static void on_recv(uv_udp_t* handle,
 static void on_send(uv_udp_send_t* req, int status) {
   ASSERT(status == 0);
   free(req);
-printf("%s %d\n",__FILE__,__LINE__);
 }
 
 

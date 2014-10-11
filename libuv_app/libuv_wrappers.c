@@ -288,9 +288,7 @@ int libuv_app_is_socket_writable(int fd)
         return 0;
     if(!fd_2_socket[fd]->sk)
         return 0;
-    if(sock_writeable(fd_2_socket[fd]->sk)) {
-        return app_glue_get_user_data(fd_2_socket[fd]);
-    }
+    return sock_writeable(fd_2_socket[fd]->sk);
 }
 
 int libuv_app_udp_sendmsg(int fd,void *arg,int len,int flags, unsigned int addr,unsigned short port,int (*copy_from_iovec)(void *,char *,int))
