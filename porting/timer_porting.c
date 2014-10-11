@@ -22,11 +22,17 @@
 
 int del_timer(struct timer_list * timer)
 {
-    return rte_timer_stop(&timer->tim);
+    if(rte_timer_pending(&timer->tim)) {
+        return !rte_timer_stop(&timer->tim);
+    } 
+    return 0;
 }
 int del_timer_sync(struct timer_list *timer)
 {
-    rte_timer_stop_sync(&timer->tim);
+    if(rte_timer_pending(&timer->tim)) {
+        rte_timer_stop_sync(&timer->tim);
+        return 1;
+    }
     return 0;
 }
 void timer_expiry_cbk(struct rte_timer *tim, void *arg)
@@ -37,7 +43,8 @@ void timer_expiry_cbk(struct rte_timer *tim, void *arg)
 int mod_timer(struct timer_list *timer, unsigned long expires)
 {
 //printf("%d %d\n",rte_get_timer_hz(),expires-jiffies);
-    return rte_timer_reset(&timer->tim,rte_get_timer_hz()*(expires-jiffies)/HZ,SINGLE,rte_lcore_id(),timer_expiry_cbk,timer);
+    int pending = rte_timer_pending(&timer->tim);
+    return rte_timer_reset(&timer->tim,rte_get_timer_hz()*(expires-jiffies)/HZ,SINGLE,rte_lcore_id(),timer_expiry_cbk,timer) || pending;
 }
 
 void add_timer(struct timer_list *timer)
