@@ -22,7 +22,7 @@
 //#define KMALLOC_MIN_SIZE 8
 #define MAX_ORDER 1
 //#define SIZE_MAX 0xFFFFFFFF
-#define PAGE_SIZE 0x1000
+#define PAGE_SIZE 0x400
 #define PAGE_MASK	(~(PAGE_SIZE-1))
 
 /*

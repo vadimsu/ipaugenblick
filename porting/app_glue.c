@@ -156,7 +156,7 @@ static void app_glue_sock_wakeup(struct sock *sk)
 	sock_reset_flag(sk,SOCK_USE_WRITE_QUEUE);
 	sk->sk_data_ready = app_glue_sock_readable;
 	sk->sk_write_space = app_glue_sock_write_space;
-	sk->sk_error_report = app_glue_sock_error_report;
+	sk->sk_error_report = app_glue_sock_error_report; 
 }
 /*
  * This is a wrapper function for RAW socket creation.
@@ -297,13 +297,15 @@ void *create_server_socket(const char *my_ip_addr,unsigned short port)
 	if(sock_setsockopt(server_sock,SOL_SOCKET,SO_SNDTIMEO,(char *)&tv,sizeof(tv))) {
 		printf("%s %d cannot set notimeout option\n",__FILE__,__LINE__);
 	}
-	bufsize = 0x4000;
+#if 0
+	bufsize = 0x1000000;
 	if(sock_setsockopt(server_sock,SOL_SOCKET,SO_SNDBUF,(char *)&bufsize,sizeof(bufsize))) {
 		printf("%s %d cannot set bufsize\n",__FILE__,__LINE__);
 	}
 	if(sock_setsockopt(server_sock,SOL_SOCKET,SO_RCVBUF,(char *)&bufsize,sizeof(bufsize))) {
 		printf("%s %d cannot set bufsize\n",__FILE__,__LINE__);
 	}
+#endif
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = inet_addr(my_ip_addr);
 	sin.sin_port = htons(port);
@@ -476,6 +478,7 @@ void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to
 		app_glue_drv_last_poll_ts = ts;
 		working_cycles_stat += rte_rdtsc() - ts4;
 	}
+
 	if((ts - app_glue_timer_last_poll_ts) >= app_glue_timer_poll_interval) {
 		ts3 = rte_rdtsc();
 		rte_timer_manage();

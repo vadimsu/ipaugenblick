@@ -10,7 +10,7 @@
 #ifndef __POOLS_H_
 #define __POOLS_H_
 
-#define MEMORY_FACTOR 4
+#define MEMORY_FACTOR 8
 
 
 #define NUMBER_OF_HEAD_SKBS 8192*16*MEMORY_FACTOR
