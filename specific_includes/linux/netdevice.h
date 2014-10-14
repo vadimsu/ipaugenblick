@@ -3097,9 +3097,8 @@ static inline bool net_gso_ok(netdev_features_t features, int gso_type)
 
 static inline bool skb_gso_ok(struct sk_buff *skb, netdev_features_t features)
 {
-	/*return net_gso_ok(features, skb_shinfo(skb)->gso_type) &&
-	       (!skb_has_frag_list(skb) || (features & NETIF_F_FRAGLIST));*/
-        return true;
+	return net_gso_ok(features, skb_shinfo(skb)->gso_type) &&
+	       (!skb_has_frag_list(skb) || (features & NETIF_F_FRAGLIST));
 }
 
 static inline bool netif_needs_gso(struct sk_buff *skb,

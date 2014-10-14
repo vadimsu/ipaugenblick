@@ -1920,11 +1920,7 @@ struct dst_entry *sk_dst_check(struct sock *sk, u32 cookie);
 
 static inline bool sk_can_gso(const struct sock *sk)
 {
-#if 1
 	return net_gso_ok(sk->sk_route_caps, sk->sk_gso_type);
-#else
-    return false;
-#endif
 }
 
 void sk_setup_caps(struct sock *sk, struct dst_entry *dst);
