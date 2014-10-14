@@ -1038,9 +1038,10 @@ wait_for_memory:
 	        skb->ip_summed = CHECKSUM_PARTIAL;
 	        tp->write_seq += copied;
 	        TCP_SKB_CB(skb)->end_seq += copied;
+#ifdef GSO
                 skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss_now);
                 skb_shinfo(skb)->gso_size = mss_now;
-
+#endif
 	        if (!copied)
 		    TCP_SKB_CB(skb)->tcp_flags &= ~TCPHDR_PSH;
 	        
@@ -3302,11 +3303,11 @@ void __init tcp_init(void)
 	tcp_init_mem();
 	/* Set per-socket limits to no more than 1/128 the pressure threshold */
 	limit = nr_free_buffer_pages() << (PAGE_SHIFT - 7);
-	max_wshare = min(4UL*1024*1024, limit);
+	max_wshare = min(64UL*1024*1024, limit);
 	max_rshare = min(6UL*1024*1024, limit);
 
-	sysctl_tcp_wmem[0] = SK_MEM_QUANTUM;
-	sysctl_tcp_wmem[1] = 16*1024;
+	sysctl_tcp_wmem[0] = SK_MEM_QUANTUM*16;
+	sysctl_tcp_wmem[1] = 16*1024*16;
 	sysctl_tcp_wmem[2] = max(64*1024, max_wshare);
 
 	sysctl_tcp_rmem[0] = SK_MEM_QUANTUM;
