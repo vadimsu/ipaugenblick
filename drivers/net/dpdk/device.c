@@ -139,7 +139,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	}
         *mbuf = NULL;
 	head->pkt.pkt_len = pkt_len;
-
+#ifdef GSO
         if ((skb->protocol == htons(ETH_P_IP))&&(ip_hdr(skb)->protocol == IPPROTO_TCP)&&(i> 0)) {
                  struct iphdr *iph = ip_hdr(skb);
                  head->pkt.vlan_macip.data = skb_network_header_len(skb) | (skb_network_offset(skb) << 9);
@@ -153,7 +153,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
                                                           IPPROTO_TCP,
                                                           0);
         }
-
+#endif
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
 	kfree_skb(skb);
@@ -288,8 +288,10 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 		goto leave;
 	}
         dev->mtu = 1500;
-        dev->gso_max_segs = 10;
-        dev->gso_max_size = 15000;
+#ifdef GSO
+        dev->gso_max_segs = 2;
+        dev->gso_max_size = 4096;
+#endif
 	memcpy(macaddr.sa_data,mac_addr,ETH_ALEN);
 	memset(&ifr,0,sizeof(ifr));
 	strcpy(ifr.ifr_ifrn.ifrn_name,dev->name);
@@ -343,7 +345,11 @@ void *create_netdev(int port_num)
 	memset(priv, 0, sizeof(dpdk_dev_priv_t));
 	priv->port_number = port_num;
 	netdev->netdev_ops = &dpdk_netdev_ops;
+#ifdef GSO
 	netdev->features = NETIF_F_SG | NETIF_F_GSO | NETIF_F_FRAGLIST;
+#else
+        netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST;
+#endif
 	netdev->hw_features = 0;
 
 	netdev->vlan_features = 0;
