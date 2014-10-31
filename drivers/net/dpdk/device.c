@@ -270,7 +270,58 @@ void user_transmitted_callback(struct rte_mbuf *mbuf)
 {
 	rte_pktmbuf_free_seg(mbuf);
 }
+void add_dev_addr(void *netdev,int instance,char *ip_addr,char *ip_mask)
+{
+	struct socket *sock;
+	struct ifreq ifr;
+	struct rtentry rt;
+	struct arpreq r;
+	struct net_device *dev;
+	struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
+	int i;
+	struct sockaddr macaddr;
 
+	dev = (struct net_device *)netdev;
+	if(netdev == NULL) {
+		printf("netdev is NULL%s %d\n",__FILE__,__LINE__);
+		goto leave;
+	}
+	memset(&ifr,0,sizeof(ifr));
+	sprintf(ifr.ifr_ifrn.ifrn_name,"%s:%d",dev->name,instance);
+	if(sock_create_kern(AF_INET,SOCK_STREAM,0,&sock)) {
+		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
+		goto leave;
+	}
+	sin->sin_family = AF_INET;
+	sin->sin_addr.s_addr = inet_addr(ip_addr);
+	if(inet_ioctl(sock,SIOCSIFADDR,&ifr)) {
+		printf("Cannot set IF addr %s %d\n",__FILE__,__LINE__);
+		goto leave;
+	}
+	memset(&ifr,0,sizeof(ifr));
+	strcpy(ifr.ifr_ifrn.ifrn_name,dev->name);
+	sin->sin_family = AF_INET;
+	sin->sin_addr.s_addr = inet_addr(ip_mask);
+	if(inet_ioctl(sock,SIOCSIFNETMASK,&ifr)) {
+		printf("Cannot set IF mask %s %d\n",__FILE__,__LINE__);
+		goto leave;
+	}
+	memset(&ifr,0,sizeof(ifr));
+	sprintf(ifr.ifr_ifrn.ifrn_name,"%s:%d",dev->name,instance);
+	ifr.ifr_flags |= IFF_UP;
+	if(inet_ioctl(sock,SIOCSIFFLAGS,&ifr)) {
+		printf("Cannot set IF flags %s %d\n",__FILE__,__LINE__);
+		goto leave;
+	}
+	memset(&ifr,0,sizeof(ifr));
+	sprintf(ifr.ifr_ifrn.ifrn_name,"%s:%d",dev->name,instance);
+	if(inet_ioctl(sock,SIOCGIFADDR,&ifr)) {
+		printf("Cannot get IF addr %s %d\n",__FILE__,__LINE__);
+		goto leave;
+	}
+leave:
+	kernel_close(sock);
+}
 void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 {
 	struct socket *sock;
