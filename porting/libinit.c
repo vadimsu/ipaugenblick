@@ -313,8 +313,8 @@ typedef struct
 	char ip_addr_str[20];
 	char ip_mask_str[20];
 }dpdk_dev_config_t;
-
-static dpdk_dev_config_t dpdk_dev_config[RTE_MAX_ETHPORTS];
+#define ALIASES_MAX_NUMBER 4
+static dpdk_dev_config_t dpdk_dev_config[RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER];
 static void *dpdk_devices[RTE_MAX_ETHPORTS];
 /* This function returns a pointer to kernel's interface structure, required to access the driver */
 void *get_dpdk_dev_by_port_num(int port_num)
@@ -334,7 +334,7 @@ static int get_dpdk_ip_stack_config()
 		printf("cannot open dpdk_ip_stack_config.txt");
 		return -1;
 	}
-	for(i = 0;i < RTE_MAX_ETHPORTS;i++) {
+	for(i = 0;i < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER;i++) {
 		dpdk_dev_config[i].port_number = -1;
 	}
 	i = 0;
@@ -345,7 +345,7 @@ static int get_dpdk_ip_stack_config()
 		}
 		printf("retrieved config entry %d %s %s\n",dpdk_dev_config[i].port_number,dpdk_dev_config[i].ip_addr_str,dpdk_dev_config[i].ip_mask_str);
 		i++;
-		if(i == RTE_MAX_ETHPORTS) {
+		if(i == RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
 			break;
 		}
 	}
@@ -355,7 +355,7 @@ static int get_dpdk_ip_stack_config()
 static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
 {
 	int i;
-	for(i = 0;i < RTE_MAX_ETHPORTS;i++) {
+	for(i = 0;i < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER;i++) {
 		if(dpdk_dev_config[i].port_number == portnum) {
 			return &dpdk_dev_config[i];
 		}
@@ -371,7 +371,7 @@ static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
  */
 int dpdk_linux_tcpip_init(int argc,char **argv)
 {
-	int ret;
+	int ret,sub_if_idx;
 	uint8_t nb_ports;
 	uint8_t portid, last_port;
     uint16_t queue_id;
@@ -528,13 +528,21 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0)
 			continue;
-		printf("%s %d %d\n",__FILE__,__LINE__,portid);
 		p_dpdk_dev_config = get_dpdk_config_entry(portid);
 		if(p_dpdk_dev_config) {
 			dpdk_devices[portid] = create_netdev(portid);
-			printf("%s %d %p %s %s\n",__FILE__,__LINE__,dpdk_devices[portid],p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
 		    rte_eth_macaddr_get(portid,&mac_addr);
 		    set_dev_addr(dpdk_devices[portid],mac_addr.addr_bytes,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+                    while(sub_if_idx < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
+                        p_dpdk_dev_config++;
+                        if(p_dpdk_dev_config->port_number != portid) {
+                            printf("no more addressed for port %d\n",portid);
+                            break;
+                        }
+                        printf("Adding port%d address %s\n",portid,p_dpdk_dev_config->ip_addr_str);
+                        add_dev_addr(dpdk_devices[portid],sub_if_idx - portid,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+                        sub_if_idx++;
+                    }
 		    printf("%s %d\n",__FILE__,__LINE__);
 		}
 	}
