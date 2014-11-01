@@ -18,6 +18,7 @@ net/core/neighbour.c net/core/dev.c net/core/dst.c net/core/dev_addr_lists.c net
 net/core/sock.c net/core/skbuff.c \
 net/core/request_sock.c net/core/stream.c net/core/dummies.c net/core/datagram.c net/core/netevent.c \
 net/socket.c net/netfilter/core.c net/netfilter/nf_sockopt.c net/netfilter/nf_log.c net/netfilter/nf_queue.c \
+net/packet/af_packet.c \
 arch/x86/lib/csum-partial_64.c arch/x86/lib/csum-wrappers_64.c \
 lib/kasprintf.c lib/kstrtox.c lib/md5.c lib/percpu_counter.c lib/find_next_bit.c lib/bitmap.c lib/sha1.c \
 crypto/api.c \
