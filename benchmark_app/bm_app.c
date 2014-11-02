@@ -84,16 +84,14 @@ int user_on_transmission_opportunity(struct socket *sock)
 	uint64_t ts = rte_rdtsc();
 #ifdef OPTIMIZE_SENDPAGES
 	user_on_tx_opportunity_called++;
-	to_send_this_time = app_glue_calc_size_of_data_to_send(sock);
 
-	if(likely(to_send_this_time > 0)) {
+	while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0)) {
 		sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
 		i = kernel_sendpage(sock, &page, 0,/*offset*/to_send_this_time /* size*/, 0 /*flags*/);
 		if(i <= 0)
 			user_on_tx_opportunity_api_failed++;
-	}
-	else {
-		user_on_tx_opportunity_api_not_called++;
+                else
+                    sent += i;
 	}
 #else
 	/* this does not know at the moment to deal with partially sent mbuf */
@@ -163,6 +161,7 @@ int user_on_accept(struct socket *sock)
 	struct socket *newsock = NULL;
 	while(likely(kernel_accept(sock, &newsock, 0) == 0)) {
 		newsock->sk->sk_route_caps |= NETIF_F_SG |NETIF_F_ALL_CSUM|NETIF_F_GSO;
+                user_on_transmission_opportunity(newsock);
 	}
 }
 
@@ -170,10 +169,10 @@ void app_main_loop()
 {
     uint8_t ports_to_poll[1] = { 0 };
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
-	app_glue_init_poll_intervals(drv_poll_interval/(2*MAX_PKT_BURST),
+	app_glue_init_poll_intervals(/*drv_poll_interval/(2*MAX_PKT_BURST)*/0,
 	                             1000 /*timer_poll_interval*/,
-	                             drv_poll_interval/(10*MAX_PKT_BURST),
-	                             drv_poll_interval/(60*MAX_PKT_BURST));
+	                             /*drv_poll_interval/(10*MAX_PKT_BURST)*/0,
+	                             /*drv_poll_interval/(60*MAX_PKT_BURST)*/0);
 	while(1) {
 		app_glue_periodic(1,ports_to_poll,1);
 	}
