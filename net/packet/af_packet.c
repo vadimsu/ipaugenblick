@@ -85,7 +85,7 @@
 //#include <linux/init.h>
 //#include <linux/mutex.h>
 #include <specific_includes/linux/if_vlan.h>
-//#include <linux/virtio_net.h>
+#include <specific_includes/uapi/linux/virtio_net.h>
 //#include <linux/errqueue.h>
 //#include <linux/net_tstamp.h>
 #include <specific_includes/linux/percpu.h>
@@ -382,14 +382,14 @@ static void unregister_prot_hook(struct sock *sk, bool sync)
 	if (po->running)
 		__unregister_prot_hook(sk, sync);
 }
-
+#if 0 /* VADIM */
 static inline __pure struct page *pgv_to_page(void *addr)
 {
 	if (is_vmalloc_addr(addr))
 		return vmalloc_to_page(addr);
 	return virt_to_page(addr);
 }
-
+#endif
 static void __packet_set_status(struct packet_sock *po, void *frame, int status)
 {
 	union tpacket_uhdr h;
@@ -398,11 +398,15 @@ static void __packet_set_status(struct packet_sock *po, void *frame, int status)
 	switch (po->tp_version) {
 	case TPACKET_V1:
 		h.h1->tp_status = status;
+#if 0 /* VADIM */
 		flush_dcache_page(pgv_to_page(&h.h1->tp_status));
+#endif
 		break;
 	case TPACKET_V2:
 		h.h2->tp_status = status;
+#if 0 /* VADIM */
 		flush_dcache_page(pgv_to_page(&h.h2->tp_status));
+#endif
 		break;
 	case TPACKET_V3:
 	default:
@@ -422,10 +426,14 @@ static int __packet_get_status(struct packet_sock *po, void *frame)
 	h.raw = frame;
 	switch (po->tp_version) {
 	case TPACKET_V1:
+#if 0 /* VADIM */
 		flush_dcache_page(pgv_to_page(&h.h1->tp_status));
+#endif
 		return h.h1->tp_status;
 	case TPACKET_V2:
+#if 0 /* VADIM */
 		flush_dcache_page(pgv_to_page(&h.h2->tp_status));
+#endif
 		return h.h2->tp_status;
 	case TPACKET_V3:
 	default:
@@ -439,7 +447,7 @@ static __u32 tpacket_get_timestamp(struct sk_buff *skb, struct timespec *ts,
 				   unsigned int flags)
 {
 	struct skb_shared_hwtstamps *shhwtstamps = skb_hwtstamps(skb);
-
+#if 0 /* VADIM */
 	if (shhwtstamps) {
 		if ((flags & SOF_TIMESTAMPING_SYS_HARDWARE) &&
 		    ktime_to_timespec_cond(shhwtstamps->syststamp, ts))
@@ -451,7 +459,7 @@ static __u32 tpacket_get_timestamp(struct sk_buff *skb, struct timespec *ts,
 
 	if (ktime_to_timespec_cond(skb->tstamp, ts))
 		return TP_STATUS_TS_SOFTWARE;
-
+#endif
 	return 0;
 }
 
@@ -562,11 +570,11 @@ static int prb_calc_retire_blk_tmo(struct packet_sock *po,
 				int blk_size_in_bytes)
 {
 	struct net_device *dev;
-	unsigned int mbits = 0, msec = 0, div = 0, tmo = 0;
-	struct ethtool_cmd ecmd;
+	unsigned int mbits = 0, msec = 0, div = 0, tmo = 0;	
 	int err;
 	u32 speed;
-
+#if 0 /* VADIM */
+        struct ethtool_cmd ecmd;
 	rtnl_lock();
 	dev = __dev_get_by_index(sock_net(&po->sk), po->ifindex);
 	if (unlikely(!dev)) {
@@ -598,6 +606,7 @@ static int prb_calc_retire_blk_tmo(struct packet_sock *po,
 
 	if (div)
 		return tmo+1;
+#endif
 	return tmo;
 }
 
@@ -1394,7 +1403,7 @@ static int packet_rcv_fanout(struct sk_buff *skb, struct net_device *dev,
 
 DEFINE_MUTEX(fanout_mutex);
 EXPORT_SYMBOL_GPL(fanout_mutex);
-static LIST_HEAD(fanout_list);
+static LINUX_LIST_HEAD(fanout_list);
 
 static void __fanout_link(struct sock *sk, struct packet_sock *po)
 {
@@ -1481,7 +1490,7 @@ static int fanout_add(struct sock *sk, u16 id, u16 type_flags)
 		match->type = type;
 		match->flags = flags;
 		atomic_set(&match->rr_cur, 0);
-		INIT_LIST_HEAD(&match->list);
+		LINUX_INIT_LIST_HEAD(&match->list);
 		spin_lock_init(&match->lock);
 		atomic_set(&match->sk_ref, 0);
 		match->prot_hook.type = po->prot_hook.type;
@@ -2754,7 +2763,7 @@ out:
 
 static struct proto packet_proto = {
 	.name	  = "PACKET",
-	.owner	  = THIS_MODULE,
+//	.owner	  = THIS_MODULE,
 	.obj_size = sizeof(struct packet_sock),
 };
 
@@ -3600,11 +3609,11 @@ static int packet_ioctl(struct socket *sock, unsigned int cmd,
 #endif
 
 	default:
-		return -ENOIOCTLCMD;
+		return /*-ENOIOCTLCMD*/-1;
 	}
 	return 0;
 }
-
+#if 0 /* VADIM */
 static unsigned int packet_poll(struct file *file, struct socket *sock,
 				poll_table *wait)
 {
@@ -3934,17 +3943,19 @@ out:
 	mutex_unlock(&po->pg_vec_lock);
 	return err;
 }
-
+#endif
 static const struct proto_ops packet_ops_spkt = {
 	.family =	PF_PACKET,
-	.owner =	THIS_MODULE,
+//	.owner =	THIS_MODULE,
 	.release =	packet_release,
 	.bind =		packet_bind_spkt,
 	.connect =	sock_no_connect,
 	.socketpair =	sock_no_socketpair,
 	.accept =	sock_no_accept,
 	.getname =	packet_getname_spkt,
+#if 0 /* VADIM */
 	.poll =		datagram_poll,
+#endif
 	.ioctl =	packet_ioctl,
 	.listen =	sock_no_listen,
 	.shutdown =	sock_no_shutdown,
@@ -3958,14 +3969,16 @@ static const struct proto_ops packet_ops_spkt = {
 
 static const struct proto_ops packet_ops = {
 	.family =	PF_PACKET,
-	.owner =	THIS_MODULE,
+//	.owner =	THIS_MODULE,
 	.release =	packet_release,
 	.bind =		packet_bind,
 	.connect =	sock_no_connect,
 	.socketpair =	sock_no_socketpair,
 	.accept =	sock_no_accept,
 	.getname =	packet_getname,
+#if 0 /* VADIM */
 	.poll =		packet_poll,
+#endif
 	.ioctl =	packet_ioctl,
 	.listen =	sock_no_listen,
 	.shutdown =	sock_no_shutdown,
@@ -3973,14 +3986,16 @@ static const struct proto_ops packet_ops = {
 	.getsockopt =	packet_getsockopt,
 	.sendmsg =	packet_sendmsg,
 	.recvmsg =	packet_recvmsg,
+#if 0 /* VADIM */
 	.mmap =		packet_mmap,
+#endif
 	.sendpage =	sock_no_sendpage,
 };
 
 static const struct net_proto_family packet_family_ops = {
 	.family =	PF_PACKET,
 	.create =	packet_create,
-	.owner	=	THIS_MODULE,
+//	.owner	=	THIS_MODULE,
 };
 
 static struct notifier_block packet_netdev_notifier = {
@@ -4048,7 +4063,7 @@ static int packet_seq_open(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations packet_seq_fops = {
-	.owner		= THIS_MODULE,
+//	.owner		= THIS_MODULE,
 	.open		= packet_seq_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
@@ -4061,10 +4076,10 @@ static int __net_init packet_net_init(struct net *net)
 {
 	mutex_init(&net->packet.sklist_lock);
 	INIT_HLIST_HEAD(&net->packet.sklist);
-
+#if 0 /* VADIM */
 	if (!proc_create("packet", 0, net->proc_net, &packet_seq_fops))
 		return -ENOMEM;
-
+#endif
 	return 0;
 }
 
