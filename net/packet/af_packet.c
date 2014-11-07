@@ -1694,7 +1694,11 @@ retry:
 			if (len < hhlen)
 				skb_reset_network_header(skb);
 		}
+#if 0 /* VADIM */
 		err = memcpy_fromiovec(skb_put(skb, len), msg->msg_iov, len);
+#else
+                err = memcpy_fromiovec(skb, msg->msg_iov, len);
+#endif
 		if (err)
 			goto out_free;
 		goto retry;
@@ -2621,12 +2625,16 @@ static int packet_release(struct socket *sock)
 
 	if (po->rx_ring.pg_vec) {
 		memset(&req_u, 0, sizeof(req_u));
+#if 0 /* VADIM */
 		packet_set_ring(sk, &req_u, 1, 0);
+#endif
 	}
 
 	if (po->tx_ring.pg_vec) {
 		memset(&req_u, 0, sizeof(req_u));
+#if 0 /* VADIM */
 		packet_set_ring(sk, &req_u, 1, 1);
+#endif
 	}
 
 	fanout_release(sk);
@@ -2893,7 +2901,7 @@ static int packet_recvmsg(struct kiocb *iocb, struct socket *sock,
 
 	if (skb == NULL)
 		goto out;
-
+#if 0 /* decide later how to integrate this VADIM */
 	if (pkt_sk(sk)->has_vnet_hdr) {
 		struct virtio_net_hdr vnet_hdr = { 0 };
 
@@ -2938,7 +2946,7 @@ static int packet_recvmsg(struct kiocb *iocb, struct socket *sock,
 		if (err < 0)
 			goto out_free;
 	}
-
+#endif
 	/* You lose any data beyond the buffer you gave. If it worries
 	 * a user program they can ask the device for its MTU
 	 * anyway.
@@ -3252,8 +3260,12 @@ packet_setsockopt(struct socket *sock, int level, int optname, char __user *optv
 			return -EINVAL;
 		if (copy_from_user(&req_u.req, optval, len))
 			return -EFAULT;
+#if 0 /* VADIM */
 		return packet_set_ring(sk, &req_u, 0,
 			optname == PACKET_TX_RING);
+#else
+                return -1;
+#endif
 	}
 	case PACKET_COPY_THRESH:
 	{
@@ -3963,7 +3975,9 @@ static const struct proto_ops packet_ops_spkt = {
 	.getsockopt =	sock_no_getsockopt,
 	.sendmsg =	packet_sendmsg_spkt,
 	.recvmsg =	packet_recvmsg,
+#if 0 /* VADIM */
 	.mmap =		sock_no_mmap,
+#endif
 	.sendpage =	sock_no_sendpage,
 };
 

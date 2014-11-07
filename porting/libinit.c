@@ -400,6 +400,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	net_dev_init();
 	skb_init();
 	inet_init();
+        packet_init();
 	app_glue_init();
     argc -= ret;
 	argv += ret;
