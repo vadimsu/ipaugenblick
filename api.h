@@ -42,6 +42,15 @@ extern void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
  *
  */
 extern void *create_server_socket(const char *my_ip_addr,unsigned short port);
+
+/*
+ * This is a wrapper function for AF_PACKET socket creation.
+ * Paramters: T.B.D. to bind
+ * Returns: a pointer to socket structure (handle)
+ * or NULL if failed
+ *
+ */
+extern void *create_packet_socket(const char *dev_name);
 /*
  * This function must be called by application to initialize.
  * the rate of polling for driver, timer, readable & writable socket lists

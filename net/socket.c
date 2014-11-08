@@ -409,6 +409,19 @@ int sock_register(const struct net_proto_family *ops)
 	return err;
 }
 EXPORT_SYMBOL(sock_register);
+void sock_unregister(int family)
+{
+     BUG_ON(family < 0 || family >= NPROTO);
+ 
+     spin_lock(&net_family_lock);
+     net_families[family] = NULL;
+     spin_unlock(&net_family_lock);
+ 
+     synchronize_rcu();
+ 
+     pr_info("NET: Unregistered protocol family %d\n", family);
+}
+EXPORT_SYMBOL(sock_unregister);
 static inline void sock_recv_drops(struct msghdr *msg, struct sock *sk,
 				   struct sk_buff *skb)
 {

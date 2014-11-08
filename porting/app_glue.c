@@ -327,6 +327,31 @@ void *create_server_socket(const char *my_ip_addr,unsigned short port)
 	return server_sock;
 }
 /*
+ * This is a wrapper function for AF_PACKET socket creation.
+ * Paramters: T.B.D. to bind
+ * Returns: a pointer to socket structure (handle)
+ * or NULL if failed
+ *
+ */
+void *create_packet_socket(const char *dev_name)
+{
+	struct sockaddr_ll sockaddr_ll;
+	struct timeval tv;
+	struct socket *packet_sock = NULL;
+
+	if(sock_create_kern(AF_PACKET,SOCK_RAW,0,&packet_sock)) {
+		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
+		return NULL;
+	}
+
+	sockaddr_ll.sll_family = AF_PACKET;
+	if(kernel_bind(packet_sock,(struct sockaddr *)&sockaddr_ll,sizeof(sockaddr_ll))) {
+		printf("cannot bind %s %d\n",__FILE__,__LINE__);
+		return NULL;
+	}
+	return packet_sock;
+}
+/*
  * This function polls the driver for the received packets.Called from app_glue_periodic
  * Paramters: ethernet port number.
  * Returns: None

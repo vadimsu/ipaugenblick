@@ -43,4 +43,9 @@ rm -rf build
 make CURRENT_DIR=$(pwd)/ clean
 make CURRENT_DIR=$(pwd)/
 ./build_test.sh
+cd benchmark_app_packet
+rm -rf build
+make CURRENT_DIR=$(pwd)/ clean
+make CURRENT_DIR=$(pwd)/
+./build_test.sh
 echo "DONE"

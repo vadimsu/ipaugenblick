@@ -517,7 +517,6 @@ void print_skb_iov_stats()
 	printf("skb_copy_csum_datagram_iovec_failed %"PRIu64"\n",skb_copy_csum_datagram_iovec_failed);
 	printf("skb_copy_csum_datagram_iovec_called %"PRIu64"\n",skb_copy_csum_datagram_iovec_called);
 }
-#if 0 /* NO AF_PACKET & AF_UNIX */
 /**
  *	skb_copy_datagram_from_iovec - Copy a datagram from an iovec.
  *	@skb: buffer to copy
@@ -610,7 +609,7 @@ fault:
 	return -EFAULT;
 }
 EXPORT_SYMBOL(skb_copy_datagram_from_iovec);
-
+#if 0 /* NO AF_PACKET & AF_UNIX */
 /**
  *	zerocopy_sg_from_iovec - Build a zerocopy datagram from an iovec
  *	@skb: buffer to copy

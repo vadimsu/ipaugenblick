@@ -63,7 +63,7 @@
 #include <specific_includes/linux/netdevice.h>
 #include <specific_includes/linux/if_packet.h>
 //#include <linux/wireless.h>
-//#include <linux/kernel.h>
+//#include <specific_includes/linux/kernel.h>
 //#include <linux/kmod.h>
 //#include <linux/vmalloc.h>
 #include <specific_includes/net/net_namespace.h>
@@ -94,7 +94,28 @@
 #endif
 
 #include "internal.h"
-
+/*VADIM - copied from kernel.h*/
+/**
+ * reciprocal_scale - "scale" a value into range [0, ep_ro)
+ * @val: value
+ * @ep_ro: right open interval endpoint
+ *
+ * Perform a "reciprocal multiplication" in order to "scale" a value into
+ * range [0, ep_ro), where the upper interval endpoint is right-open.
+ * This is useful, e.g. for accessing a index of an array containing
+ * ep_ro elements, for example. Think of it as sort of modulus, only that
+ * the result isn't that of modulo. ;) Note that if initial input is a
+ * small value, then result will return 0.
+ *
+ * Return: a result based on val in interval [0, ep_ro).
+ */
+static inline u32 reciprocal_scale(u32 val, u32 ep_ro)
+{
+        return (u32)(((u64) val * ep_ro) >> 32);
+}
+/* this one is changed for user space */
+#define offset_in_page(p) 0
+/*End of VADIM - copied from kernel.h*/
 /*
    Assumptions:
    - if device has no dev->hard_header routine, it adds and removes ll header
@@ -1348,7 +1369,7 @@ static bool fanout_has_flag(struct packet_fanout *f, u16 flag)
 {
 	return f->flags & (flag >> 8);
 }
-
+#if 0 /* VADIM - the feature is disabled currently, must to be rewritten */
 static int packet_rcv_fanout(struct sk_buff *skb, struct net_device *dev,
 			     struct packet_type *pt, struct net_device *orig_dev)
 {
@@ -1400,7 +1421,7 @@ static int packet_rcv_fanout(struct sk_buff *skb, struct net_device *dev,
 
 	return po->prot_hook.func(skb, dev, &po->prot_hook, orig_dev);
 }
-
+#endif
 DEFINE_MUTEX(fanout_mutex);
 EXPORT_SYMBOL_GPL(fanout_mutex);
 static LINUX_LIST_HEAD(fanout_list);
@@ -1439,7 +1460,7 @@ static bool match_fanout_group(struct packet_type *ptype, struct sock *sk)
 
 	return false;
 }
-
+#if 0 /* VADIM - the feature is disabled currently, must to be rewritten */
 static int fanout_add(struct sock *sk, u16 id, u16 type_flags)
 {
 	struct packet_sock *po = pkt_sk(sk);
@@ -1518,7 +1539,7 @@ out:
 	mutex_unlock(&fanout_mutex);
 	return err;
 }
-
+#endif
 static void fanout_release(struct sock *sk)
 {
 	struct packet_sock *po = pkt_sk(sk);
@@ -1879,7 +1900,7 @@ drop:
 	consume_skb(skb);
 	return 0;
 }
-
+#if 0 /* VADIM - the feature is disabled currently, must to be rewritten */
 static int tpacket_rcv(struct sk_buff *skb, struct net_device *dev,
 		       struct packet_type *pt, struct net_device *orig_dev)
 {
@@ -2359,7 +2380,7 @@ out:
 	mutex_unlock(&po->pg_vec_lock);
 	return err;
 }
-
+#endif /* VADIM - the feature is disabled currently, must to be rewritten */
 static struct sk_buff *packet_alloc_skb(struct sock *sk, size_t prepad,
 				        size_t reserve, size_t len,
 				        size_t linear, int noblock,
@@ -2438,7 +2459,7 @@ static int packet_snd(struct socket *sock, struct msghdr *msg, size_t len)
 
 		len -= vnet_hdr_len;
 
-		err = memcpy_fromiovec((void *)&vnet_hdr, msg->msg_iov,
+		err = memcpy_fromiovec2((void *)&vnet_hdr, msg->msg_iov,
 				       vnet_hdr_len);
 		if (err < 0)
 			goto out_unlock;
@@ -2578,10 +2599,11 @@ static int packet_sendmsg(struct kiocb *iocb, struct socket *sock,
 {
 	struct sock *sk = sock->sk;
 	struct packet_sock *po = pkt_sk(sk);
-
+#if 0 /* VADIM - the feature is disabled currently, must to be rewritten */
 	if (po->tx_ring.pg_vec)
 		return tpacket_snd(po, msg);
 	else
+#endif
 		return packet_snd(sock, msg, len);
 }
 
@@ -3377,6 +3399,7 @@ packet_setsockopt(struct socket *sock, int level, int optname, char __user *optv
 		po->tp_tstamp = val;
 		return 0;
 	}
+#if 0 /* VADIM - the feature is disabled currently, must to be rewritten */
 	case PACKET_FANOUT:
 	{
 		int val;
@@ -3388,6 +3411,7 @@ packet_setsockopt(struct socket *sock, int level, int optname, char __user *optv
 
 		return fanout_add(sk, val & 0xffff, val >> 16);
 	}
+#endif
 	case PACKET_TX_HAS_OFF:
 	{
 		unsigned int val;
