@@ -165,7 +165,7 @@ int user_on_accept(struct socket *sock)
 		newsock->sk->sk_route_caps |= NETIF_F_SG |NETIF_F_ALL_CSUM|NETIF_F_GSO;
 	}
 }
-
+extern struct socket *packet_sock;
 void app_main_loop()
 {
     uint8_t ports_to_poll[1] = { 0 };
@@ -175,7 +175,9 @@ void app_main_loop()
 	                             drv_poll_interval/(10*MAX_PKT_BURST),
 	                             drv_poll_interval/(60*MAX_PKT_BURST));
 	while(1) {
-		app_glue_periodic(1,ports_to_poll,1);
+		app_glue_periodic(0,ports_to_poll,1);
+                user_data_available_cbk(packet_sock);
+                user_on_transmission_opportunity(packet_sock);
 	}
 }
 /*this is called in non-data-path thread */

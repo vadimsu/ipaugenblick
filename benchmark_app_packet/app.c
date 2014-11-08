@@ -7,9 +7,9 @@
 #include <api.h>
 
 void app_main_loop();
-
-void app_init(char *dev_name,unsigned short port)
+struct socket *packet_sock;
+void app_init(char *dev_name,unsigned short protocol)
 {
-	create_packet_socket(dev_name);
+	packet_sock = create_packet_socket(dev_name,protocol);
 	app_main_loop();
 }

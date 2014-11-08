@@ -50,7 +50,7 @@ extern void *create_server_socket(const char *my_ip_addr,unsigned short port);
  * or NULL if failed
  *
  */
-extern void *create_packet_socket(const char *dev_name);
+extern void *create_packet_socket(const char *dev_name,unsigned short protocol);
 /*
  * This function must be called by application to initialize.
  * the rate of polling for driver, timer, readable & writable socket lists

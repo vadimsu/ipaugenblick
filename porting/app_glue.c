@@ -333,11 +333,19 @@ void *create_server_socket(const char *my_ip_addr,unsigned short port)
  * or NULL if failed
  *
  */
-void *create_packet_socket(const char *dev_name)
+void *create_packet_socket(const char *dev_name,unsigned short protocol)
 {
 	struct sockaddr_ll sockaddr_ll;
 	struct timeval tv;
 	struct socket *packet_sock = NULL;
+        struct net_device *dev;
+
+        dev = dev_get_by_name(&init_net,dev_name);
+
+        if(dev == NULL) {
+            printf("cannot create socket %s %d\n",__FILE__,__LINE__); 
+            return NULL;
+        }
 
 	if(sock_create_kern(AF_PACKET,SOCK_RAW,0,&packet_sock)) {
 		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
@@ -345,6 +353,8 @@ void *create_packet_socket(const char *dev_name)
 	}
 
 	sockaddr_ll.sll_family = AF_PACKET;
+        sockaddr_ll.sll_protocol = protocol;
+        sockaddr_ll.sll_ifindex = dev->ifindex;
 	if(kernel_bind(packet_sock,(struct sockaddr *)&sockaddr_ll,sizeof(sockaddr_ll))) {
 		printf("cannot bind %s %d\n",__FILE__,__LINE__);
 		return NULL;

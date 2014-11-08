@@ -511,7 +511,9 @@ static __u32 __packet_set_timestamp(struct packet_sock *po, void *frame,
 	}
 
 	/* one flush is safe, as both fields always lie on the same cacheline */
+#if 0 /* VADIM */
 	flush_dcache_page(pgv_to_page(&h.h1->tp_sec));
+#endif
 	smp_wmb();
 
 	return ts_status;
@@ -730,7 +732,9 @@ static void prb_retire_rx_blk_timer_expired(unsigned long data)
 	if (BLOCK_NUM_PKTS(pbd)) {
 		while (atomic_read(&pkc->blk_fill_in_prog)) {
 			/* Waiting for skb_copy_bits to finish... */
+#if 0 /* VADIM */
 			cpu_relax();
+#endif
 		}
 	}
 
@@ -981,7 +985,9 @@ static void prb_retire_current_block(struct tpacket_kbdq_core *pkc,
 		if (!(status & TP_STATUS_BLK_TMO)) {
 			while (atomic_read(&pkc->blk_fill_in_prog)) {
 				/* Waiting for skb_copy_bits to finish... */
+#if 0 /* VADIM */
 				cpu_relax();
+#endif
 			}
 		}
 		prb_close_block(pkc, pbd, po, status);
@@ -1259,11 +1265,11 @@ static bool packet_rcv_has_room(struct packet_sock *po, struct sk_buff *skb)
 {
 	struct sock *sk = &po->sk;
 	bool has_room;
-
+#if 0 /* VADIM */
 	if (po->prot_hook.func != tpacket_rcv)
 		return (atomic_read(&sk->sk_rmem_alloc) + skb->truesize)
 			<= sk->sk_rcvbuf;
-
+#endif
 	spin_lock(&sk->sk_receive_queue.lock);
 	if (po->tp_version == TPACKET_V3)
 		has_room = prb_lookup_block(po, &po->rx_ring,
@@ -4142,7 +4148,7 @@ void __exit packet_exit(void)
 
 int __init packet_init(void)
 {
-	int rc = proto_register(&packet_proto, 0);
+	int rc = proto_register(&packet_proto, 1);
 
 	if (rc != 0)
 		goto out;

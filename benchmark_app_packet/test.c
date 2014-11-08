@@ -9,7 +9,7 @@ int main(int argc,char **argv)
 		printf("Invalid arguments\n");
 		return 1;
 	}
-	app_init("dpdk_if0");
+	app_init("dpdk_if0",3);
 	return 0;
 }
 
