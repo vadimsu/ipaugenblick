@@ -371,7 +371,7 @@ static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
  */
 int dpdk_linux_tcpip_init(int argc,char **argv)
 {
-	int ret,sub_if_idx;
+	int ret,sub_if_idx = 0;
 	uint8_t nb_ports;
 	uint8_t portid, last_port;
     uint16_t queue_id;
@@ -534,6 +534,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 			dpdk_devices[portid] = create_netdev(portid);
 		    rte_eth_macaddr_get(portid,&mac_addr);
 		    set_dev_addr(dpdk_devices[portid],mac_addr.addr_bytes,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+                    sub_if_idx = 0;
                     while(sub_if_idx < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
                         p_dpdk_dev_config++;
                         if(p_dpdk_dev_config->port_number != portid) {
