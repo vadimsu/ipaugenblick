@@ -144,9 +144,18 @@ void user_data_available_cbk(struct socket *sock)
 	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0)) {
 		dummy = 0;
 		while(unlikely(mbuf = msg.msg_iov->head)) {
-			msg.msg_iov->head = msg.msg_iov->head->pkt.next;
-            user_rx_mbufs++;
-			rte_pktmbuf_free_seg(mbuf);
+                    {
+                        int j;
+                        unsigned char *b = (unsigned char *)mbuf->pkt.data;
+                        for(j = 0;j < 40;j++) {
+                            if(!(j%8))
+                                printf("\n");
+                            printf("  %x",b[j]);
+                        }
+                    }
+		    msg.msg_iov->head = msg.msg_iov->head->pkt.next;
+                    user_rx_mbufs++;
+		    rte_pktmbuf_free_seg(mbuf);
 		}
 		memset(&vec,0,sizeof(vec));
 	}
@@ -177,7 +186,7 @@ void app_main_loop()
 	while(1) {
 		app_glue_periodic(0,ports_to_poll,1);
                 user_data_available_cbk(packet_sock);
-                user_on_transmission_opportunity(packet_sock);
+//                user_on_transmission_opportunity(packet_sock);
 	}
 }
 /*this is called in non-data-path thread */

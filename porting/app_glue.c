@@ -353,7 +353,7 @@ void *create_packet_socket(const char *dev_name,unsigned short protocol)
 	}
 
 	sockaddr_ll.sll_family = AF_PACKET;
-        sockaddr_ll.sll_protocol = protocol;
+        sockaddr_ll.sll_protocol = htons(protocol);
         sockaddr_ll.sll_ifindex = dev->ifindex;
 	if(kernel_bind(packet_sock,(struct sockaddr *)&sockaddr_ll,sizeof(sockaddr_ll))) {
 		printf("cannot bind %s %d\n",__FILE__,__LINE__);
