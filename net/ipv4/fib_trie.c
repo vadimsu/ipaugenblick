@@ -1934,12 +1934,12 @@ void __init fib_trie_init(void)
 {
 	fn_alias_kmem = kmem_cache_create("ip_fib_alias",
 					  sizeof(struct fib_alias),
-					  10, SLAB_PANIC, NULL);
+					  40, SLAB_PANIC, NULL);
 
 	trie_leaf_kmem = kmem_cache_create("ip_fib_trie",
 					   max(sizeof(struct leaf),
 					       sizeof(struct leaf_info)),
-					   10, SLAB_PANIC, NULL);
+					   40, SLAB_PANIC, NULL);
 }
 
 
