@@ -2726,7 +2726,7 @@ int __init ip_rt_init(void)
 #endif
 
 	ipv4_dst_ops.kmem_cachep =
-		kmem_cache_create("ip_dst_cache", sizeof(struct rtable), 10,
+		kmem_cache_create("ip_dst_cache", sizeof(struct rtable), 40,
 				  SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
 
 	ipv4_dst_blackhole_ops.kmem_cachep = ipv4_dst_ops.kmem_cachep;
