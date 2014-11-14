@@ -368,7 +368,7 @@ static int raw_send_hdrinc(struct sock *sk, struct flowi4 *fl4,
 
 	skb->transport_header = skb->network_header;
 	err = -EFAULT;
-	if (memcpy_fromiovecend2((void *)iph, from, 0, length))
+	if (!memcpy_fromiovecend2((void *)iph, from, 0, length))
 		goto error_free;
 
 	iphlen = iph->ihl * 4;
