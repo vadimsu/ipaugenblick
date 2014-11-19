@@ -158,8 +158,7 @@ void user_data_available_cbk(struct socket *sock)
 	int i,dummy = 1;
 	user_on_rx_opportunity_called++;
 	memset(&vec,0,sizeof(vec));
-	if(unlikely(sock == NULL))
-	{
+	if(unlikely(sock == NULL)) {
 		return;
 	}
 	msg.msg_namelen = sizeof(sockaddrin);
@@ -205,11 +204,11 @@ void app_main_loop()
 			1000 /*timer_poll_interval*/,
 			drv_poll_interval/20,drv_poll_interval/20);
 	while(1) {
-		app_glue_periodic(0,ports_to_poll,1);
+		app_glue_periodic(1,ports_to_poll,1);
 		skip++;
 		if(skip == 1) {
-//			user_on_transmission_opportunity(udp_socket);
-			user_data_available_cbk(udp_socket);
+////			user_on_transmission_opportunity(udp_socket);
+//			user_data_available_cbk(udp_socket);
 			skip = 0;
 		}
 	}
