@@ -80,6 +80,9 @@ uint64_t user_on_tx_opportunity_api_failed = 0;
 uint64_t user_on_tx_opportunity_cannot_get_buff = 0;
 uint64_t user_on_rx_opportunity_called = 0;
 uint64_t user_on_rx_opportunity_called_wo_result = 0;
+
+#define PACKET_SIZE 60
+
 struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 {
 	struct rte_mbuf *mbuf;
@@ -102,8 +105,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 int user_on_transmission_opportunity(struct socket *sock)
 {
 	struct rte_mbuf *mbuf;
-	struct msghdr msghdr;
-	struct sockaddr_in sockaddrin;
+	struct msghdr msghdr;	
 	struct iovec iov;
 	int i = 0;
 	int32_t to_send_this_time;
@@ -111,7 +113,6 @@ int user_on_transmission_opportunity(struct socket *sock)
 	user_on_tx_opportunity_called++;
 
 	to_send_this_time = app_glue_calc_size_of_data_to_send(sock);
-        to_send_this_time *= 2;
 
        	if(unlikely(to_send_this_time == 0)) {
             user_on_tx_opportunity_api_not_called++;
@@ -123,12 +124,9 @@ int user_on_transmission_opportunity(struct socket *sock)
 			user_on_tx_opportunity_cannot_get_buff++;
 			return 0;
 		}
-		mbuf->pkt.data_len = 18;
-		sockaddrin.sin_family = AF_INET;
-		sockaddrin.sin_addr.s_addr = inet_addr("192.168.150.62");
-		sockaddrin.sin_port = htons(7777);
-		msghdr.msg_namelen = sizeof(sockaddrin);
-		msghdr.msg_name = &sockaddrin;
+		mbuf->pkt.data_len = PACKET_SIZE;
+		msghdr.msg_namelen = 0;
+		msghdr.msg_name = NULL;
 		msghdr.msg_iov = &iov;
 		iov.head = mbuf;
 		msghdr.msg_iovlen = 1;
@@ -136,13 +134,13 @@ int user_on_transmission_opportunity(struct socket *sock)
 		msghdr.msg_control = 0;
 		msghdr.msg_flags = 0;
 		sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
-		i = kernel_sendmsg(sock, &msghdr, 18);
+		i = kernel_sendmsg(sock, &msghdr, PACKET_SIZE);
 		if(i <= 0) {
                         rte_pktmbuf_free(mbuf);
 			user_on_tx_opportunity_api_failed++;
                         break;
                 }
-                to_send_this_time -= 1448;
+                to_send_this_time -= PACKET_SIZE;
 	}
 	user_on_tx_opportunity_cycles += rte_rdtsc() - ts;
 	return i;
@@ -194,23 +192,26 @@ extern struct socket *udp_socket[10];
 void app_main_loop()
 {
     uint8_t ports_to_poll[1] = { 0 };
-	int skip = 0;
+	int i;
+        struct sockaddr_in sockaddrin;
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
 
 	app_glue_init_poll_intervals(drv_poll_interval/2,
 			1000 /*timer_poll_interval*/,
 			drv_poll_interval/20,drv_poll_interval/20);
+        sockaddrin.sin_family = AF_INET;
+        sockaddrin.sin_addr.s_addr = inet_addr("192.168.150.62");
+        sockaddrin.sin_port = htons(7777);
+        for(i = 0;i < 10;i++) {
+            if(ip4_datagram_connect(udp_socket[i]->sk,(struct sockaddr *)&sockaddrin,sizeof(sockaddrin))) {
+                printf("Cannot connect UDP socket\n");
+            }
+        } 
 	while(1) {
 		app_glue_periodic(1,ports_to_poll,1);
-		skip++;
-		if(skip == 1) {
-                    int i;
-               
-                    for(i = 0; i < 10;i++) {
-//			user_on_transmission_opportunity(udp_socket[i]);
+                for(i = 0; i < 10;i++) {
+	            user_on_transmission_opportunity(udp_socket[i]);
 //		//	user_data_available_cbk(udp_socket[i]);
-                    }
-			skip = 0;
 		}
 	}
 }

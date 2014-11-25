@@ -209,11 +209,10 @@ void *create_udp_socket(const char *ip_addr,unsigned short port)
 		return NULL;
 	}
 	if(udp_sock->sk) {
-//		app_glue_sock_readable(udp_sock->sk,0);
-//		app_glue_sock_write_space(udp_sock->sk);
             sock_reset_flag(udp_sock->sk,SOCK_USE_WRITE_QUEUE);
             udp_sock->sk->sk_data_ready = app_glue_sock_readable;
-	    udp_sock->sk->sk_write_space = app_glue_sock_write_space;
+            udp_sock->sk->sk_write_space = app_glue_sock_write_space;
+            app_glue_sock_write_space(udp_sock->sk);
 	}
 	return udp_sock;
 }

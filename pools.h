@@ -10,12 +10,12 @@
 #ifndef __POOLS_H_
 #define __POOLS_H_
 
-#define MEMORY_FACTOR 12
+#define MEMORY_FACTOR 1 /* 4*/
 
 
-#define NUMBER_OF_HEAD_SKBS 8192*16*MEMORY_FACTOR
+#define NUMBER_OF_HEAD_SKBS 8192*MEMORY_FACTOR
 
-#define NUMBER_OF_FCLONE_SKBS 8192*16*MEMORY_FACTOR
+#define NUMBER_OF_FCLONE_SKBS 8192*MEMORY_FACTOR
 
 /* On the transmit path, the headers are placed in HEADERS,
  * on the receive path, both data and headers are placed in HEADERS
@@ -28,8 +28,12 @@
 /* This is a pool for the PMD  driver on rx path.
  * It should correlate with rx sockets pool interval,
  * too long interval relatively to too small RX pool will result in rx stuck
- */
+ 
 #define MBUFS_PER_RX_QUEUE 8192*MEMORY_FACTOR
+
+#define APP_MBUFS_POOL_SIZE 32768*MEMORY_FACTOR
+*/
+#define MBUFS_PER_RX_QUEUE 4096*64*MEMORY_FACTOR
 
 #define APP_MBUFS_POOL_SIZE 32768*MEMORY_FACTOR
 

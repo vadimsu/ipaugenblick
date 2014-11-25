@@ -401,7 +401,7 @@ void *create_netdev(int port_num)
 #ifdef GSO
 	netdev->features = NETIF_F_SG | NETIF_F_GSO | NETIF_F_FRAGLIST;
 #else
-        netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST;
+        netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST|NETIF_F_V4_CSUM;
 #endif
 	netdev->hw_features = 0;
 

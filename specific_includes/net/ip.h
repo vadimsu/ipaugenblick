@@ -137,6 +137,13 @@ struct sk_buff *ip_make_skb(struct sock *sk, struct flowi4 *fl4,
 			    struct ipcm_cookie *ipc, struct rtable **rtp,
 			    unsigned int flags);
 
+struct sk_buff *ipaugenblick_make_skb(struct sock *sk,
+                                      struct flowi4 *fl4,
+                                      void *from,
+                                      int length, int transhdrlen,
+                                      struct ipcm_cookie *ipc, struct rtable **rtp,
+                                      unsigned int flags);
+
 static inline struct sk_buff *ip_finish_skb(struct sock *sk, struct flowi4 *fl4)
 {
 	return __ip_make_skb(sk, fl4, &sk->sk_write_queue, &inet_sk(sk)->cork.base);

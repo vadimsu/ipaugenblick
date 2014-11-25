@@ -1020,9 +1020,13 @@ back_from_confirm:
 
 	/* Lockless fast path for the non-corking case. */
 	if (!corkreq) {
+#ifdef IPAUGENBLICK_UDP_OPTIMIZATION
+                skb = ipaugenblick_make_skb(sk,fl4,msg->msg_iov,ulen,sizeof(struct udphdr), &ipc, &rt,msg->msg_flags);
+#else
 		skb = ip_make_skb(sk, fl4, getfrag, msg->msg_iov, ulen,
 				  sizeof(struct udphdr), &ipc, &rt,
 				  msg->msg_flags);
+#endif
 		err = PTR_ERR(skb);
 		if (!IS_ERR_OR_NULL(skb))
 			err = udp_send_skb(skb, fl4);
