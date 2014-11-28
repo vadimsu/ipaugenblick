@@ -139,13 +139,14 @@ extern int dpdk_linux_tcpip_init(int argc,char **argv);
  * Returns: a pointer to rte_mbuf, if succeeded, NULL if failed
  *
  */
-extern struct rte_mbuf *app_glue_get_buffer();
+extern void *app_glue_get_buffer();
 
-extern struct rte_mbuf *get_return_buffer();
+extern struct rte_mbuf *get_tx_buffer();
+extern struct rte_mbuf *get_tx_complete_buffer();
 
-extern struct rte_mempool *get_mbufs_mempool();
-
-extern struct rte_mempool *get_mbufs_return_mempool();
+extern struct rte_mempool *get_data_bufs_mempool();
+extern struct rte_mempool *get_mbufs_tx_mempool();
+extern struct rte_mempool *get_mbufs_tx_complete_mempool();
 
 extern void release_buffer(void *buf);
 

@@ -52,17 +52,25 @@ uint64_t user_rx_mbufs = 0;
 struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 {
 	struct rte_mbuf *mbuf, *first = NULL,*prev;
+        void *raw_buffer;
+        int len;
 	user_on_tx_opportunity_getbuff_called++;
 
         while(*copy != 0) {
-  	    mbuf = app_glue_get_buffer();
-	    if (unlikely(mbuf == NULL)) {
+  	    raw_buffer = app_glue_get_buffer();
+	    if (unlikely(raw_buffer == NULL)) {
 		user_on_tx_opportunity_cannot_get_buff++;
 		return first;
 	    }
-	    mbuf->pkt.data_len = (*copy) > 1448 ? 1448 : (*copy);
-	    (*copy) -= mbuf->pkt.data_len;
-            mbuf->pool = get_mbufs_return_mempool();
+            mbuf = get_tx_buffer();
+            if (unlikely(mbuf == NULL)) {
+                user_on_tx_opportunity_cannot_get_buff++;
+		return first;
+            }
+            len = (*copy) > 1448 ? 1448 : (*copy);
+            add_raw_buffer_to_mbuf(mbuf,get_data_bufs_mempool(),raw_buffer,len);
+	    (*copy) -= len;
+            mbuf->pool = get_mbufs_tx_complete_mempool();
 	    if(unlikely(mbuf->pkt.data_len == 0)) {
 	    	    rte_pktmbuf_free_seg(mbuf);
 		    return first;
@@ -177,8 +185,13 @@ void app_main_loop()
 	                             /*drv_poll_interval/(60*MAX_PKT_BURST)*/0);
 	while(1) {
 		app_glue_periodic(1,ports_to_poll,1);
-                while((mbuf = get_return_buffer()) != NULL) {
-                    mbuf->pool = get_mbufs_mempool();
+                while((mbuf = get_tx_complete_buffer()) != NULL) {
+                    mbuf->pool = get_mbufs_tx_mempool();
+                    release_data_buffer(mbuf->buf_addr);
+                    mbuf->buf_addr = NULL;
+                    mbuf->buf_len = 0;
+                    mbuf->pkt.data = NULL;
+                    mbuf->pkt.data_len = mbuf->pkt.pkt_len = 0;
                     release_buffer(mbuf);
                 }
 	}

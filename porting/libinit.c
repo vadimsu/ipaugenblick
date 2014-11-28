@@ -21,7 +21,7 @@
 //#define MBUFS_PER_RX_QUEUE (RTE_RX_DESC_DEFAULT*2/*+MAX_PKT_BURST*2*/)
 
 //#define MBUFS_PER_TX_QUEUE /*((RTE_RX_DESC_DEFAULT+MAX_PKT_BURST*2)*RX_QUEUE_PER_PORT)*/4096*64
-#define MBUF_SIZE (((2048 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM) + CACHE_LINE_SIZE) & ~(CACHE_LINE_SIZE))
+//#define MBUF_SIZE (((2048 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM) + CACHE_LINE_SIZE) & ~(CACHE_LINE_SIZE))
 #define MAX_PORTS	RTE_MAX_ETHPORTS
 /*
  * RX and TX Prefetch, Host, and Write-back threshold values should be
@@ -130,22 +130,29 @@ struct lcore_conf *get_this_lcore_conf()
 {
     return &lcore_queue_conf[rte_lcore_id()];
 }
+static struct rte_mempool *data_bufs_mempool = NULL;
+static struct rte_mempool *tx_complete_mbufs_mempool = NULL;
+static struct rte_mempool *tx_mbufs_mempool = NULL;
+void rte_custom_pktmbuf_init(struct rte_mempool *mp,
+		 void *opaque_arg,
+		 void *_m,
+		 __attribute__((unused)) unsigned i);
 /* This function initializes the rx queue rte_mbuf pool */
 static void init_rx_queues_mempools()
 {
 	uint16_t queue_id;
         char pool_name[1024];
-
+printf("%s %d %p\n",__FILE__,__LINE__,data_bufs_mempool);
 /* create the mbuf pools */
 //	SET_MBUF_DEBUG_POOL(&g_direct_mbufs[0],&g_direct_mbuf_idx);
         for(queue_id = 0;queue_id < RX_QUEUE_PER_PORT;queue_id++) {
                 sprintf(pool_name,"pool_direct%d",queue_id);
                 pool_direct[queue_id] =
 				rte_mempool_create(pool_name, MBUFS_PER_RX_QUEUE,
-						   MBUF_SIZE, 32,
+						   /*MBUF_SIZE*/sizeof(struct rte_mbuf), 32,
 						   sizeof(struct rte_pktmbuf_pool_private),
 						   rte_pktmbuf_pool_init, NULL,
-						   rte_pktmbuf_init, NULL,
+						   rte_custom_pktmbuf_init, data_bufs_mempool,
 						   rte_socket_id(), 0);
 			if (pool_direct[queue_id] == NULL)
 				rte_panic("Cannot init direct mbuf pool\n");
@@ -257,9 +264,6 @@ DUMP(argc);
 	return ret;
 }
 
-static struct rte_mempool *mbufs_mempool = NULL;
-static struct rte_mempool *mbufs_return_mempool = NULL;
-
 extern unsigned long tcp_memory_allocated;
 extern uint64_t sk_stream_alloc_skb_failed;
 
@@ -268,7 +272,7 @@ void show_mib_stats(void);
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
-#if 1
+#if 0
 		app_glue_print_stats();
 		show_mib_stats();
         dpdk_dev_print_stats();
@@ -279,7 +283,9 @@ static int print_stats(__attribute__((unused)) void *dummy)
 		dump_head_cache();
 		dump_fclone_cache();
 		printf("rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
-		printf("stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
+		printf("data bufs pool free count %d\n",rte_mempool_count(data_bufs_mempool));
+                printf("tx mbufs pool free count %d\n",rte_mempool_count(tx_mbufs_mempool));
+                printf("tx complete mbufs pool free count %d\n",rte_mempool_count(tx_complete_mbufs_mempool));
 		print_skb_iov_stats();
 #endif
 		sleep(1);
@@ -289,19 +295,40 @@ static int print_stats(__attribute__((unused)) void *dummy)
 /* This function allocates rte_mbuf */
 void *get_buffer()
 {
-	return rte_pktmbuf_alloc(mbufs_mempool);
+    void *buf = NULL;
+    if (rte_mempool_get(data_bufs_mempool, &buf) < 0)
+	return NULL;
+    return (char *)buf + RTE_PKTMBUF_HEADROOM;
 }
-struct rte_mempool *get_mbufs_mempool()
+struct rte_mempool *get_data_bufs_mempool()
 {
-    return mbufs_mempool;
+    return data_bufs_mempool;
 }
-struct rte_mempool *get_mbufs_return_mempool()
+/* this function releases the raw buffer */
+void release_data_buffer(void *buf)
 {
-    return mbufs_return_mempool;
+    rte_mempool_put(data_bufs_mempool, buf);
 }
-struct rte_mbuf *get_return_buffer()
+struct rte_mempool *get_mbufs_tx_mempool()
 {
-	return rte_pktmbuf_alloc(mbufs_return_mempool);
+    return tx_mbufs_mempool;
+}
+struct rte_mbuf *get_tx_buffer()
+{
+	return rte_pktmbuf_alloc(tx_mbufs_mempool);
+}
+struct rte_mempool *get_mbufs_tx_complete_mempool()
+{
+    return tx_complete_mbufs_mempool;
+}
+struct rte_mbuf *get_tx_complete_buffer()
+{
+	return rte_pktmbuf_alloc(tx_complete_mbufs_mempool);
+}
+void release_buffer(void *buf)
+{
+       struct rte_mbuf *mbuf = (struct rte_mbuf *)buf;
+       rte_pktmbuf_free_seg(mbuf);
 }
 /* this function gets a pointer to data in the newly allocated rte_mbuf */
 void *get_data_ptr(void *buf)
@@ -312,14 +339,9 @@ void *get_data_ptr(void *buf)
 /* this function returns an available mbufs count */
 int get_buffer_count()
 {
-	return rte_mempool_count(mbufs_mempool);
+	return rte_mempool_count(data_bufs_mempool);
 }
-/* this function releases the rte_mbuf */
-void release_buffer(void *buf)
-{
-	struct rte_mbuf *mbuf = (struct rte_mbuf *)buf;
-	rte_pktmbuf_free_seg(mbuf);
-}
+
 typedef struct
 {
 	int  port_number;
@@ -422,24 +444,32 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	/* init RTE timer library */
 	rte_timer_subsystem_init();
 
-	init_rx_queues_mempools();
-	mbufs_mempool = rte_mempool_create("mbufs_mempool", APP_MBUFS_POOL_SIZE,
-							   MBUF_SIZE, 32,
-							   sizeof(struct rte_pktmbuf_pool_private),
-							   rte_pktmbuf_pool_init, NULL,
-							   rte_pktmbuf_init, NULL,
-							   rte_socket_id(), 0);
-	if(mbufs_mempool == NULL) {
+        data_bufs_mempool = rte_mempool_create("mbufs_mempool", APP_MBUFS_POOL_SIZE+MBUFS_PER_RX_QUEUE*RX_QUEUE_PER_PORT,
+					   MBUF_SIZE, 0,0,NULL, NULL,NULL, NULL,rte_socket_id(), 0);
+	if(data_bufs_mempool == NULL) {
 		printf("%s %d\n",__FILE__,__LINE__);
 		exit(0);
 	}
-        mbufs_return_mempool = rte_mempool_create("mbufs_return_mempool", /*APP_MBUFS_POOL_SIZE*/0,
-							   MBUF_SIZE, 32,
+
+	init_rx_queues_mempools();
+
+        tx_complete_mbufs_mempool = rte_mempool_create("tx_complete_bufs_mempool", /*APP_MBUFS_POOL_SIZE*/0,
+							   MBUF_SIZE+sizeof(struct rte_mbuf), 32,
 							   sizeof(struct rte_pktmbuf_pool_private),
 							   rte_pktmbuf_pool_init, NULL,
 							   rte_pktmbuf_init, NULL,
 							   rte_socket_id(), 0);
-	if(mbufs_return_mempool == NULL) {
+	if(tx_complete_mbufs_mempool == NULL) {
+		printf("%s %d\n",__FILE__,__LINE__);
+		exit(0);
+	}
+        tx_mbufs_mempool = rte_mempool_create("tx_mbufs_mempool", APP_MBUFS_POOL_SIZE,
+							   sizeof(struct rte_mbuf), 32,
+							   sizeof(struct rte_pktmbuf_pool_private),
+							   rte_pktmbuf_pool_init, NULL,
+							   rte_pktmbuf_init, NULL,
+							   rte_socket_id(), 0);
+	if(tx_mbufs_mempool == NULL) {
 		printf("%s %d\n",__FILE__,__LINE__);
 		exit(0);
 	}

@@ -669,7 +669,7 @@ __rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
 #ifdef RTE_MBUF_SCATTER_GATHER
 	if (likely (rte_mbuf_refcnt_read(m) == 1) ||
 			likely (rte_mbuf_refcnt_update(m, -1) == 0)) {
-		struct rte_mbuf *md = RTE_MBUF_FROM_BADDR(m->buf_addr);
+//		struct rte_mbuf *md = RTE_MBUF_FROM_BADDR(m->buf_addr);
 
 		rte_mbuf_refcnt_set(m, 0);
 
@@ -677,11 +677,13 @@ __rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
 		 *  - detach mbuf
 		 *  - free attached mbuf segment
 		 */
+#if 0
 		if (unlikely (md != m)) {
 			rte_pktmbuf_detach(m);
 			if (rte_mbuf_refcnt_update(md, -1) == 0)
 				__rte_mbuf_raw_free(md);
 		}
+#endif
 #endif
 		return(m);
 #ifdef RTE_MBUF_SCATTER_GATHER

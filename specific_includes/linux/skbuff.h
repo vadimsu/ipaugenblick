@@ -37,7 +37,7 @@
 #include <rte_mbuf.h>
 #include <rte_memcpy.h>
 #include <pools.h>
-#define MBUF_SIZE 2048
+//#define MBUF_SIZE 2048
 /* A. Checksumming of received packets by device.
  *
  * CHECKSUM_NONE:
