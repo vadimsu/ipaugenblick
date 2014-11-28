@@ -141,4 +141,12 @@ extern int dpdk_linux_tcpip_init(int argc,char **argv);
  */
 extern struct rte_mbuf *app_glue_get_buffer();
 
+extern struct rte_mbuf *get_return_buffer();
+
+extern struct rte_mempool *get_mbufs_mempool();
+
+extern struct rte_mempool *get_mbufs_return_mempool();
+
+extern void release_buffer(void *buf);
+
 #endif /* __API_H_ */

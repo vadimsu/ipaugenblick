@@ -62,6 +62,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 	    }
 	    mbuf->pkt.data_len = (*copy) > 1448 ? 1448 : (*copy);
 	    (*copy) -= mbuf->pkt.data_len;
+            mbuf->pool = get_mbufs_return_mempool();
 	    if(unlikely(mbuf->pkt.data_len == 0)) {
 	    	    rte_pktmbuf_free_seg(mbuf);
 		    return first;
@@ -167,6 +168,7 @@ int user_on_accept(struct socket *sock)
 
 void app_main_loop()
 {
+    struct rte_mbuf *mbuf;
     uint8_t ports_to_poll[1] = { 0 };
 	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
 	app_glue_init_poll_intervals(/*drv_poll_interval/(2*MAX_PKT_BURST)*/0,
@@ -175,6 +177,10 @@ void app_main_loop()
 	                             /*drv_poll_interval/(60*MAX_PKT_BURST)*/0);
 	while(1) {
 		app_glue_periodic(1,ports_to_poll,1);
+                while((mbuf = get_return_buffer()) != NULL) {
+                    mbuf->pool = get_mbufs_mempool();
+                    release_buffer(mbuf);
+                }
 	}
 }
 /*this is called in non-data-path thread */

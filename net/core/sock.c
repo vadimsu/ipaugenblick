@@ -1848,10 +1848,11 @@ bool skb_page_frag_refill(unsigned int sz, struct page_frag *pfrag, gfp_t prio)
 		}
 #endif
 	} while (--order >= 0);
-#endif
+
 	if((pfrag->page.mbuf = (struct rte_mbuf *)get_buffer()) != NULL) {
 		return true;
 	}
+#endif
 	return false;
 }
 EXPORT_SYMBOL(skb_page_frag_refill);

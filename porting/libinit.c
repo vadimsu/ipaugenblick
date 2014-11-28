@@ -258,6 +258,7 @@ DUMP(argc);
 }
 
 static struct rte_mempool *mbufs_mempool = NULL;
+static struct rte_mempool *mbufs_return_mempool = NULL;
 
 extern unsigned long tcp_memory_allocated;
 extern uint64_t sk_stream_alloc_skb_failed;
@@ -289,6 +290,18 @@ static int print_stats(__attribute__((unused)) void *dummy)
 void *get_buffer()
 {
 	return rte_pktmbuf_alloc(mbufs_mempool);
+}
+struct rte_mempool *get_mbufs_mempool()
+{
+    return mbufs_mempool;
+}
+struct rte_mempool *get_mbufs_return_mempool()
+{
+    return mbufs_return_mempool;
+}
+struct rte_mbuf *get_return_buffer()
+{
+	return rte_pktmbuf_alloc(mbufs_return_mempool);
 }
 /* this function gets a pointer to data in the newly allocated rte_mbuf */
 void *get_data_ptr(void *buf)
@@ -417,6 +430,16 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 							   rte_pktmbuf_init, NULL,
 							   rte_socket_id(), 0);
 	if(mbufs_mempool == NULL) {
+		printf("%s %d\n",__FILE__,__LINE__);
+		exit(0);
+	}
+        mbufs_return_mempool = rte_mempool_create("mbufs_return_mempool", /*APP_MBUFS_POOL_SIZE*/0,
+							   MBUF_SIZE, 32,
+							   sizeof(struct rte_pktmbuf_pool_private),
+							   rte_pktmbuf_pool_init, NULL,
+							   rte_pktmbuf_init, NULL,
+							   rte_socket_id(), 0);
+	if(mbufs_return_mempool == NULL) {
 		printf("%s %d\n",__FILE__,__LINE__);
 		exit(0);
 	}
