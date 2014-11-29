@@ -284,3 +284,44 @@ int memcpy_toiovec(struct iovec *iov,struct rte_mbuf *mbuf,int offset,int len)
 	iov->len += len;
 	return 0;
 }
+
+/*
+ * pktmbuf constructor, given as a callback function to
+ * rte_mempool_create().
+ * Set the fields of a packet mbuf to their default values.
+ */
+void rte_custom_pktmbuf_init(struct rte_mempool *mp,
+		 void *opaque_arg,
+		 void *_m,
+		 __attribute__((unused)) unsigned i)
+{
+	struct rte_mbuf *m = _m;
+	uint32_t buf_len = mp->elt_size - sizeof(struct rte_mbuf);
+        struct rte_mempoll *bufmempool = (struct rte_mempool *)opaque_arg;
+        void *raw_data_buf = NULL;
+        int rc;
+
+        RTE_MBUF_ASSERT(bufmempool);
+
+	RTE_MBUF_ASSERT(mp->elt_size >= sizeof(struct rte_mbuf));
+        rc = rte_mempool_get(bufmempool, &raw_data_buf);
+        RTE_MBUF_ASSERT(rc == 0);
+        RTE_MBUF_ASSERT(raw_data_buf);
+
+	memset(m, 0, mp->elt_size);
+        memset(raw_data_buf,0,MBUF_SIZE);
+
+	/* start of buffer is just after mbuf structure */
+	m->buf_addr = raw_data_buf;
+	m->buf_physaddr = rte_mempool_virt2phy(bufmempool, raw_data_buf);
+	m->buf_len = (uint16_t)MBUF_SIZE;
+
+	/* keep some headroom between start of buffer and data */
+	m->pkt.data = (char*) m->buf_addr + RTE_MIN(RTE_PKTMBUF_HEADROOM, m->buf_len);
+
+	/* init some constant fields */
+	m->type = RTE_MBUF_PKT;
+	m->pool = mp;
+	m->pkt.nb_segs = 1;
+	m->pkt.in_port = 0xff;
+}
