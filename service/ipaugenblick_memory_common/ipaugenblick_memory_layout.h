@@ -13,8 +13,9 @@ struct ipaugenblick_buffer_desc
 }__attribute__((packed));
 
 #define IPAUGENBLICK_BUFSIZE (1448+sizeof(struct ipaugenblick_buffer_desc))
+#define IPAUGENBLICK_RINGSETS_COUNT 10
 
-struct ipaugenblick_memory
+struct ipaugenblick_ring_set
 {
     unsigned int command_ring_offset;
     unsigned int free_command_ring_offset;
@@ -27,240 +28,261 @@ struct ipaugenblick_memory
     unsigned int tx_bufs_base_offset;
 }__attribute__((packed));
 
-static inline struct ipaugenblick_ring *ipaugenblick_get_command_ring(struct ipaugenblick_memory *memory)
+struct ipaugenblick_memory
 {
-    return (struct ipaugenblick_ring *)((memory+1) + memory->command_ring_offset);
+    struct ipaugenblick_ring_set ring_sets[IPAUGENBLICK_RINGSETS_COUNT];
+}__attribute__((packed));
+
+static inline struct ipaugenblick_ring *ipaugenblick_get_command_ring(struct ipaugenblick_memory *memory,int idx)
+{
+    return (struct ipaugenblick_ring *)((memory+1) + memory->ring_sets[idx].command_ring_offset);
 }
 
-static inline struct ipaugenblick_ring *ipaugenblick_get_free_command_ring(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_ring *ipaugenblick_get_free_command_ring(struct ipaugenblick_memory *memory,int idx)
 {
-    return (struct ipaugenblick_ring *)((memory+1) + memory->free_command_ring_offset);
+    return (struct ipaugenblick_ring *)((memory+1) + memory->ring_sets[idx].free_command_ring_offset);
 }
 
-static inline struct ipaugenblick_ring *ipaugenblick_get_rx_ring(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_ring *ipaugenblick_get_rx_ring(struct ipaugenblick_memory *memory,int idx)
 {
-    return (struct ipaugenblick_ring *)((memory+1) + memory->rx_ring_offset);
+    return (struct ipaugenblick_ring *)((memory+1) + memory->ring_sets[idx].rx_ring_offset);
 }
 
-static inline struct ipaugenblick_ring *ipaugenblick_get_tx_ring(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_ring *ipaugenblick_get_tx_ring(struct ipaugenblick_memory *memory,int idx)
 {
-    return (struct ipaugenblick_ring *)((memory+1) + memory->tx_ring_offset);
+    return (struct ipaugenblick_ring *)((memory+1) + memory->ring_sets[idx].tx_ring_offset);
 }
 
-static inline struct ipaugenblick_ring *ipaugenblick_get_rx_free_bufs_ring(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_ring *ipaugenblick_get_rx_free_bufs_ring(struct ipaugenblick_memory *memory,int idx)
 {
-    return (struct ipaugenblick_ring *)((memory+1) + memory->rx_free_bufs_ring_offset);
+    return (struct ipaugenblick_ring *)((memory+1) + memory->ring_sets[idx].rx_free_bufs_ring_offset);
 }
 
-static inline struct ipaugenblick_ring *ipaugenblick_get_tx_free_bufs_ring(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_ring *ipaugenblick_get_tx_free_bufs_ring(struct ipaugenblick_memory *memory,int idx)
 {
-    return (struct ipaugenblick_ring *)((memory+1) + memory->tx_free_bufs_ring_offset);
+    return (struct ipaugenblick_ring *)((memory+1) + memory->ring_sets[idx].tx_free_bufs_ring_offset);
 }
 
-static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_command_bufs_base(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_command_bufs_base(struct ipaugenblick_memory *memory,int idx)
 {
-    return (struct ipaugenblick_buffer_desc *)((memory+1) + memory->command_bufs_base_offset);
+    return (struct ipaugenblick_buffer_desc *)((memory+1) + memory->ring_sets[idx].command_bufs_base_offset);
 }
 
-static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_rx_bufs_base(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_rx_bufs_base(struct ipaugenblick_memory *memory,int idx)
 {
-    return (struct ipaugenblick_buffer_desc *)((memory+1) + memory->rx_bufs_base_offset);
+    return (struct ipaugenblick_buffer_desc *)((memory+1) + memory->ring_sets[idx].rx_bufs_base_offset);
 }
 
-static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_tx_bufs_base(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_tx_bufs_base(struct ipaugenblick_memory *memory,int idx)
 {
-    return (struct ipaugenblick_buffer_desc *)((memory+1) + memory->tx_bufs_base_offset);
+    return (struct ipaugenblick_buffer_desc *)((memory+1) + memory->ring_sets[idx].tx_bufs_base_offset);
 }
 
-static inline void ipaugenblick_set_command_ring(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_command_ring(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->command_ring_offset = offset;
+    memory->ring_sets[idx].command_ring_offset = offset;
 }
 
-static inline void ipaugenblick_set_free_command_ring(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_free_command_ring(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->free_command_ring_offset = offset;
+    memory->ring_sets[idx].free_command_ring_offset = offset;
 }
 
-static inline void ipaugenblick_set_rx_ring(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_rx_ring(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->rx_ring_offset = offset;
+    memory->ring_sets[idx].rx_ring_offset = offset;
 }
 
-static inline void ipaugenblick_set_tx_ring(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_tx_ring(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->tx_ring_offset = offset;
+    memory->ring_sets[idx].tx_ring_offset = offset;
 }
 
-static inline void ipaugenblick_set_rx_free_bufs_ring(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_rx_free_bufs_ring(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->rx_free_bufs_ring_offset = offset;
+    memory->ring_sets[idx].rx_free_bufs_ring_offset = offset;
 }
 
-static inline void ipaugenblick_set_tx_free_bufs_ring(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_tx_free_bufs_ring(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->tx_free_bufs_ring_offset = offset;
+    memory->ring_sets[idx].tx_free_bufs_ring_offset = offset;
 }
 
-static inline void ipaugenblick_set_command_bufs_base(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_command_bufs_base(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->command_bufs_base_offset = offset;
+    memory->ring_sets[idx].command_bufs_base_offset = offset;
 }
 
-static inline void ipaugenblick_set_rx_bufs_base(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_rx_bufs_base(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->rx_bufs_base_offset = offset;
+    memory->ring_sets[idx].rx_bufs_base_offset = offset;
 }
 
-static inline void ipaugenblick_set_tx_bufs_base(struct ipaugenblick_memory *memory,unsigned long offset)
+static inline void ipaugenblick_set_tx_bufs_base(struct ipaugenblick_memory *memory,unsigned long offset,int idx)
 {
-    memory->tx_bufs_base_offset = offset;
+    memory->ring_sets[idx].tx_bufs_base_offset = offset;
 }
 
-static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_free_command_buf(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_free_command_buf(struct ipaugenblick_memory *memory,
+                                                                                 int idx)
 {
     unsigned long buffidx;
     struct ipaugenblick_buffer_desc *bufdesc;
     char *p;
-    struct ipaugenblick_ring *r = ipaugenblick_get_free_command_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_free_command_ring(memory,idx);
     if(ipaugenblick_ring_dequeue(r,(void **)&buffidx) != 0) {
         return NULL;
     }
-    p = (char *)ipaugenblick_get_command_bufs_base(memory);
+    p = (char *)ipaugenblick_get_command_bufs_base(memory,idx);
     bufdesc = (struct ipaugenblick_buffer_desc *)(p + buffidx*IPAUGENBLICK_BUFSIZE);
     return bufdesc;
 }
 
-static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_rx_free_buf(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_rx_free_buf(struct ipaugenblick_memory *memory,
+                                                                            int idx)
 {
     unsigned long buffidx;
     struct ipaugenblick_buffer_desc *bufdesc;
     char *p;
-    struct ipaugenblick_ring *r = ipaugenblick_get_rx_free_bufs_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_rx_free_bufs_ring(memory,idx);
     if(ipaugenblick_ring_dequeue(r,(void **)&buffidx) != 0) {
         return NULL;
     }
-    p = (char *)ipaugenblick_get_rx_bufs_base(memory);
+    p = (char *)ipaugenblick_get_rx_bufs_base(memory,idx);
     bufdesc = (struct ipaugenblick_buffer_desc *)(p + buffidx*IPAUGENBLICK_BUFSIZE);
     return bufdesc;
 }
 
-static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_tx_free_buf(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc *ipaugenblick_get_tx_free_buf(struct ipaugenblick_memory *memory,
+                                                                            int idx)
 {
     unsigned long buffidx;
     struct ipaugenblick_buffer_desc *bufdesc;
     char *p;
-    struct ipaugenblick_ring *r = ipaugenblick_get_tx_free_bufs_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_tx_free_bufs_ring(memory,idx);
     if(ipaugenblick_ring_dequeue(r,(void **)&buffidx) != 0) {
         return NULL;
     }
-    p = (char *)ipaugenblick_get_tx_bufs_base(memory);
+    p = (char *)ipaugenblick_get_tx_bufs_base(memory,idx);
     bufdesc = (struct ipaugenblick_buffer_desc *)(p + buffidx*IPAUGENBLICK_BUFSIZE);
     return bufdesc;
 }
 
-static inline int ipaugenblick_submit_command_buf(struct ipaugenblick_memory *memory,struct ipaugenblick_buffer_desc *obj)
+static inline int ipaugenblick_submit_command_buf(struct ipaugenblick_memory *memory,
+                                                  struct ipaugenblick_buffer_desc *obj,
+                                                  int idx)
 {
-    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_command_bufs_base(memory);
+    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_command_bufs_base(memory,idx);
     unsigned long buffidx = ((char *)obj - (char *)base)/IPAUGENBLICK_BUFSIZE;
-    struct ipaugenblick_ring *r = ipaugenblick_get_command_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_command_ring(memory,idx);
     if(ipaugenblick_ring_enqueue(r,(void *)buffidx) != 0) {
         return -1;
     }
     return 0;
 }
 
-static inline int ipaugenblick_submit_rx_buf(struct ipaugenblick_memory *memory,struct ipaugenblick_buffer_desc *obj)
+static inline int ipaugenblick_submit_rx_buf(struct ipaugenblick_memory *memory,
+                                             struct ipaugenblick_buffer_desc *obj,
+                                             int idx)
 {
-    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_rx_bufs_base(memory);
+    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_rx_bufs_base(memory,idx);
     unsigned long buffidx = ((char *)obj - (char *)base)/IPAUGENBLICK_BUFSIZE;
-    struct ipaugenblick_ring *r = ipaugenblick_get_rx_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_rx_ring(memory,idx);
     if(ipaugenblick_ring_enqueue(r,(void *)buffidx) != 0) {
         return -1;
     }
     return 0;
 }
 
-static inline int ipaugenblick_submit_tx_buf(struct ipaugenblick_memory *memory,struct ipaugenblick_buffer_desc *obj)
+static inline int ipaugenblick_submit_tx_buf(struct ipaugenblick_memory *memory,
+                                             struct ipaugenblick_buffer_desc *obj,
+                                             int idx)
 {
-    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_tx_bufs_base(memory);
+    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_tx_bufs_base(memory,idx);
     unsigned long buffidx = ((char *)obj - (char *)base)/IPAUGENBLICK_BUFSIZE;
-    struct ipaugenblick_ring *r = ipaugenblick_get_tx_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_tx_ring(memory,idx);
     if(ipaugenblick_ring_enqueue(r,(void *)buffidx) != 0) {
         return -1;
     }
     return 0;
 }
 
-static inline struct ipaugenblick_buffer_desc *ipaugenblick_dequeue_command_buf(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc *ipaugenblick_dequeue_command_buf(struct ipaugenblick_memory *memory,
+                                                                                int idx)
 {
     unsigned long buffidx;
     struct ipaugenblick_buffer_desc *bufdesc;
     char *p;
-    struct ipaugenblick_ring *r = ipaugenblick_get_command_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_command_ring(memory,idx);
     if(ipaugenblick_ring_dequeue(r,(void **)&buffidx) != 0) {
         return NULL;
     }
-    p = (char *)ipaugenblick_get_command_bufs_base(memory);
+    p = (char *)ipaugenblick_get_command_bufs_base(memory,idx);
     bufdesc = (struct ipaugenblick_buffer_desc *)(p + buffidx*IPAUGENBLICK_BUFSIZE);
     return bufdesc;
 }
 
-static inline struct ipaugenblick_buffer_desc * ipaugenblick_dequeue_rx_buf(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc * ipaugenblick_dequeue_rx_buf(struct ipaugenblick_memory *memory,int idx)
 {
     unsigned long buffidx;
     struct ipaugenblick_buffer_desc *bufdesc;
     char *p;
-    struct ipaugenblick_ring *r = ipaugenblick_get_rx_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_rx_ring(memory,idx);
     if(ipaugenblick_ring_dequeue(r,(void *)&buffidx) != 0) {
         return NULL;
     }
-    p = (char *)ipaugenblick_get_rx_bufs_base(memory);
+    p = (char *)ipaugenblick_get_rx_bufs_base(memory,idx);
     bufdesc = (struct ipaugenblick_buffer_desc *)(p + buffidx*IPAUGENBLICK_BUFSIZE);
     return bufdesc;
 }
 
-static inline struct ipaugenblick_buffer_desc *ipaugenblick_dequeue_tx_buf(struct ipaugenblick_memory *memory)
+static inline struct ipaugenblick_buffer_desc *ipaugenblick_dequeue_tx_buf(struct ipaugenblick_memory *memory,int idx)
 {
     unsigned long buffidx;
     struct ipaugenblick_buffer_desc *bufdesc;
     char *p;
-    struct ipaugenblick_ring *r = ipaugenblick_get_tx_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_tx_ring(memory,idx);
     if(ipaugenblick_ring_dequeue(r,(void *)&buffidx) != 0) {
         return NULL;
     }
-    p = (char *)ipaugenblick_get_tx_bufs_base(memory);
+    p = (char *)ipaugenblick_get_tx_bufs_base(memory,idx);
     bufdesc = (struct ipaugenblick_buffer_desc *)(p + buffidx*IPAUGENBLICK_BUFSIZE);
     return bufdesc;
 }
 
-static inline int ipaugenblick_free_command_buf(struct ipaugenblick_memory *memory,struct ipaugenblick_buffer_desc *obj)
+static inline int ipaugenblick_free_command_buf(struct ipaugenblick_memory *memory,
+                                                struct ipaugenblick_buffer_desc *obj,
+                                                int idx)
 {
-    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_command_bufs_base(memory);
+    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_command_bufs_base(memory,idx);
     unsigned long buffidx = ((char *)obj - (char *)base)/IPAUGENBLICK_BUFSIZE;
-    struct ipaugenblick_ring *r = ipaugenblick_get_free_command_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_free_command_ring(memory,idx);
     if(ipaugenblick_ring_enqueue(r,(void *)buffidx) != 0) {
         return -1;
     }
     return 0;
 }
 
-static inline int ipaugenblick_free_rx_buf(struct ipaugenblick_memory *memory,struct ipaugenblick_buffer_desc *obj)
+static inline int ipaugenblick_free_rx_buf(struct ipaugenblick_memory *memory,
+                                           struct ipaugenblick_buffer_desc *obj,
+                                           int idx)
 {
-    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_rx_bufs_base(memory);
+    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_rx_bufs_base(memory,idx);
     unsigned long buffidx = ((char *)obj - (char *)base)/IPAUGENBLICK_BUFSIZE;
-    struct ipaugenblick_ring *r = ipaugenblick_get_rx_free_bufs_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_rx_free_bufs_ring(memory,idx);
     if(ipaugenblick_ring_enqueue(r,(void *)buffidx) != 0) {
         return -1;
     }
     return 0;
 }
 
-static inline int ipaugenblick_free_tx_buf(struct ipaugenblick_memory *memory,struct ipaugenblick_buffer_desc *obj)
+static inline int ipaugenblick_free_tx_buf(struct ipaugenblick_memory *memory,
+                                           struct ipaugenblick_buffer_desc *obj,
+                                           int idx)
 {
-    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_tx_bufs_base(memory);
+    struct ipaugenblick_buffer_desc *base = ipaugenblick_get_tx_bufs_base(memory,idx);
     unsigned long buffidx = ((char *)obj - (char *)base)/IPAUGENBLICK_BUFSIZE;
-    struct ipaugenblick_ring *r = ipaugenblick_get_tx_free_bufs_ring(memory);
+    struct ipaugenblick_ring *r = ipaugenblick_get_tx_free_bufs_ring(memory,idx);
     if(ipaugenblick_ring_enqueue(r,(void *)buffidx) != 0) {
         return -1;
     }

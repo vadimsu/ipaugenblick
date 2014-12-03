@@ -18,8 +18,8 @@ ssize_t ipaugenblick_ring_get_memsize(unsigned count)
 
 	/* count must be a power of 2 */
 	if ((!POWEROF2(count)) || (count > IPAUGENBLICK_RING_SZ_MASK )) {
-		printf("Requested size is invalid, must be power of 2, and do not exceed the size limit %u\n", 
-                                IPAUGENBLICK_RING_SZ_MASK);
+		printf("Requested size is invalid, must be power of 2, and do not exceed the size limit %u %u\n", 
+                                IPAUGENBLICK_RING_SZ_MASK,count);
 		return -EINVAL;
 	}
 

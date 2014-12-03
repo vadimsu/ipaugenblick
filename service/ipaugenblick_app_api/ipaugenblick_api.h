@@ -8,7 +8,7 @@ typedef void (*on_send_complete_t)(void *);
 typedef int  (*on_accepted_t)(void *,int,unsigned int *,unsigned short *);
 
 /* must be called per process */
-int ipaugenblick_app_init(void);
+extern void* ipaugenblick_app_init(int *size);
 
 /* open asynchronous TCP client socket */
 int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port);

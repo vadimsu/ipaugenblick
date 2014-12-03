@@ -1,4 +1,6 @@
-
+#include <sys/errno.h>
+#include <sys/queue.h>
+#include <stdlib.h>
 #include "../ipaugenblick_memory_common/ipaugenblick_memory_layout.h"
 #include "../ipaugenblick_memory_common/ipaugenblick_memory_common.h"
 
@@ -23,9 +25,11 @@ static TAILQ_HEAD(FreeDescr,_socket_descriptor) free_descriptors_list;
 static struct ipaugenblick_memory *memory_base_address = NULL;
 
 /* must be called per process */
-int ipaugenblick_app_init(int *memory_size)
+void *ipaugenblick_app_init(int *memory_size)
 {
     int i;
+
+    TAILQ_INIT(&free_descriptors_list);
 
     memset(socket_descriptors,0,sizeof(socket_descriptors));
     for(i = 0;i < IPAUGENBLICK_MAX_SOCKETS;i++) {
@@ -33,11 +37,7 @@ int ipaugenblick_app_init(int *memory_size)
     }
     *memory_size = MB_8;
     memory_base_address = ipaugenblick_shared_memory_init(*memory_size);
-
-    if(ipaugenblick_memory_init(memory_base_address,*memory_size,2,(*memory_size/IPAUGENBLICK_BUFSIZE*2)-2,(*memory_size/IPAUGENBLICK_BUFSIZE*2)-2) != memory_base_address) {
-        printf("cannot initialize %s %d\n",__FILE__,__LINE__);
-        return -1;
-    return 0;
+    return memory_base_address;
 }
 
 /* open asynchronous TCP client socket */
@@ -52,7 +52,7 @@ int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port)
     descr = TAILQ_FIRST(&free_descriptors_list);
     TAILQ_REMOVE(&free_descriptors_list,descr,entry);
 
-    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]);
+    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]));
 
     /* allocate a ringset (cmd/tx/rx) here */
 
@@ -71,7 +71,7 @@ int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port,on_acce
     descr = TAILQ_FIRST(&free_descriptors_list);
     TAILQ_REMOVE(&free_descriptors_list,descr,entry);
 
-    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]);
+    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]));
 
     return idx;
 }
@@ -88,7 +88,7 @@ int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port)
     descr = TAILQ_FIRST(&free_descriptors_list);
     TAILQ_REMOVE(&free_descriptors_list,descr,entry);
 
-    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]);
+    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]));
 
     /* allocate a ringset (cmd/tx/rx) here */
 
