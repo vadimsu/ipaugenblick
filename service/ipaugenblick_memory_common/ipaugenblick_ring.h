@@ -74,7 +74,7 @@ enum ipaugenblick_ring_queue_behavior {
 struct ipaugenblick_ring {
         int flags;                       /**< Flags supplied at creation. */
 	/** Ring producer status. */
-	struct prod {
+	struct ipaugenblick_prod {
                 uint32_t watermark;      /**< Maximum items before EDQUOT. */
                 uint32_t sp_enqueue;     /**< True, if single producer. */
 		uint32_t size;           /**< Size of ring. */
@@ -84,7 +84,7 @@ struct ipaugenblick_ring {
 	} prod __ipaugenblick_cache_aligned;
 
 	/** Ring consumer status. */
-	struct cons {
+	struct ipaugenblick_cons {
                 uint32_t sc_dequeue;     /**< True, if single consumer. */
                 uint32_t size;           /**< Size of the ring. */
 		uint32_t mask;           /**< Mask (size-1) of ring. */

@@ -29,9 +29,11 @@
 #include <rte_timer.h>
 #include <api.h>
 #include <porting/libinit.h>
-#include "ipaugenblick_memory_layout.h"
-#include "ipaugenblick_internal.h"
+#include "ipaugenblick_memory_common/ipaugenblick_memory_layout.h"
+#include "ipaugenblick_memory_service/ipaugenblick_service.h"
+#include "ipaugenblick_memory_common/ipaugenblick_memory_common.h"
 
+static void *memory_base = NULL;
 
 uint64_t user_on_tx_opportunity_cycles = 0;
 uint64_t user_on_tx_opportunity_called = 0;
@@ -169,20 +171,59 @@ int user_on_accept(struct socket *sock)
 
 static void process_commands()
 {
+    int ringset_idx;
+    struct ipaugenblick_buffer_desc *buff;
+    ipaugenblick_cmd_t *cmd;
+    char *p;
+
+    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) {
+        buff = ipaugenblick_dequeue_command_buf(memory_base,ringset_idx);
+        if(!buff)
+            continue;
+        cmd = (ipaugenblick_cmd_t *)buff;
+        switch(cmd->cmd) {
+            case IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND:
+               printf("open_client_sock %x %x\n",cmd->u.open_client_sock.ipaddress,cmd->u.open_client_sock.port);
+               break;
+            case IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND:
+               printf("open_listening_sock %x %x\n",
+                       cmd->u.open_listening_sock.ipaddress,cmd->u.open_listening_sock.port);
+               break;
+            case IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND:
+               printf("open_udp_sock %x %x\n",cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
+               break;
+            case IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND:
+               printf("open_raw_sock %x %x\n",cmd->u.open_raw_sock.ipaddress,cmd->u.open_raw_sock.protocol);
+               break;
+            default:
+               printf("unknown cmd %d\n",cmd->cmd);
+               break;
+        }
+        ipaugenblick_free_command_buf(memory_base,buff,ringset_idx);
+    }
+    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) {
+        buff = ipaugenblick_dequeue_tx_buf(memory_base,ringset_idx);
+        if(!buff)
+            continue;
+        p = (char *)buff;
+        printf("tx buff content %s\n",p);
+        ipaugenblick_free_tx_buf(memory_base,buff,ringset_idx);
+    }
 }
 
 void ipaugenblick_main_loop()
 {
     uint8_t ports_to_poll[1] = { 0 };
-	int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
-	app_glue_init_poll_intervals(/*drv_poll_interval/(2*MAX_PKT_BURST)*/0,
-	                             1000 /*timer_poll_interval*/,
-	                             /*drv_poll_interval/(10*MAX_PKT_BURST)*/0,
-	                             /*drv_poll_interval/(60*MAX_PKT_BURST)*/0);
-	while(1) {
-                process_commands();
-		app_glue_periodic(1,ports_to_poll,1);
-	}
+    int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
+    app_glue_init_poll_intervals(/*drv_poll_interval/(2*MAX_PKT_BURST)*/0,
+                                 1000 /*timer_poll_interval*/,
+                                 /*drv_poll_interval/(10*MAX_PKT_BURST)*/0,
+                                /*drv_poll_interval/(60*MAX_PKT_BURST)*/0);
+    memory_base = ipaugenblick_service_init(1024*1024*8);
+    while(1) {
+        process_commands();
+	app_glue_periodic(1,ports_to_poll,1);
+    }
 }
 /*this is called in non-data-path thread */
 void print_user_stats()
