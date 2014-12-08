@@ -58,14 +58,13 @@ int main(int argc,char **argv)
             ipaugenblick_free_tx_buf(memory,buff,ringset_idx);
         }
         for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) { 
-            buff2 = ipaugenblick_get_rx_free_buf(memory,ringset_idx);
-            if(!buff2) {
-                ipaugenblick_free_tx_buf(memory,buff,ringset_idx);
+            buff = ipaugenblick_get_rx_free_buf(memory,ringset_idx);
+            if(!buff) {
                 continue;
             }
-            p = (char *)buff2;
+            p = (char *)buff;
             sprintf(p,"SERVER%d\n",ringset_idx);
-            ipaugenblick_submit_rx_buf(memory,buff2,ringset_idx);
+            ipaugenblick_submit_rx_buf(memory,buff,ringset_idx);
         }
     }
     return 0;
