@@ -30,7 +30,7 @@ void *ipaugenblick_service_init(int memory_size)
     unsigned int command_count,rx_count,tx_count;
     memory_size = MB_8;
     memory_base_address = ipaugenblick_shared_memory_init(memory_size);    
-
+printf("%s %d %p\n",__FILE__,__LINE__,memory_base_address);
     command_count = get_nearest_power_of_2(2);
     rx_count = get_nearest_power_of_2(((memory_size/IPAUGENBLICK_RINGSETS_COUNT)/(IPAUGENBLICK_BUFSIZE*3)-2));
     tx_count = get_nearest_power_of_2(((memory_size/IPAUGENBLICK_RINGSETS_COUNT)/(IPAUGENBLICK_BUFSIZE*3)-2));
@@ -42,5 +42,6 @@ void *ipaugenblick_service_init(int memory_size)
         printf("cannot initialize %s %d\n",__FILE__,__LINE__);
         return NULL;
     }
+    printf("%s %d %p\n",__FILE__,__LINE__,memory_base_address);
     return memory_base_address;
 }

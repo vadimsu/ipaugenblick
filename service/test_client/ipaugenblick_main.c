@@ -19,7 +19,7 @@ int main(int argc,char **argv)
     ipaugenblick_cmd_t *cmd;
     char *p;
     int size = 0,ringset_idx;
-    if((memory = ipaugenblick_app_init(&size))!= NULL) {
+    if((memory = ipaugenblick_app_init(&size))== NULL) {
         printf("cannot initialize memory\n");
         return 0;
     } 
@@ -49,6 +49,7 @@ int main(int argc,char **argv)
                 continue;
             }
             p = (char *)buff;
+            printf("received %s\n",p);
             ipaugenblick_free_rx_buf(memory,buff,ringset_idx);
         }
     }

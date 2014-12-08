@@ -63,7 +63,7 @@ int main(int argc,char **argv)
                 ipaugenblick_free_tx_buf(memory,buff,ringset_idx);
                 continue;
             }
-            p = (char *)buff;
+            p = (char *)buff2;
             sprintf(p,"SERVER%d\n",ringset_idx);
             ipaugenblick_submit_rx_buf(memory,buff2,ringset_idx);
         }
