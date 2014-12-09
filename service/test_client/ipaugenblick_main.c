@@ -25,16 +25,18 @@ int main(int argc,char **argv)
     } 
 
     while(1) {
-        for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) {
-            buff = ipaugenblick_get_free_command_buf(memory,ringset_idx);
-            if(!buff)
-                continue;
-            cmd = (ipaugenblick_cmd_t *)buff;
-            cmd->cmd = IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND;
-            cmd->u.open_client_sock.ipaddress = 0xA5A57F7F;
-            cmd->u.open_client_sock.port = 0x1234;
-            ipaugenblick_submit_command_buf(memory,buff,ringset_idx);
-        }
+        buff = ipaugenblick_get_free_command_buf(memory);
+        if(!buff)
+            goto rtx_bufs;
+        cmd = (ipaugenblick_cmd_t *)buff;
+        cmd->cmd = IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND;
+        cmd->u.open_client_sock.my_ipaddress = 0xA5A57F7F;
+        cmd->u.open_client_sock.my_port = 0x1234;
+        cmd->u.open_client_sock.peer_ipaddress = 0x7F7FA5A5;
+        cmd->u.open_client_sock.peer_port = 0x5678;
+        printf("%s %d\n",__FILE__,__LINE__);
+        ipaugenblick_submit_command_buf(memory,buff);
+rtx_bufs:
         for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) {
             buff = ipaugenblick_get_tx_free_buf(memory,ringset_idx);
             if(!buff)

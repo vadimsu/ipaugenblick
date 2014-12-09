@@ -32,6 +32,9 @@ extern void *create_udp_socket(const char *ip_addr,unsigned short port);
  * or NULL if failed
  *
  */
+extern void *create_client_socket2(unsigned int my_ip_addr,unsigned short my_port,
+                                   unsigned int peer_ip_addr,unsigned short port);
+
 extern void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
 		                          const char *peer_ip_addr,unsigned short port);
 /*

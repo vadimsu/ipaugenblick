@@ -24,31 +24,30 @@ int main(int argc,char **argv)
         printf("cannot initialize memory\n");
     }
     while(1) {
-        for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) {
-            buff = ipaugenblick_dequeue_command_buf(memory,ringset_idx);
-            if(!buff)
-                continue;
-            cmd = (ipaugenblick_cmd_t *)buff;   
-            switch(cmd->cmd) {
-                case IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND:
-                   printf("open_client_sock %x %x\n",cmd->u.open_client_sock.ipaddress,cmd->u.open_client_sock.port);
-                   break;
-                case IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND:
-                   printf("open_listening_sock %x %x\n",
-                           cmd->u.open_listening_sock.ipaddress,cmd->u.open_listening_sock.port);
-                   break;
-                case IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND:
-                   printf("open_udp_sock %x %x\n",cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
-                   break;
-                case IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND:
-                   printf("open_raw_sock %x %x\n",cmd->u.open_raw_sock.ipaddress,cmd->u.open_raw_sock.protocol);
-                   break;
-                default:
-                   printf("unknown cmd %d\n",cmd->cmd);
-                   break;
-            }
-            ipaugenblick_free_command_buf(memory,buff,ringset_idx);
+         buff = ipaugenblick_dequeue_command_buf(memory);
+         if(!buff)
+            goto rtx_bufs;
+         cmd = (ipaugenblick_cmd_t *)buff;   
+         switch(cmd->cmd) {
+            case IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND:
+            printf("open_client_sock %x %x %x %x\n",cmd->u.open_client_sock.my_ipaddress,cmd->u.open_client_sock.my_port,cmd->u.open_client_sock.peer_ipaddress,cmd->u.open_client_sock.peer_port);
+               break;
+            case IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND:
+               printf("open_listening_sock %x %x\n",
+                       cmd->u.open_listening_sock.ipaddress,cmd->u.open_listening_sock.port);
+               break;
+            case IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND:
+               printf("open_udp_sock %x %x\n",cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
+               break;
+            case IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND:
+               printf("open_raw_sock %x %x\n",cmd->u.open_raw_sock.ipaddress,cmd->u.open_raw_sock.protocol);
+               break;
+            default:
+               printf("unknown cmd %d\n",cmd->cmd);
+               break;
         }
+        ipaugenblick_free_command_buf(memory,buff);
+rtx_bufs:
         for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) {
             buff = ipaugenblick_dequeue_tx_buf(memory,ringset_idx);
             if(!buff)

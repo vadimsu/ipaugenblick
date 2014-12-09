@@ -41,7 +41,7 @@ int get_max_drv_poll_interval_in_micros(int port_num);
 
 static inline void add_raw_buffer_to_mbuf(struct rte_mbuf *mbuf,struct rte_mempool *mp,void *raw_buffer,int len)
 {
-    mbuf->buf_addr = (char*)raw_buffer - RTE_MIN(RTE_PKTMBUF_HEADROOM, mbuf->buf_len);
+    mbuf->buf_addr = (char*)raw_buffer - RTE_PKTMBUF_HEADROOM;
     mbuf->buf_len = MBUF_SIZE;
     mbuf->pkt.data =  raw_buffer;
     mbuf->pkt.data_len = len;

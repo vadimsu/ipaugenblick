@@ -13,8 +13,10 @@ enum
 
 typedef struct
 {
-    unsigned int ipaddress;
-    unsigned int port;
+    unsigned int my_ipaddress;
+    unsigned int my_port;
+    unsigned int peer_ipaddress;
+    unsigned int peer_port;
 }__attribute__((packed))ipaugenblick_open_client_sock_cmd_t;
 
 typedef struct

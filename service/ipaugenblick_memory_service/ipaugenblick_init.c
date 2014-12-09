@@ -34,11 +34,29 @@ struct ipaugenblick_memory *ipaugenblick_memory_init(void *base_address,
     printf("cmd_count %u rx_count %u tx_count %u requested_size %u\n",
            command_bufs_count,rx_bufs_count,tx_bufs_count,requested_size);
 
-    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) {
-        ipaugenblick_set_command_ring(memory,offset,ringset_idx);
-        offset += command_rings_size;
-        ipaugenblick_set_free_command_ring(memory,offset,ringset_idx);
-        offset += command_rings_size;
+    ipaugenblick_set_command_ring(memory,offset);
+    offset += command_rings_size;
+    ipaugenblick_set_free_command_ring(memory,offset);
+    offset += command_rings_size;
+    ipaugenblick_set_command_bufs_base(memory,offset);
+    offset += command_bufs_count*IPAUGENBLICK_BUFSIZE;
+    /* COMMAND RING */
+    r = ipaugenblick_get_command_ring(memory);
+    ipaugenblick_ring_init(r,command_bufs_count,0);
+    /* FREE COMMAND RING */
+    r = ipaugenblick_get_free_command_ring(memory);
+    ipaugenblick_ring_init(r,command_bufs_count,0);
+    /* COMMAND BUFFERS */
+    bufdesc = ipaugenblick_get_command_bufs_base(memory);
+    r = ipaugenblick_get_free_command_ring(memory);
+    for(i = 0;i < command_bufs_count;i++) {
+        bufdesc->connection_handle = 0;
+        bufdesc->buffer_length = (IPAUGENBLICK_BUFSIZE - PKTMBUF_HEADROOM);
+        ipaugenblick_free_command_buf(memory,bufdesc);
+        printf("%s %d\n",__FILE__,__LINE__);
+        bufdesc = (struct ipaugenblick_buffer_desc *)((char *)bufdesc + IPAUGENBLICK_BUFSIZE);
+    }
+    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_RINGSETS_COUNT;ringset_idx++) { 
         ipaugenblick_set_rx_ring(memory,offset,ringset_idx);
         offset += rx_rings_size; 
         ipaugenblick_set_tx_ring(memory,offset,ringset_idx);
@@ -46,20 +64,12 @@ struct ipaugenblick_memory *ipaugenblick_memory_init(void *base_address,
         ipaugenblick_set_rx_free_bufs_ring(memory,offset,ringset_idx);
         offset += rx_rings_size;
         ipaugenblick_set_tx_free_bufs_ring(memory,offset,ringset_idx);
-        offset += tx_rings_size;
-        ipaugenblick_set_command_bufs_base(memory,offset,ringset_idx);
-        offset += command_bufs_count*IPAUGENBLICK_BUFSIZE;
+        offset += tx_rings_size; 
         ipaugenblick_set_rx_bufs_base(memory,offset,ringset_idx);
         offset += rx_bufs_count*IPAUGENBLICK_BUFSIZE;
         ipaugenblick_set_tx_bufs_base(memory,offset,ringset_idx);
         offset += tx_bufs_count*IPAUGENBLICK_BUFSIZE; 
      
-        /* COMMAND RING */
-        r = ipaugenblick_get_command_ring(memory,ringset_idx);
-        ipaugenblick_ring_init(r,command_bufs_count,0);
-        /* FREE COMMAND RING */
-        r = ipaugenblick_get_free_command_ring(memory,ringset_idx);
-        ipaugenblick_ring_init(r,command_bufs_count,0);
         /* RX RING */
         r = ipaugenblick_get_rx_ring(memory,ringset_idx);
         ipaugenblick_ring_init(r,rx_bufs_count,0);
@@ -77,7 +87,7 @@ struct ipaugenblick_memory *ipaugenblick_memory_init(void *base_address,
         r = ipaugenblick_get_rx_free_bufs_ring(memory,ringset_idx);
         for(i = 0;i < rx_bufs_count;i++) {
             bufdesc->connection_handle = 0;
-            bufdesc->buffer_length = (IPAUGENBLICK_BUFSIZE - sizeof(struct ipaugenblick_buffer_desc));
+            bufdesc->buffer_length = (IPAUGENBLICK_BUFSIZE - PKTMBUF_HEADROOM);
             ipaugenblick_free_rx_buf(memory,bufdesc,ringset_idx);
             bufdesc = (struct ipaugenblick_buffer_desc *)((char *)bufdesc + IPAUGENBLICK_BUFSIZE);
         }
@@ -86,7 +96,7 @@ struct ipaugenblick_memory *ipaugenblick_memory_init(void *base_address,
         r = ipaugenblick_get_tx_free_bufs_ring(memory,ringset_idx);
         for(i = 0;i < rx_bufs_count;i++) {
             bufdesc->connection_handle = 0;
-            bufdesc->buffer_length = (IPAUGENBLICK_BUFSIZE - sizeof(struct ipaugenblick_buffer_desc));
+            bufdesc->buffer_length = (IPAUGENBLICK_BUFSIZE - PKTMBUF_HEADROOM);
             ipaugenblick_free_tx_buf(memory,bufdesc,ringset_idx);
             bufdesc = (struct ipaugenblick_buffer_desc *)((char *)bufdesc + IPAUGENBLICK_BUFSIZE);
         }

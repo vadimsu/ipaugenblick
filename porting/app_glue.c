@@ -223,8 +223,8 @@ void *create_udp_socket(const char *ip_addr,unsigned short port)
  * or NULL if failed
  *
  */
-void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
-		                   const char *peer_ip_addr,unsigned short port)
+void *create_client_socket2(unsigned int my_ip_addr,unsigned short my_port,
+		            unsigned int peer_ip_addr,unsigned short port)
 {
 	struct sockaddr_in sin;
 	struct timeval tv;
@@ -245,7 +245,7 @@ void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
 	}
 	while(1) {
 		sin.sin_family = AF_INET;
-		sin.sin_addr.s_addr = inet_addr(my_ip_addr);
+		sin.sin_addr.s_addr = my_ip_addr;
 		if(my_port) {
 			sin.sin_port = htons(my_port);
 		}
@@ -262,7 +262,7 @@ void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
 		break;
 	}
 	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = inet_addr(peer_ip_addr);
+	sin.sin_addr.s_addr = peer_ip_addr;
 	sin.sin_port = htons(port);
 	if(client_sock->sk) {
 		client_sock->sk->sk_state_change = app_glue_sock_wakeup;
@@ -270,6 +270,18 @@ void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
 	kernel_connect(client_sock, (struct sockaddr *)&sin,sizeof(sin), 0);
 
 	return client_sock;
+}
+/*
+ * This is a wrapper function for TCP connecting socket creation.
+ * Paramters: IP address & port to bind, IP address & port to connect
+ * Returns: a pointer to socket structure (handle)
+ * or NULL if failed
+ *
+ */
+void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
+		                   const char *peer_ip_addr,unsigned short port)
+{
+    return create_client_socket2(inet_addr(my_ip_addr),my_port,inet_addr(peer_ip_addr),port);
 }
 /*
  * This is a wrapper function for TCP listening socket creation.
