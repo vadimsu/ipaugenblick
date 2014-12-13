@@ -8,7 +8,7 @@ typedef void (*on_send_complete_t)(void *);
 typedef int  (*on_accepted_t)(void *,int,unsigned int *,unsigned short *);
 
 /* must be called per process */
-extern void* ipaugenblick_app_init(int *size);
+extern int ipaugenblick_app_init(int argc, char **argv);
 
 /* open asynchronous TCP client socket */
 int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port);
@@ -38,7 +38,9 @@ int ipaugenblick_receive_from(int sock,void **buffer,int *len,unsigned int *ipad
 void *ipaugenblick_get_buffer(int length);
 
 /* release buffer when either send is complete or receive has done with the buffer */
-void ipaugenblick_release_buffer(void *buffer);
+void ipaugenblick_release_tx_buffer(void *buffer);
+
+void ipaugenblick_release_rx_buffer(void *buffer);
 
 /* heartbeat. should be called as frequent as possible */
 void ipaugenblick_poll(void);

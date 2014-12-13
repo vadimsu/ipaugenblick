@@ -29,11 +29,8 @@
 #include <rte_timer.h>
 #include <api.h>
 #include <porting/libinit.h>
-#include "ipaugenblick_memory_common/ipaugenblick_memory_layout.h"
-#include "ipaugenblick_memory_service/ipaugenblick_service.h"
-#include "ipaugenblick_memory_common/ipaugenblick_memory_common.h"
-
-static void *memory_base = NULL;
+#include "ipaugenblick_common/ipaugenblick_common.h"
+#include "ipaugenblick_service/ipaugenblick_server_side.h"
 
 uint64_t user_on_tx_opportunity_cycles = 0;
 uint64_t user_on_tx_opportunity_called = 0;
@@ -46,6 +43,12 @@ uint64_t user_on_rx_opportunity_called = 0;
 uint64_t user_on_rx_opportunity_called_wo_result = 0;
 uint64_t user_rx_mbufs = 0;
 
+struct rte_ring *command_ring = NULL;
+struct rte_ring *free_connections_ring = NULL;
+struct rte_ring *rx_mbufs_ring = NULL;
+struct rte_mempool *free_command_pool = NULL;
+struct ipaugenblick_ring_set ringsets[IPAUGENBLICK_CONNECTION_POOL_SIZE];
+
 #ifdef OPTIMIZE_SENDPAGES
 /* this is called from tcp_sendpages when tcp knows exactly
  * how much data to  send. copy contains a max buffer size,
@@ -56,8 +59,6 @@ uint64_t user_rx_mbufs = 0;
 struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 {
     struct rte_mbuf *mbuf, *first = NULL,*prev;
-    void *raw_buffer;
-    struct ipaugenblick_buffer_desc *buff;
     unsigned int ringset_idx;
 
     user_on_tx_opportunity_getbuff_called++;
@@ -67,27 +68,13 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 #else
         ringset_idx = (unsigned int)app_glue_get_user_data(sk->sk_socket);
 
-        buff = ipaugenblick_dequeue_tx_buf(memory_base,ringset_idx);
-        if(unlikely(buff) == NULL) {
+        mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
+        if(unlikely(mbuf == NULL)) {
             user_on_tx_opportunity_cannot_get_buff++;
             return first;
         }
-        raw_buffer = (char *)buff + PKTMBUF_HEADROOM;
-        raw_buffer = (char *)raw_buffer + buff->offset;
 #endif
-        mbuf = get_tx_buffer();
-        if (unlikely(mbuf == NULL)) {
-            user_on_tx_opportunity_cannot_get_buff++;
-            return first;
-        }
-       /* data_bufs_mempool is required here to calculate virt2phys. needs to be modified */ 
-        add_raw_buffer_to_mbuf(mbuf,get_data_bufs_mempool(),raw_buffer,buff->length);
-        (*copy) -= buff->length;
-        mbuf->pool = get_mbufs_tx_complete_mempool();
-        if(unlikely(mbuf->pkt.data_len == 0)) {
-            rte_pktmbuf_free_seg(mbuf);
-            return first;
-        }
+        (*copy) -= mbuf->pkt.data_len;
         if(!first)
             first = mbuf;
         else
@@ -164,16 +151,8 @@ void user_data_available_cbk(struct socket *sock)
     }
     while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0)) {
 	dummy = 0;
-        buff = (char *)msg.msg_iov->head->buf_addr;
         ringset_idx = (unsigned int)app_glue_get_user_data(sock);
-        ipaugenblick_submit_rx_buf(memory_base,buff,ringset_idx);
-        buff = ipaugenblick_get_rx_free_buf(memory_base,ringset_idx); 
-        if(buff != NULL) {
-            void *raw_buffer = (char *)buff + PKTMBUF_HEADROOM; 
-            /* TODO ADD HEADROOM */
-            /* extract pointer to data and place in rx ring */
-            add_raw_buffer_to_mbuf(msg.msg_iov->head,get_data_bufs_mempool(),raw_buffer,buff->length);
-        }
+        ipaugenblick_submit_rx_buf(msg.msg_iov->head,ringset_idx);
 	memset(&vec,0,sizeof(vec));
     }
     if(dummy) {
@@ -196,21 +175,22 @@ int user_on_accept(struct socket *sock)
 static void process_commands()
 {
     int ringset_idx;
-    struct ipaugenblick_buffer_desc *buff;
     ipaugenblick_cmd_t *cmd;
+    struct rte_mbuf *mbuf;
     struct socket *sock;
     char *p;
 
-    buff = ipaugenblick_dequeue_command_buf(memory_base);
-    if(!buff)
-        goto rtx_bufs;
-    cmd = (ipaugenblick_cmd_t *)buff;
+    cmd = ipaugenblick_dequeue_command_buf();
+    if(!cmd)
+        return;
     switch(cmd->cmd) {
         case IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND:
-           printf("open_client_sock %x %x\n",cmd->u.open_client_sock.ipaddress,cmd->u.open_client_sock.port);
-           sock = create_client_socket2(my_ip_addr,my_port,peer_ip_addr,port);
+           printf("open_client_sock %x %x %x %x\n",cmd->u.open_client_sock.my_ipaddress,cmd->u.open_client_sock.my_port,
+                                             cmd->u.open_client_sock.peer_ipaddress,cmd->u.open_client_sock.peer_port);
+           sock = create_client_socket2(cmd->u.open_client_sock.my_ipaddress,cmd->u.open_client_sock.my_port,
+                                        cmd->u.open_client_sock.peer_ipaddress,cmd->u.open_client_sock.peer_port);
            if(sock) {
-               app_glue_set_user_data(sock,ring_idx);
+               app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
            }
            break;
         case IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND:
@@ -227,32 +207,25 @@ static void process_commands()
            printf("unknown cmd %d\n",cmd->cmd);
            break;
     }
-    ipaugenblick_free_command_buf(memory_base,buff);
+    ipaugenblick_free_command_buf(cmd);
 }
 
 void ipaugenblick_main_loop()
 {
+    struct rte_mbuf *mbuf;
     uint8_t ports_to_poll[1] = { 0 };
     int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
     app_glue_init_poll_intervals(/*drv_poll_interval/(2*MAX_PKT_BURST)*/0,
                                  1000 /*timer_poll_interval*/,
                                  /*drv_poll_interval/(10*MAX_PKT_BURST)*/0,
                                 /*drv_poll_interval/(60*MAX_PKT_BURST)*/0);
-    memory_base = ipaugenblick_service_init(1024*1024*8);
+    ipaugenblick_service_api_init(10,1024,1024);
     while(1) {
         process_commands();
-	app_glue_periodic(1,ports_to_poll,1);
-        while((mbuf = get_tx_complete_buffer()) != NULL) {
-            struct ipaugenblick_buffer_desc *buff;
-            mbuf->pool = get_mbufs_mempool();
-            buff = (struct ipaugenblick_buffer_desc *)mbuf->buf_addr;
-            ipaugenblick_free_tx_buf(memory_base,buff,buff->ringset_idx);
-	    mbuf->buf_addr = NULL;
-	    mbuf->buf_len = 0;
-	    mbuf->pkt.data = NULL;
-	    mbuf->pkt.data_len = mbuf->pkt.pkt_len = 0;
-            release_buffer(mbuf);
-        } 	
+	app_glue_periodic(1,ports_to_poll,1);	
+        if(rte_ring_dequeue(rx_mbufs_ring,&mbuf) == 0) {
+            rte_pktmbuf_free_seg(mbuf);
+        }
     }
 }
 /*this is called in non-data-path thread */

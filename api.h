@@ -145,11 +145,7 @@ extern int dpdk_linux_tcpip_init(int argc,char **argv);
 extern void *app_glue_get_buffer();
 
 extern struct rte_mbuf *get_tx_buffer();
-extern struct rte_mbuf *get_tx_complete_buffer();
-
-extern struct rte_mempool *get_data_bufs_mempool();
 extern struct rte_mempool *get_mbufs_tx_mempool();
-extern struct rte_mempool *get_mbufs_tx_complete_mempool();
 
 extern void release_buffer(void *buf);
 
