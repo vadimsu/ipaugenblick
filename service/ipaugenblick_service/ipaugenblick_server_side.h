@@ -56,7 +56,9 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 static inline ipaugenblick_cmd_t *ipaugenblick_dequeue_command_buf()
 {
     ipaugenblick_cmd_t *cmd;
-    rte_ring_dequeue(command_ring,(void **)&cmd);
+    if(rte_ring_dequeue(command_ring,(void **)&cmd)) {
+        return NULL;
+    }
     return cmd;
 }
 

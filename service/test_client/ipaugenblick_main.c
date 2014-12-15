@@ -23,18 +23,22 @@ int main(int argc,char **argv)
         printf("cannot initialize memory\n");
         return 0;
     } 
-    if((sock = ipaugenblick_open_tcp_client(inet_addr("192.168.1.1"),7777)) < 0) {
+    if((sock = ipaugenblick_open_tcp_client(inet_addr("192.168.150.62"),7777,inet_addr("192.168.150.63"),7777)) < 0) {
         printf("cannot open tcp client socket\n");
         return 0;
     }
     while(1) {
         buff = ipaugenblick_get_buffer(1024);
         if(buff) {
-            if(ipaugenblick_send(sock,buff,0,1024,NULL,NULL)) {
+//            printf("sending...\n");
+            if(ipaugenblick_send(sock,buff,0,1024,NULL,NULL)) { 
+  //              printf("failed\n");
                 ipaugenblick_release_tx_buffer(buff);
             }
         }
+    //    printf("receiving\n");
         if(ipaugenblick_receive(sock,&buff,&len) == 0) {
+            printf("received %p\n",buff);
             ipaugenblick_release_rx_buffer(buff);
         }
     }

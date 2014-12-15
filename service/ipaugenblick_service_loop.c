@@ -219,7 +219,7 @@ void ipaugenblick_main_loop()
                                  1000 /*timer_poll_interval*/,
                                  /*drv_poll_interval/(10*MAX_PKT_BURST)*/0,
                                 /*drv_poll_interval/(60*MAX_PKT_BURST)*/0);
-    ipaugenblick_service_api_init(10,1024,1024);
+    ipaugenblick_service_api_init(128,1024,1024);
     while(1) {
         process_commands();
 	app_glue_periodic(1,ports_to_poll,1);	

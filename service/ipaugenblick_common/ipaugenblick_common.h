@@ -55,6 +55,6 @@ typedef struct
 #define FREE_COMMAND_POOL_NAME "free_command_pool"
 #define RX_RING_NAME_BASE "rx_ring"
 #define TX_RING_NAME_BASE "tx_ring" 
-#define IPAUGENBLICK_CONNECTION_POOL_SIZE 1000
+#define IPAUGENBLICK_CONNECTION_POOL_SIZE 1024
 
 #endif /* __IPAUGENBLICK_MEMORY_COMMON_H__ */

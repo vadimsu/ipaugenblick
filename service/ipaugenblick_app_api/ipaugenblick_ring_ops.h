@@ -39,7 +39,9 @@ static inline int ipaugenblick_enqueue_tx_buf(int ringset_idx,struct rte_mbuf *m
 static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
 {
     struct rte_mbuf *mbuf;
-    rte_ring_dequeue(socket_descriptors[ringset_idx].rx_ring,(void **)&mbuf);
+    if(rte_ring_dequeue(socket_descriptors[ringset_idx].rx_ring,(void **)&mbuf)) {
+        return NULL;
+    }
     return mbuf;
 }
 

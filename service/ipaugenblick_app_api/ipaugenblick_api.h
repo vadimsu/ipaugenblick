@@ -11,7 +11,7 @@ typedef int  (*on_accepted_t)(void *,int,unsigned int *,unsigned short *);
 extern int ipaugenblick_app_init(int argc, char **argv);
 
 /* open asynchronous TCP client socket */
-int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port);
+int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigned int myipaddr,unsigned short myport);
 
 /* open listener */
 int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port,on_accepted_t on_accepted_callback,void *arg);
