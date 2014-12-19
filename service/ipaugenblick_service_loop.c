@@ -190,8 +190,10 @@ static void process_commands()
            sock = create_client_socket2(cmd->u.open_client_sock.my_ipaddress,cmd->u.open_client_sock.my_port,
                                         cmd->u.open_client_sock.peer_ipaddress,cmd->u.open_client_sock.peer_port);
            if(sock) {
+               printf("setting user data\n");
                app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
            }
+           printf("Done\n");
            break;
         case IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND:
            printf("open_listening_sock %x %x\n",
@@ -224,6 +226,7 @@ void ipaugenblick_main_loop()
         process_commands();
 	app_glue_periodic(1,ports_to_poll,1);	
         if(rte_ring_dequeue(rx_mbufs_ring,&mbuf) == 0) {
+            printf("%s %d\n",__FILE__,__LINE__);
             rte_pktmbuf_free_seg(mbuf);
         }
     }

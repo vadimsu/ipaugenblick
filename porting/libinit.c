@@ -280,9 +280,9 @@ static int print_stats(__attribute__((unused)) void *dummy)
 		dump_head_cache();
 		dump_fclone_cache();
 		printf("rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
-		printf("data bufs pool free count %d\n",rte_mempool_count(data_bufs_mempool));
+//		printf("data bufs pool free count %d\n",rte_mempool_count(data_bufs_mempool));
                 printf("tx mbufs pool free count %d\n",rte_mempool_count(tx_mbufs_mempool));
-                printf("tx complete mbufs pool free count %d\n",rte_mempool_count(tx_complete_mbufs_mempool));
+//                printf("tx complete mbufs pool free count %d\n",rte_mempool_count(tx_complete_mbufs_mempool));
 		print_skb_iov_stats();
 #endif
 		sleep(1);
