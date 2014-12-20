@@ -267,7 +267,7 @@ void show_mib_stats(void);
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
-#if 1
+#if 0
 		app_glue_print_stats();
 		show_mib_stats();
         dpdk_dev_print_stats();

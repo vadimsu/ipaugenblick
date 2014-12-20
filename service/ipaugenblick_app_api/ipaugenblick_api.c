@@ -177,6 +177,7 @@ void ipaugenblick_close(int sock)
 int ipaugenblick_send(int sock,void *buffer,int offset,int length,on_send_complete_t send_complete_callback,void *arg)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
+    mbuf->pkt.data_len = length;
     return ipaugenblick_enqueue_tx_buf(sock,mbuf);
 }
 
@@ -217,7 +218,7 @@ void *ipaugenblick_get_buffer(int length)
     if(rte_mempool_get(tx_bufs_pool,(void **)&mbuf)) {
         return NULL;
     }
-    return mbuf->pkt.data;
+    return &mbuf->pkt.data;
 }
 
 /* release buffer when either send is complete or receive has done with the buffer */

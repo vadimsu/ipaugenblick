@@ -76,7 +76,6 @@ static void app_glue_sock_readable(struct sock *sk, int len)
 	if(sk->sk_socket->read_queue_present) {
 		return;
 	}
-        printf("%s %d\n",__FILE__,__LINE__);
 	sk->sk_socket->read_queue_present = 1;
 	TAILQ_INSERT_TAIL(&read_ready_socket_list_head,sk->sk_socket,read_queue_entry);
 }
@@ -90,7 +89,6 @@ static void app_glue_sock_readable(struct sock *sk, int len)
  */
 static void app_glue_sock_write_space(struct sock *sk)
 {
-    printf("%s %d\n",__FILE__,__LINE__);
 	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
 	}
@@ -401,7 +399,6 @@ static void process_rx_ready_sockets()
 
 	while(!TAILQ_EMPTY(&read_ready_socket_list_head)) {
 		sock = TAILQ_FIRST(&read_ready_socket_list_head);
-                printf("%s %d\n",__FILE__,__LINE__);
 		user_data_available_cbk(sock);
 		sock->read_queue_present = 0;
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
@@ -421,7 +418,7 @@ static void process_tx_ready_sockets()
 	if(!TAILQ_EMPTY(&write_ready_socket_list_head)) {
 		sock = TAILQ_FIRST(&write_ready_socket_list_head);
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
-                printf("%s %d\n",__FILE__,__LINE__);
+#if 0
 		if(user_on_transmission_opportunity(sock) > 0) {
 		    sock->write_queue_present = 0;
 		    set_bit(SOCK_NOSPACE, &sock->flags);
@@ -430,6 +427,7 @@ static void process_tx_ready_sockets()
 			TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sock,write_queue_entry);
 			clear_bit(SOCK_NOSPACE, &sock->flags);
 		}
+#endif
 	}
 }
 /* These are in translation of micros to cycles */

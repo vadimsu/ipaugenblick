@@ -59,20 +59,20 @@ struct ipaugenblick_ring_set ringsets[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 {
     struct rte_mbuf *mbuf, *first = NULL,*prev;
-    unsigned int ringset_idx;
+    unsigned int ringset_idx,i=0;
 
     user_on_tx_opportunity_getbuff_called++;
-    while(*copy != 0) {
+    ringset_idx = (unsigned int)app_glue_get_user_data(sk->sk_socket);
+    while(*copy > 1448) {
 #if 0
         raw_buffer = app_glue_get_buffer();
 #else
-        ringset_idx = (unsigned int)app_glue_get_user_data(sk->sk_socket);
-
         mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
         if(unlikely(mbuf == NULL)) {
             user_on_tx_opportunity_cannot_get_buff++;
             return first;
         }
+        printf("%s %d %p %d %d %p\n",__FILE__,__LINE__,mbuf,*copy,++i,mbuf->pkt.data);
 #endif
         (*copy) -= mbuf->pkt.data_len;
         if(!first)
@@ -81,6 +81,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
             prev->pkt.next = mbuf;
         prev = mbuf;
         user_on_tx_opportunity_api_mbufs_sent++;
+        break;
     }
     return first;
 }
@@ -226,7 +227,6 @@ void ipaugenblick_main_loop()
         process_commands();
 	app_glue_periodic(1,ports_to_poll,1);	
         if(rte_ring_dequeue(rx_mbufs_ring,&mbuf) == 0) {
-            printf("%s %d\n",__FILE__,__LINE__);
             rte_pktmbuf_free_seg(mbuf);
         }
     }

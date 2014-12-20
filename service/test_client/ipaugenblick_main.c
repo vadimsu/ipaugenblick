@@ -28,18 +28,20 @@ int main(int argc,char **argv)
         return 0;
     }
     while(1) {
-        buff = ipaugenblick_get_buffer(1024);
-        if(buff) {
-//            printf("sending...\n");
-            if(ipaugenblick_send(sock,buff,0,1024,NULL,NULL)) { 
-  //              printf("failed\n");
-                ipaugenblick_release_tx_buffer(buff);
-            }
-        }
     //    printf("receiving\n");
         if(ipaugenblick_receive(sock,&buff,&len) == 0) {
             printf("received %p\n",buff);
             ipaugenblick_release_rx_buffer(buff);
+#if 0
+            buff = ipaugenblick_get_buffer(1024);
+            if(buff) {
+//             printf("sending...\n");
+                if(ipaugenblick_send(sock,buff,0,1024,NULL,NULL)) { 
+  //              printf("failed\n");
+                    ipaugenblick_release_tx_buffer(buff);
+                }
+            }
+#endif
         }
     }
     return 0;
