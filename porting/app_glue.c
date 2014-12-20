@@ -324,7 +324,7 @@ void *create_server_socket(const char *my_ip_addr,unsigned short port)
 #endif
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = inet_addr(my_ip_addr);
-	sin.sin_port = port;
+	sin.sin_port = htons(port);
 
 	if(kernel_bind(server_sock,(struct sockaddr *)&sin,sizeof(sin))) {
 		printf("cannot bind %s %d\n",__FILE__,__LINE__);
@@ -712,7 +712,7 @@ int app_glue_calc_size_of_data_to_send(void *sock)
  * Returns: a pointer to rte_mbuf, if succeeded, NULL if failed
  *
  */
-void *app_glue_get_buffer()
+struct rte_mbuf *app_glue_get_buffer()
 {
 	return get_buffer();
 }

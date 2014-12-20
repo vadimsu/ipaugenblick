@@ -362,7 +362,7 @@ static int raw_send_hdrinc(struct sock *sk, struct flowi4 *fl4,
 
 	skb_reset_network_header(skb);
 	iph = ip_hdr(skb);
-	skb_put(skb, length);
+	skb_put(skb,sizeof(*iph));
 
 	skb->ip_summed = CHECKSUM_NONE;
 

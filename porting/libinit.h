@@ -17,9 +17,7 @@ void *get_dpdk_dev_by_port_num(int port_num);
 void *get_buffer();
 /* this function gets a pointer to data in the newly allocated rte_mbuf */
 void *get_data_ptr(void *buf);
-/* this function releases the raw buffer */
-void release_data_buffer(void *buf);
-/* this function releases the mbuf */
+/* this function releases the rte_mbuf */
 void release_buffer(void *buf);
 /*
  * This function must be called prior any other in this package.

@@ -57,7 +57,7 @@ int ipaugenblick_app_init(int argc,char **argv)
         socket_descriptors[i].tx_ring = rte_ring_lookup(ringname);
         rte_ring_enqueue(free_connections_ring,&socket_descriptors[i]);
     }
-    tx_bufs_pool = rte_mempool_lookup("tx_mbufs_mempool");
+    tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
     if(!tx_bufs_pool) {
         printf("cannot find tx bufs pool\n");
         return -1;
