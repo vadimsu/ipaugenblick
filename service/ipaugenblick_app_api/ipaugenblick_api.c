@@ -29,7 +29,9 @@ struct rte_ring *free_connections_ring = NULL;
 struct rte_mempool *tx_bufs_pool = NULL;
 struct rte_ring *rx_bufs_ring = NULL;
 struct rte_mempool *free_command_pool = NULL;
+struct rte_mempool *free_accepted_pool = NULL;
 struct rte_ring *command_ring = NULL;
+struct rte_ring *accepted_ring = NULL;
 
 /* must be called per process */
 int ipaugenblick_app_init(int argc,char **argv)
@@ -49,12 +51,22 @@ int ipaugenblick_app_init(int argc,char **argv)
         return -1;
     }
 
+    accepted_ring = rte_ring_lookup(ACCEPTED_RING_NAME);
+
+    if(!accepted_ring) {
+        printf("cannot find accepted ring\n");
+        return -1;
+    }
+
     memset(socket_descriptors,0,sizeof(socket_descriptors));
     for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
         sprintf(ringname,RX_RING_NAME_BASE"%d",i);
         socket_descriptors[i].rx_ring = rte_ring_lookup(ringname);
         sprintf(ringname,TX_RING_NAME_BASE"%d",i);
         socket_descriptors[i].tx_ring = rte_ring_lookup(ringname);
+        sprintf(ringname,FEEDBACKS_RING_NAME_BASE"%d",i);
+        socket_descriptors[i].feedbacks_ring = rte_ring_lookup(ringname);
+        printf("%s %d %p\n",__FILE__,__LINE__,socket_descriptors[i].feedbacks_ring);
         rte_ring_enqueue(free_connections_ring,&socket_descriptors[i]);
     }
     tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
@@ -72,6 +84,11 @@ int ipaugenblick_app_init(int argc,char **argv)
         printf("cannot find free command pool\n");
         return -1;
     }
+     free_accepted_pool = rte_mempool_lookup(FREE_ACCEPTED_POOL_NAME);
+    if(!free_accepted_pool) {
+        printf("cannot find free accepted pool\n");
+        return -1;
+    }
     command_ring = rte_ring_lookup(COMMAND_RING_NAME);
     if(!command_ring) {
         printf("cannot find command ring\n");
@@ -79,7 +96,10 @@ int ipaugenblick_app_init(int argc,char **argv)
     }
     return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
 }
-
+static inline void ipaugenblick_free_command_buf(ipaugenblick_cmd_t *cmd)
+{
+    rte_mempool_put(free_command_pool,(void *)cmd);
+}
 /* open asynchronous TCP client socket */
 int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigned int myipaddr,unsigned short myport)
 {
@@ -114,7 +134,7 @@ int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigne
 }
 
 /* open listener */
-int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port,on_accepted_t on_accepted_callback,void *arg)
+int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port)
 {
     struct _socket_descriptor *descr;
     int idx;
@@ -131,6 +151,10 @@ int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port,on_acce
     if(!cmd) {
         return -2;
     }
+
+    cmd->cmd = IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND;
+    cmd->u.open_listening_sock.ipaddress = ipaddr;
+    cmd->u.open_listening_sock.port = port;
 
     ipaugenblick_enqueue_command_buf(cmd);
 
@@ -174,7 +198,7 @@ void ipaugenblick_close(int sock)
 }
 
 /* TCP or connected UDP */
-int ipaugenblick_send(int sock,void *buffer,int offset,int length,on_send_complete_t send_complete_callback,void *arg)
+int ipaugenblick_send(int sock,void *buffer,int offset,int length)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     mbuf->pkt.data_len = length;
@@ -182,7 +206,7 @@ int ipaugenblick_send(int sock,void *buffer,int offset,int length,on_send_comple
 }
 
 /* UDP or RAW */
-int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port,on_send_complete_t send_complete_callback,void *arg)
+int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     return ipaugenblick_enqueue_tx_buf(sock,mbuf);
@@ -218,7 +242,7 @@ void *ipaugenblick_get_buffer(int length)
     if(rte_mempool_get(tx_bufs_pool,(void **)&mbuf)) {
         return NULL;
     }
-    return &mbuf->pkt.data;
+    return &(mbuf->pkt.data);
 }
 
 /* release buffer when either send is complete or receive has done with the buffer */
@@ -236,8 +260,55 @@ void ipaugenblick_release_rx_buffer(void *buffer)
     rte_ring_enqueue(rx_bufs_ring,(void *)mbuf);
 }
 
-/* heartbeat. should be called as frequent as possible */
-void ipaugenblick_poll(void)
+void ipaugenblick_socket_kick(int sock)
 {
+    ipaugenblick_cmd_t *cmd;
+    cmd = ipaugenblick_get_free_command_buf();
+    if(!cmd) {
+        return;
+    }
+    cmd->cmd = IPAUGENBLICK_SOCKET_KICK_COMMAND;
+    cmd->u.socket_kick_cmd.socket_descr = socket_descriptors[sock].sock;
+    ipaugenblick_enqueue_command_buf(cmd);
 }
 
+int ipaugenblick_get_connected()
+{
+    ipaugenblick_cmd_t *cmd;
+    int ringset_idx;
+    
+    if(rte_ring_dequeue(socket_descriptors[ringset_idx].feedbacks_ring,(void **)&cmd)) {
+        return -1;
+    }
+    socket_descriptors[ringset_idx].sock = cmd->u.open_socket_feedback.socket_descr;
+    ringset_idx = cmd->ringset_idx;
+    ipaugenblick_free_command_buf(cmd);
+    return ringset_idx;
+}
+
+static inline void ipaugenblick_free_accepted_buf(ipaugenblick_cmd_t *cmd)
+{
+    rte_mempool_put(free_accepted_pool,(void *)cmd);
+}
+
+int ipaugenblick_accept()
+{
+    ipaugenblick_cmd_t *cmd;
+    struct _socket_descriptor *descr;
+
+    if(rte_ring_dequeue(accepted_ring,(void **)&cmd)) {
+        return -1;
+    }
+    
+    if(rte_ring_dequeue(free_connections_ring,(void **)&descr)) {
+        printf("%s %d\n",__FILE__,__LINE__);
+        return -1;
+    } 
+    socket_descriptors[(int)descr].sock = cmd->u.accepted_socket.socket_descr;
+    cmd->cmd = IPAUGENBLICK_SET_SOCKET_RING_COMMAND;
+    cmd->ringset_idx = descr;
+    cmd->u.set_socket_ring.socket_descr = socket_descriptors[(int)descr].sock;
+    ipaugenblick_enqueue_command_buf(cmd); 
+//    ipaugenblick_free_accepted_buf(cmd);
+    return (int)descr;
+}

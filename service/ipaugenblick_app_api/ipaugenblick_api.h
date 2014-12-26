@@ -4,9 +4,6 @@
 
 #define IPAUGENBLICK_MAX_SOCKETS 1000
 
-typedef void (*on_send_complete_t)(void *);
-typedef int  (*on_accepted_t)(void *,int,unsigned int *,unsigned short *);
-
 /* must be called per process */
 extern int ipaugenblick_app_init(int argc, char **argv);
 
@@ -14,7 +11,7 @@ extern int ipaugenblick_app_init(int argc, char **argv);
 int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigned int myipaddr,unsigned short myport);
 
 /* open listener */
-int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port,on_accepted_t on_accepted_callback,void *arg);
+int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port);
 
 /* open UDP socket */
 int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port);
@@ -23,10 +20,10 @@ int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port);
 void ipaugenblick_close(int sock);
 
 /* TCP or connected UDP */
-int ipaugenblick_send(int sock,void *buffer,int offset,int length,on_send_complete_t send_complete_callback,void *arg);
+int ipaugenblick_send(int sock,void *buffer,int offset,int length);
 
 /* UDP or RAW */
-int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port,on_send_complete_t send_complete_callback,void *arg);
+int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port);
 
 /* TCP */
 int ipaugenblick_receive(int sock,void **pbuffer,int *len);
@@ -42,7 +39,10 @@ void ipaugenblick_release_tx_buffer(void *buffer);
 
 void ipaugenblick_release_rx_buffer(void *buffer);
 
-/* heartbeat. should be called as frequent as possible */
-void ipaugenblick_poll(void);
+void ipaugenblick_socket_kick(int sock);
+
+int ipaugenblick_get_connected();
+
+int ipaugenblick_accept();
 
 #endif

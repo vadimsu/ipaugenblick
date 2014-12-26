@@ -44,6 +44,7 @@ extern void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
  * or NULL if failed
  *
  */
+extern void *create_server_socket2(unsigned int my_ip_addr,unsigned short port);
 extern void *create_server_socket(const char *my_ip_addr,unsigned short port);
 /*
  * This function must be called by application to initialize.

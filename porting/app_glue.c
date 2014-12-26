@@ -283,14 +283,7 @@ void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
 {
     return create_client_socket2(inet_addr(my_ip_addr),my_port,inet_addr(peer_ip_addr),port);
 }
-/*
- * This is a wrapper function for TCP listening socket creation.
- * Paramters: IP address & port to bind
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-void *create_server_socket(const char *my_ip_addr,unsigned short port)
+void *create_server_socket2(unsigned int my_ip_addr,unsigned short port)
 {
 	struct sockaddr_in sin;
 	struct timeval tv;
@@ -321,8 +314,8 @@ void *create_server_socket(const char *my_ip_addr,unsigned short port)
 	}
 #endif
 	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = inet_addr(my_ip_addr);
-	sin.sin_port = htons(port);
+	sin.sin_addr.s_addr = my_ip_addr;
+	sin.sin_port = port;
 
 	if(kernel_bind(server_sock,(struct sockaddr *)&sin,sizeof(sin))) {
 		printf("cannot bind %s %d\n",__FILE__,__LINE__);
@@ -339,6 +332,17 @@ void *create_server_socket(const char *my_ip_addr,unsigned short port)
 		return NULL;
 	}
 	return server_sock;
+}
+/*
+ * This is a wrapper function for TCP listening socket creation.
+ * Paramters: IP address & port to bind
+ * Returns: a pointer to socket structure (handle)
+ * or NULL if failed
+ *
+ */
+void *create_server_socket(const char *my_ip_addr,unsigned short port)
+{
+    return create_server_socket2(inet_addr(my_ip_addr),port);
 }
 /*
  * This function polls the driver for the received packets.Called from app_glue_periodic
@@ -427,6 +431,10 @@ static void process_tx_ready_sockets()
 			TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sock,write_queue_entry);
 			clear_bit(SOCK_NOSPACE, &sock->flags);
 		}
+#else
+                user_on_transmission_opportunity(sock);
+		sock->write_queue_present = 0;
+		set_bit(SOCK_NOSPACE, &sock->flags);
 #endif
 	}
 }
@@ -535,7 +543,7 @@ void app_glue_set_user_data(void *socket,void *data)
 	struct socket *sock = (struct socket *)socket;
 
 	if(!sock) {
-		printf("PANIC: socket NULL\n");while(1);
+		printf("PANIC: socket NULL %s %d \n",__FILE__,__LINE__);while(1);
 	}
 //	if(sock->sk)
 		sock->sk->user_data = data;
@@ -552,7 +560,7 @@ void *app_glue_get_user_data(void *socket)
 {
 	struct socket *sock = (struct socket *)socket;
 	if(!sock) {
-		printf("PANIC: socket NULL\n");while(1);
+		printf("PANIC: socket NULL %s %d\n",__FILE__,__LINE__);while(1);
 	}
 	if(!sock->sk) {
 		printf("PANIC: socket->sk NULL\n");while(1);

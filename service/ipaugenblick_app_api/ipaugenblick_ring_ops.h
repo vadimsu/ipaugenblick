@@ -10,6 +10,8 @@ typedef struct _socket_descriptor
     }u;*/
     struct rte_ring *tx_ring;
     struct rte_ring *rx_ring;
+    struct rte_ring *feedbacks_ring;
+    unsigned long sock;
 }socket_descriptor_t;
 
 extern struct rte_ring *free_connections_ring;
