@@ -536,9 +536,10 @@ static void skb_release_data(struct sk_buff *skb)
 
 		if (skb_has_frag_list(skb))
 			skb_drop_fraglist(skb);
-		if(skb->header_mbuf)
+		if(skb->header_mbuf) {
 			rte_pktmbuf_free_seg(skb->header_mbuf);
-//		skb->header_mbuf =  NULL;
+                }
+		skb->header_mbuf =  NULL;
 #if MULTIPLE_MEM_ALLOC
 		kmem_cache_free(skbuff_shinfo_cache,skb_shinfo(skb));
 #else
@@ -559,7 +560,7 @@ static void kfree_skbmem(struct sk_buff *skb)
 	case SKB_FCLONE_UNAVAILABLE:
 		if(skb->header_mbuf) {
 			rte_pktmbuf_free_seg(skb->header_mbuf);
-//			skb->header_mbuf = NULL;
+			skb->header_mbuf = NULL;
 		}
 		kmem_cache_free(skbuff_head_cache, skb);
 		break;
@@ -569,7 +570,7 @@ static void kfree_skbmem(struct sk_buff *skb)
 		if (atomic_dec_and_test(fclone_ref)) {
 			if(skb->header_mbuf) {
 				rte_pktmbuf_free_seg(skb->header_mbuf);
-//				skb->header_mbuf = NULL;
+				skb->header_mbuf = NULL;
 			}
 			kmem_cache_free(skbuff_fclone_cache, skb);
 		}
@@ -587,7 +588,7 @@ static void kfree_skbmem(struct sk_buff *skb)
 		if (atomic_dec_and_test(fclone_ref)) {
 			if(skb->header_mbuf) {
 				rte_pktmbuf_free_seg(skb->header_mbuf);
-//				skb->header_mbuf = NULL;
+				skb->header_mbuf = NULL;
 			}
 			kmem_cache_free(skbuff_fclone_cache, other);
 		}
@@ -3404,7 +3405,7 @@ void __init skb_init(void)
 					      SLAB_HWCACHE_ALIGN|SLAB_PANIC,
 					      skbuf_debug_init);
 	skbuff_header_cache = rte_mempool_create("skbuf_header", NUMBER_OF_HEADER_SEGMENTS*2,
-						   MBUF_SIZE, 32,
+						   MBUF_SIZE, 0,
 						   sizeof(struct rte_pktmbuf_pool_private),
 						   rte_pktmbuf_pool_init, NULL,
 						   rte_pktmbuf_init, NULL,

@@ -320,16 +320,21 @@ uint64_t skb_copy_datagram_iovec_failed = 0;
 uint64_t skb_copy_datagram_iovec_called = 0;
 uint64_t skb_copy_csum_datagram_iovec_failed = 0;
 uint64_t skb_copy_csum_datagram_iovec_called = 0;
-int skb_copy_datagram_iovec(const struct sk_buff *skb, int offset,
+
+int skb_copy_datagram_iovec(struct sk_buff *skb, int offset,
 			    struct iovec *to, int len)
 {
 	int start = skb_headlen(skb);
 	int i, copy = start - offset;
 	struct sk_buff *frag_iter;
+
 	if(rte_pktmbuf_adj(skb->header_mbuf,skb->data - (unsigned char *)skb->header_mbuf->pkt.data) == NULL) {
-		printf("CANNOT ADJUST MBUF %s %d %d %d %d\n",__FILE__,__LINE__,offset,len,skb->header_mbuf->pkt.data_len);
+		printf("CANNOT ADJUST MBUF %s %d %d %d %d %p %p %d %d\n",__FILE__,__LINE__,offset,len,skb->header_mbuf->pkt.data_len,
+                        skb->header_mbuf,skb->data,(unsigned char *)skb->header_mbuf->pkt.data,start,previous_length);
+                exit(1);
 		goto fault;
 	}
+
 	skb_copy_datagram_iovec_called++;
 	trace_skb_copy_datagram_iovec(skb, len);
 
@@ -337,20 +342,17 @@ int skb_copy_datagram_iovec(const struct sk_buff *skb, int offset,
 	if (copy > 0) {
 		if (copy > len)
 			copy = len;
-#if 0
-		if (memcpy_toiovec(to, skb->data + offset, copy))
-#else
 		if (memcpy_toiovec(to, skb->header_mbuf, offset, copy))
-#endif
 			goto fault;
+                skb->data += copy;
 		if((skb->sk)&&(skb->sk->sk_socket)) {
 			skb->sk->sk_data_ready(skb->sk,0);
 		}
-		if ((len -= copy) == 0)
+		if ((len -= copy) == 0) {
 			return 0;
+                }
 		offset += copy;
 	}
-
 	/* Copy paged appendix. Hmm... why does this look so complicated? */
 	for (i = 0; i < skb_shinfo(skb)->nr_frags; i++) {
 		int end;

@@ -142,7 +142,7 @@ static void init_rx_queues_mempools()
                 sprintf(pool_name,"pool_direct%d",queue_id);
                 pool_direct[queue_id] =
 				rte_mempool_create(pool_name, MBUFS_PER_RX_QUEUE,
-						   MBUF_SIZE, 32,
+						   MBUF_SIZE, 0,
 						   sizeof(struct rte_pktmbuf_pool_private),
 						   rte_pktmbuf_pool_init, NULL,
 						   rte_pktmbuf_init, NULL,
@@ -411,7 +411,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 
 	init_rx_queues_mempools();
 	mbufs_mempool = rte_mempool_create("mbufs_mempool", APP_MBUFS_POOL_SIZE,
-							   MBUF_SIZE, 32,
+							   MBUF_SIZE, 0,
 							   sizeof(struct rte_pktmbuf_pool_private),
 							   rte_pktmbuf_pool_init, NULL,
 							   rte_pktmbuf_init, NULL,

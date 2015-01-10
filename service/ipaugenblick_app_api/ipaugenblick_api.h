@@ -43,6 +43,6 @@ void ipaugenblick_socket_kick(int sock);
 
 int ipaugenblick_get_connected();
 
-int ipaugenblick_accept();
+int ipaugenblick_accept(int sock);
 
 #endif

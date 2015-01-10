@@ -4298,7 +4298,7 @@ static int __must_check tcp_queue_rcv(struct sock *sk, struct sk_buff *skb, int 
 {
 	int eaten;
 	struct sk_buff *tail = skb_peek_tail(&sk->sk_receive_queue);
-
+        
 	__skb_pull(skb, hdrlen);
 	eaten = (tail &&
 		 tcp_try_coalesce(sk, tail, skb, fragstolen)) ? 1 : 0;
@@ -4376,20 +4376,22 @@ static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 
 		/* Ok. In sequence. In window. */
 #ifdef OPTIMIZE_TCP_RECEIVE
-		if (tp->copied_seq == tp->rcv_nxt && !tp->urg_data && tp->ucopy.len) {
+		if (tp->copied_seq == tp->rcv_nxt && !tp->urg_data) {
+                    int chunk = skb->len;
 #else
 		if (/*tp->ucopy.task == current &&*/
 		    tp->copied_seq == tp->rcv_nxt && tp->ucopy.len &&
 		    sock_owned_by_user(sk) && !tp->urg_data) {
-#endif
-			int chunk = min_t(unsigned int, skb->len,
-					  tp->ucopy.len);
+                        int chunk = min_t(unsigned int, skb->len,
+			                  tp->ucopy.len);
+#endif	
 
 //			__set_current_state(TASK_RUNNING);
 			local_bh_enable();
 #ifdef OPTIMIZE_TCP_RECEIVE
-			if (!skb_copy_datagram_iovec(skb, 0, &tp->ucopy.iov, chunk)) {
-				tp->ucopy.len -= chunk;
+			if (skb_copy_datagram_iovec(skb, 0, &tp->ucopy.iov, chunk))
+			    goto queue_and_out;
+                        else {
 #else
 			if (!skb_copy_datagram_iovec(skb, 0, tp->ucopy.iov, chunk)) {
 				tp->ucopy.len -= chunk;
@@ -4953,7 +4955,7 @@ static int tcp_copy_to_iovec(struct sock *sk, struct sk_buff *skb, int hlen)
 #ifdef OPTIMIZE_TCP_RECEIVE
 	if (skb_csum_unnecessary(skb))
 		err = skb_copy_datagram_iovec(skb, hlen, &tp->ucopy.iov, chunk);
-	else
+	else 
 		err = skb_copy_and_csum_datagram_iovec(skb, hlen,
 						       &tp->ucopy.iov);
 #else

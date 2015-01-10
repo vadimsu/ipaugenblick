@@ -1022,12 +1022,7 @@ static inline bool tcp_checksum_complete(struct sk_buff *skb)
 static inline void tcp_prequeue_init(struct tcp_sock *tp)
 {
 	//tp->ucopy.task = NULL;
-#ifndef	OPTIMIZE_TCP_RECEIVE
 	tp->ucopy.len = 0;
-#else
-	tp->ucopy.len = SOCK_MIN_SNDBUF;
-	memset(&tp->ucopy.iov,0,sizeof(tp->ucopy.iov));
-#endif
 	tp->ucopy.memory = 0;
 	skb_queue_head_init(&tp->ucopy.prequeue);
 #ifdef CONFIG_NET_DMA

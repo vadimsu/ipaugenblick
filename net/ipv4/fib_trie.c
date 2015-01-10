@@ -384,7 +384,10 @@ static struct tnode *tnode_alloc(size_t size)
 
 static inline void tnode_free(struct tnode *tn)
 {
-	free_leaf((struct leaf *) tn);
+        if (IS_LEAF(tn))
+            free_leaf((struct leaf *) tn);
+        else
+	    kfree(tn);
 }
 
 static void tnode_free_safe(struct tnode *tn)
