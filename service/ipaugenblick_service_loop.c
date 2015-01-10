@@ -69,16 +69,11 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
         return NULL;
     ringset_idx = (unsigned int)app_glue_get_user_data(sk->sk_socket);
     while(*copy > 1448) {
-#if 0
-        raw_buffer = app_glue_get_buffer();
-#else
         mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
         if(unlikely(mbuf == NULL)) {
             user_on_tx_opportunity_cannot_get_buff++;
             return first;
         }
-        printf("%s %d %p %d\n",__FILE__,__LINE__,mbuf,rte_mbuf_refcnt_read(mbuf));
-#endif
         (*copy) -= mbuf->pkt.data_len;
         if(!first)
             first = mbuf;
@@ -98,7 +93,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 	uint32_t to_send_this_time;
 	uint64_t ts = rte_rdtsc();
         unsigned int ringset_idx;
-return 0;
+
 #ifdef OPTIMIZE_SENDPAGES
 	user_on_tx_opportunity_called++;
 
@@ -172,49 +167,15 @@ void user_data_available_cbk(struct socket *sock)
     if(unlikely(sock == NULL)) {
 	return;
     }
-#if 1
     ringset_idx = (unsigned int)app_glue_get_user_data(sock);
     
     while(((ring_free = ipaugenblick_rx_buf_free_count(ringset_idx)) > 0)&&
           (unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) > 0))) {
 	dummy = 0; 
-#if 0
-printf("%s %d %p\n",__FILE__,__LINE__,msg.msg_iov->head);
-        {
-            struct rte_mbuf *curr = msg.msg_iov->head,*next;
-            while(curr) {
-                next = curr->pkt.next;
-                curr->pkt.next = NULL;
-    //            rte_mbuf_refcnt_update(curr,1);
-                printf("%s %d %d %p\n",__FILE__,__LINE__,rte_mbuf_refcnt_read(curr),curr);
-                if(ipaugenblick_submit_rx_buf(curr,ringset_idx)) {
-                    printf("%s %d %d\n",__FILE__,__LINE__,rte_mbuf_refcnt_read(curr));
-                    rte_pktmbuf_free_seg(curr);
-                }
-                curr = next; 
-            }
-        }
-#else
         ipaugenblick_submit_rx_buf(msg.msg_iov->head,ringset_idx);
-#endif
 	memset(&vec,0,sizeof(vec));
     }
-#else
-     printf("%s %d\n",__FILE__,__LINE__);
-     while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0)) {
-        {
-            struct rte_mbuf *curr = msg.msg_iov->head,*next;
-            while(curr) {
-                next = curr->pkt.next;
-                curr->pkt.next = NULL;
-                printf("%s %d %d %p\n",__FILE__,__LINE__,rte_mbuf_refcnt_read(curr),curr);
-                rte_pktmbuf_free_seg(curr);
-                curr = next; 
-            }
-        }
-        memset(&vec,0,sizeof(vec));
-     }
-#endif
+
     if(dummy) {
 	user_on_rx_opportunity_called_wo_result++;
     }
@@ -306,6 +267,7 @@ void ipaugenblick_main_loop()
                                  drv_poll_interval/(10*MAX_PKT_BURST),
                                 drv_poll_interval/(60*MAX_PKT_BURST));
     ipaugenblick_service_api_init(128,1024,1024);
+    printf("IPAugenblick service initialized\n");
     while(1) {
         process_commands();
 	app_glue_periodic(1,ports_to_poll,1);	

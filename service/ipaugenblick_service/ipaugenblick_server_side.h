@@ -47,16 +47,13 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 
     sprintf(ringname,FEEDBACKS_RING_NAME_BASE"%d",ringset_idx);
     feedbacks_ring = rte_ring_create(ringname, 1024,rte_socket_id(), 0);
-    printf("%s %d %p\n",__FILE__,__LINE__,feedbacks_ring);
 
     for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CONNECTION_POOL_SIZE;ringset_idx++) { 
         rte_ring_enqueue(free_connections_ring,(void*)ringset_idx);
         sprintf(ringname,TX_RING_NAME_BASE"%d",ringset_idx);
         ringsets[ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), 0);
-        printf("%s %d %p\n",__FILE__,__LINE__,ringsets[ringset_idx].tx_ring);
         sprintf(ringname,RX_RING_NAME_BASE"%d",ringset_idx);
         ringsets[ringset_idx].rx_ring = rte_ring_create(ringname, rx_bufs_count,rte_socket_id(), 0);
-        printf("%s %d %p\n",__FILE__,__LINE__,ringsets[ringset_idx].rx_ring); 
     }
     return 0;
 }

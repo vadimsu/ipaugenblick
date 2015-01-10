@@ -3,8 +3,8 @@ RTE_TARGET ?= x86_64-default-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.extvars.mk
 SRC_ROOT=$(CURRENT_DIR)
 SRCS-y :=  app.c bm_app2.c
-#CFLAGS += -g
-CFLAGS += -Ofast  
+CFLAGS += -g
+#CFLAGS += -Ofast  
 CFLAGS += $(WERROR_FLAGS) 
 LINUX_HEADERS=$(SRC_ROOT)../
 DPDK_HEADERS=$(SRC_ROOT)../dpdk-1.6.0r2/x86_64-default-linuxapp-gcc/include

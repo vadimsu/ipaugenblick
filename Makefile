@@ -26,8 +26,8 @@ porting/timing_porting.c porting/tasklet_workqueues_porting.c porting/app_glue.c
 porting/libinit.c porting/show_mib_stats.c \
 drivers/net/dpdk/rx.c drivers/net/dpdk/tx.c \
 drivers/net/dpdk/dpdk_sw_loop.c drivers/net/dpdk/device.c 
-CFLAGS += -g
-#CFLAGS += -Ofast   
+#CFLAGS += -g
+CFLAGS += -Ofast   
 CFLAGS += $(WERROR_FLAGS) 
 LINUX_HEADERS=$(SRC_ROOT)
 DPDK_HEADERS=$(SRC_ROOT)/dpdk-1.6.0r2/x86_64-default-linuxapp-gcc/include

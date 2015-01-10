@@ -1,7 +1,7 @@
 #include<stdio.h>
 #include <sys/param.h>
-#define MY_IP_ADDR "192.168.1.1"
-#define PEER_IP_ADDR "192.168.1.2"
+#define MY_IP_ADDR "192.168.150.63"
+#define PEER_IP_ADDR "192.168.150.62"
 
 int main(int argc,char **argv)
 {

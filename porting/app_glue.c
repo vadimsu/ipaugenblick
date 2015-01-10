@@ -433,8 +433,8 @@ static void process_tx_ready_sockets()
 		}
 #else
                 user_on_transmission_opportunity(sock);
-		sock->write_queue_present = 0;
-		set_bit(SOCK_NOSPACE, &sock->flags);
+//		sock->write_queue_present = 0;
+//		set_bit(SOCK_NOSPACE, &sock->flags);
 #endif
 	}
 }

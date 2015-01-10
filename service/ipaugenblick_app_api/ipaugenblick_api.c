@@ -244,9 +244,7 @@ void ipaugenblick_release_tx_buffer(void *buffer)
 void ipaugenblick_release_rx_buffer(void *buffer)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
-    printf("%s %d %d %p\n",__FILE__,__LINE__,rte_mbuf_refcnt_read(mbuf),mbuf);
     rte_pktmbuf_free(mbuf); 
-//    rte_ring_enqueue(rx_bufs_ring,(void *)mbuf);
 }
 
 void ipaugenblick_socket_kick(int sock)
@@ -285,7 +283,6 @@ int ipaugenblick_accept(int sock)
     }
     
     if(rte_ring_dequeue(free_connections_ring,(void **)&descr)) {
-        printf("%s %d\n",__FILE__,__LINE__);
         ipaugenblick_free_command_buf(cmd);
         return -1;
     } 
