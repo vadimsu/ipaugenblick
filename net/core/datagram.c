@@ -329,8 +329,8 @@ int skb_copy_datagram_iovec(struct sk_buff *skb, int offset,
 	struct sk_buff *frag_iter;
 
 	if(rte_pktmbuf_adj(skb->header_mbuf,skb->data - (unsigned char *)skb->header_mbuf->pkt.data) == NULL) {
-		printf("CANNOT ADJUST MBUF %s %d %d %d %d %p %p %d %d\n",__FILE__,__LINE__,offset,len,skb->header_mbuf->pkt.data_len,
-                        skb->header_mbuf,skb->data,(unsigned char *)skb->header_mbuf->pkt.data,start,previous_length);
+		printf("CANNOT ADJUST MBUF %s %d %d %d %d %p %p %d\n",__FILE__,__LINE__,offset,len,skb->header_mbuf->pkt.data_len,
+                        skb->header_mbuf,skb->data,(unsigned char *)skb->header_mbuf->pkt.data,start);
                 exit(1);
 		goto fault;
 	}
