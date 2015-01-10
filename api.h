@@ -16,6 +16,7 @@
  * or NULL if failed
  *
  */
+extern void *create_raw_socket2(unsigned int ip_addr,unsigned short port);
 extern void *create_raw_socket(const char *ip_addr,unsigned short port);
 /*
  * This is a wrapper function for UDP socket creation.
@@ -24,6 +25,7 @@ extern void *create_raw_socket(const char *ip_addr,unsigned short port);
  * or NULL if failed
  *
  */
+extern void *create_udp_socket2(unsigned int ip_addr,unsigned short port);
 extern void *create_udp_socket(const char *ip_addr,unsigned short port);
 /*
  * This is a wrapper function for TCP connecting socket creation.

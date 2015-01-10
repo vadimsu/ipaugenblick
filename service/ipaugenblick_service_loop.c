@@ -239,9 +239,19 @@ static void process_commands()
            break;
         case IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND:
            printf("open_udp_sock %x %x\n",cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
+           sock = create_udp_socket2(cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
+           if(sock) {
+               printf("setting user data\n");
+               app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
+           }
            break;
         case IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND:
            printf("open_raw_sock %x %x\n",cmd->u.open_raw_sock.ipaddress,cmd->u.open_raw_sock.protocol);
+           sock = create_raw_socket2(cmd->u.open_raw_sock.ipaddress,cmd->u.open_raw_sock.protocol);
+           if(sock) {
+               printf("setting user data\n");
+               app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
+           }
            break;
         case IPAUGENBLICK_SOCKET_KICK_COMMAND:
            user_kick_tx++;

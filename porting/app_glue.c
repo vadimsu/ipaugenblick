@@ -165,7 +165,7 @@ static void app_glue_sock_wakeup(struct sock *sk)
  * or NULL if failed
  *
  */
-void *create_raw_socket(const char *ip_addr,unsigned short port)
+void *create_raw_socket2(unsigned int ip_addr,unsigned short port)
 {
 	struct sockaddr_in sin;
 	struct timeval tv;
@@ -176,13 +176,17 @@ void *create_raw_socket(const char *ip_addr,unsigned short port)
 	}
 
 	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = inet_addr(ip_addr);
+	sin.sin_addr.s_addr = ip_addr;
 	sin.sin_port = htons(port);
 	if(kernel_bind(raw_sock,(struct sockaddr *)&sin,sizeof(sin))) {
 		printf("cannot bind %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
 	return raw_sock;
+}
+void *create_raw_socket(const char *ip_addr,unsigned short port)
+{
+    return create_raw_socket(inet_addr(ip_addr),port);
 }
 /*
  * This is a wrapper function for UDP socket creation.
@@ -191,7 +195,7 @@ void *create_raw_socket(const char *ip_addr,unsigned short port)
  * or NULL if failed
  *
  */
-void *create_udp_socket(const char *ip_addr,unsigned short port)
+void *create_udp_socket2(unsigned int ip_addr,unsigned short port)
 {
 	struct sockaddr_in sin;
 	struct timeval tv;
@@ -202,7 +206,7 @@ void *create_udp_socket(const char *ip_addr,unsigned short port)
 	}
 
 	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = inet_addr(ip_addr);
+	sin.sin_addr.s_addr = ip_addr;
 	sin.sin_port = htons(port);
 	if(kernel_bind(udp_sock,(struct sockaddr *)&sin,sizeof(sin))) {
 		printf("cannot bind %s %d\n",__FILE__,__LINE__);
@@ -215,6 +219,11 @@ void *create_udp_socket(const char *ip_addr,unsigned short port)
             app_glue_sock_write_space(udp_sock->sk);
 	}
 	return udp_sock;
+}
+
+void *create_udp_socket(const char *ip_addr,unsigned short port)
+{
+    return create_udp_socket2(inet_addr(ip_addr),port);
 }
 /*
  * This is a wrapper function for TCP connecting socket creation.
