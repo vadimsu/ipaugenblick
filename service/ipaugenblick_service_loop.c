@@ -107,16 +107,45 @@ int user_on_transmission_opportunity(struct socket *sock)
             return 0;
         }
 
-	while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
-		sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
-		i = kernel_sendpage(sock, &page, 0/*offset*/,/*to_send_this_time */ 1024, 0 /*flags*/);
-		if(i <= 0) {
+        if(sock->type == SOCK_STREAM) {
+
+	    while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
+	  	    sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
+		    i = kernel_sendpage(sock, &page, 0/*offset*/,/*to_send_this_time */ 1024, 0 /*flags*/);
+		    if(i <= 0) {
 			user_on_tx_opportunity_api_failed++;
                         break;
+                    }
+                    else
+                        sent += i;
+	    }
+        }
+        else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
+            struct msghdr msghdr;
+            struct iovec iov;
+            struct rte_mbuf *mbuf;
+
+            while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
+                mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
+                if(!mbuf) 
+                    break;
+                msghdr.msg_namelen = 0;
+                msghdr.msg_name = NULL;
+                msghdr.msg_iov = &iov;
+                iov.head = mbuf;
+                msghdr.msg_iovlen = 1;
+                msghdr.msg_controllen = 0;
+                msghdr.msg_control = 0;
+                msghdr.msg_flags = 0;
+                sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
+                i = kernel_sendmsg(sock, &msghdr, mbuf->pkt.data_len);
+                if(i <= 0) {
+                    rte_pktmbuf_free(mbuf);
+                    user_on_tx_opportunity_api_failed++;
+                    break;
                 }
-                else
-                    sent += i;
-	}
+            }
+        }
 #else
 	/* this does not know at the moment to deal with partially sent mbuf */
 	int nothing_to_send = 0;
