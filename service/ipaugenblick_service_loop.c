@@ -254,9 +254,10 @@ static void process_commands()
                cmd->u.open_socket_feedback.socket_descr = sock;
                /* ring idx is already set */
                ipaugenblick_post_feedback(cmd);
+               return;
            }
            printf("Done\n");
-           return;
+           break;
         case IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND:
            printf("open_listening_sock %x %x\n",
                   cmd->u.open_listening_sock.ipaddress,cmd->u.open_listening_sock.port);
@@ -272,6 +273,11 @@ static void process_commands()
            if(sock) {
                printf("setting user data\n");
                app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
+               cmd->cmd = IPAUGENBLICK_OPEN_SOCKET_FEEDBACK;
+               cmd->u.open_socket_feedback.socket_descr = sock;
+               /* ring idx is already set */
+               ipaugenblick_post_feedback(cmd);
+               return;
            }
            break;
         case IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND:
@@ -280,6 +286,11 @@ static void process_commands()
            if(sock) {
                printf("setting user data\n");
                app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
+               cmd->cmd = IPAUGENBLICK_OPEN_SOCKET_FEEDBACK;
+               cmd->u.open_socket_feedback.socket_descr = sock;
+               /* ring idx is already set */
+               ipaugenblick_post_feedback(cmd);
+               return;
            }
            break;
         case IPAUGENBLICK_SOCKET_KICK_COMMAND:

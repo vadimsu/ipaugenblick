@@ -168,6 +168,10 @@ int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port)
         return -2;
     }
 
+    cmd->cmd = IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND;
+    cmd->u.open_listening_sock.ipaddress = ipaddr;
+    cmd->u.open_listening_sock.port = port;
+
     ipaugenblick_enqueue_command_buf(cmd);
 
     return idx;
@@ -212,12 +216,12 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *len)
 }
 
 /* UDP or RAW */
-int ipaugenblick_receive_from(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port)
+int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     if(!mbuf)
         return -1;
-    *buffer = mbuf->pkt.data;
+    *buffer = &(mbuf->pkt.data);
     *len = mbuf->pkt.data_len;
     return 0;
 }

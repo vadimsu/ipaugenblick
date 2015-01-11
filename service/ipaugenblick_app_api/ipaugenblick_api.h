@@ -29,7 +29,7 @@ int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int
 int ipaugenblick_receive(int sock,void **pbuffer,int *len);
 
 /* UDP or RAW */
-int ipaugenblick_receive_from(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port);
+int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port);
 
 /* Allocate buffer to use later in *send* APIs */
 void *ipaugenblick_get_buffer(int length);
