@@ -191,16 +191,21 @@ void user_data_available_cbk(struct socket *sock)
     struct rte_mbuf *mbuf;
     int i,ring_free,dummy = 1;
     unsigned int ringset_idx;
+    struct sockaddr_in sockaddrin;
+
     user_on_rx_opportunity_called++;
     memset(&vec,0,sizeof(vec));
     if(unlikely(sock == NULL)) {
 	return;
     }
     ringset_idx = (unsigned int)app_glue_get_user_data(sock);
+
+    msg.msg_namelen = sizeof(sockaddrin);
+    msg.msg_name = &sockaddrin;
     
     while(((ring_free = ipaugenblick_rx_buf_free_count(ringset_idx)) > 0)&&
           (unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) > 0))) {
-	dummy = 0; 
+	dummy = 0;
         ipaugenblick_submit_rx_buf(msg.msg_iov->head,ringset_idx);
 	memset(&vec,0,sizeof(vec));
     }
