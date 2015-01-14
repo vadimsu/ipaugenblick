@@ -49,6 +49,7 @@ TAILQ_HEAD(read_ready_socket_list_head, socket) read_ready_socket_list_head;
 uint64_t read_sockets_queue_len = 0;
 TAILQ_HEAD(closed_socket_list_head, socket) closed_socket_list_head;
 TAILQ_HEAD(write_ready_socket_list_head, socket) write_ready_socket_list_head;
+uint64_t write_sockets_queue_len = 0;
 TAILQ_HEAD(accept_ready_socket_list_head, socket) accept_ready_socket_list_head;
 uint64_t working_cycles_stat = 0;
 uint64_t total_cycles_stat = 0;
@@ -101,6 +102,7 @@ static void app_glue_sock_write_space(struct sock *sk)
 		}
 		sk->sk_socket->write_queue_present = 1;
 		TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sk->sk_socket,write_queue_entry);
+                write_sockets_queue_len++;
 	}
 }
 /*
@@ -437,24 +439,23 @@ static void process_rx_ready_sockets()
 static void process_tx_ready_sockets()
 {
 	struct socket *sock;
-
-	if(!TAILQ_EMPTY(&write_ready_socket_list_head)) {
+        uint64_t idx,limit;
+ 
+        idx = 0;
+        limit = write_sockets_queue_len;
+	if((idx < limit)&&(!TAILQ_EMPTY(&write_ready_socket_list_head))) {
 		sock = TAILQ_FIRST(&write_ready_socket_list_head);
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
-#if 0
 		if(user_on_transmission_opportunity(sock) > 0) {
 		    sock->write_queue_present = 0;
 		    set_bit(SOCK_NOSPACE, &sock->flags);
+                    write_sockets_queue_len--;
 		}
 		else {
 			TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sock,write_queue_entry);
 			clear_bit(SOCK_NOSPACE, &sock->flags);
 		}
-#else
-                user_on_transmission_opportunity(sock);
-//		sock->write_queue_present = 0;
-//		set_bit(SOCK_NOSPACE, &sock->flags);
-#endif
+                idx++;
 	}
 }
 /* These are in translation of micros to cycles */

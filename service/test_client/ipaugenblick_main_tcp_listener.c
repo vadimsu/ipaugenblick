@@ -103,17 +103,17 @@ int main(int argc,char **argv)
             continue;
         }
 #if 1
-        buff = ipaugenblick_get_buffer(1024);
+        buff = ipaugenblick_get_buffer(1448);
         if(buff) {
-            if(ipaugenblick_send(socket_connected,buff,0,1024)) { 
+            if(ipaugenblick_send(socket_connected,buff,0,1448)) { 
                 ipaugenblick_release_tx_buffer(buff);
             } 
         }
-        iterations++;
-        if(iterations == 1000000) {
-            ipaugenblick_socket_kick(socket_connected);
-            iterations = 0;
-        }
+//        iterations++;
+//        if(iterations == 1000000) {
+//            ipaugenblick_socket_kick(socket_connected);
+//            iterations = 0;
+//        }
 #endif
 #if 1
         if(ipaugenblick_receive(socket_connected,&rxbuff,&len) == 0) {

@@ -93,16 +93,16 @@ int user_on_transmission_opportunity(struct socket *sock)
 	uint32_t to_send_this_time;
 	uint64_t ts = rte_rdtsc();
         unsigned int ringset_idx;
+        uint64_t ring_entries;
 
-#ifdef OPTIMIZE_SENDPAGES
 	user_on_tx_opportunity_called++;
 
         if(!sock) {
             return 0;
         }
         ringset_idx = (unsigned int)app_glue_get_user_data(sock);
-
-        if(ipaugenblick_tx_buf_count(ringset_idx) == 0) {
+        ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
+        if(ring_entries == 0) {
             user_on_tx_opportunity_api_nothing_to_tx++;
             return 0;
         }
@@ -111,7 +111,8 @@ int user_on_transmission_opportunity(struct socket *sock)
 
 	    while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
 	  	    sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
-		    i = kernel_sendpage(sock, &page, 0/*offset*/,/*to_send_this_time */ 1024, 0 /*flags*/);
+                   to_send_this_time = (to_send_this_time > (ring_entries<<10)) ? (ring_entries<<10) : to_send_this_time;
+		    i = kernel_sendpage(sock, &page, 0/*offset*/,to_send_this_time, 0 /*flags*/);
 		    if(i <= 0) {
 			user_on_tx_opportunity_api_failed++;
                         break;
@@ -144,39 +145,10 @@ int user_on_transmission_opportunity(struct socket *sock)
                     user_on_tx_opportunity_api_failed++;
                     break;
                 }
+                else
+                    sent += i;
             }
         }
-#else
-	/* this does not know at the moment to deal with partially sent mbuf */
-	int nothing_to_send = 0;
-	user_on_tx_opportunity_called++;
-	to_send_this_time = app_glue_calc_size_of_data_to_send(sock);
-	to_send_this_time /= 1448;/* how many buffers to send */
-	if(to_send_this_time == 0) {
-		user_on_tx_opportunity_api_cannot_send++;
-                return 0;
-	}
-	while(to_send_this_time > 0) {
-		page.mbuf = app_glue_get_buffer();
-		if (unlikely(page.mbuf == NULL)) {
-			printf("%s %d\n",__FILE__,__LINE__);
-			return = 0;
-		}
-		strcpy(page.mbuf->pkt.data,"SEKTOR GAZA FOREVER");
-		page.mbuf->pkt.data_len = 1448;
-
-		i = kernel_sendpage(sock, &page, 0/*offset*/,page.mbuf->pkt.data_len /* size*/, 0 /*flags*/);
-		if(unlikely(i <= 0)) {
-			rte_pktmbuf_free_seg(page.mbuf);
-			break;
-		}
-		to_send_this_time--;
-		sent += i;
-	}
-	if(!sent){
-	    user_on_tx_opportunity_api_failed++;
-	}
-#endif
         if(!sent) {
             user_on_tx_opportunity_cannot_send++;
         }
