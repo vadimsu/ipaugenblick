@@ -52,7 +52,7 @@ int main(int argc,char **argv)
 #endif
 #if 1
         if(ipaugenblick_receivefrom(sock,&buff,&len,&from_ip,&from_port) == 0) {
-            printf("received %p\n",buff);
+            //printf("received %p\n",buff);
             ipaugenblick_release_rx_buffer(buff);
 #if 0
             buff = ipaugenblick_get_buffer(1448);

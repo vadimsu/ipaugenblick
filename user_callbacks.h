@@ -15,7 +15,7 @@ extern void user_on_socket_fatal(struct socket *sock);
 
 extern int user_on_transmission_opportunity(struct socket *sock);
 
-extern void user_data_available_cbk(struct socket *sock);
+extern int user_data_available_cbk(struct socket *sock);
 
 extern void user_accept_pending_cbk(struct socket *sock);
 

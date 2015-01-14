@@ -46,6 +46,7 @@
 #include <user_callbacks.h>
 
 TAILQ_HEAD(read_ready_socket_list_head, socket) read_ready_socket_list_head;
+uint64_t read_sockets_queue_len = 0;
 TAILQ_HEAD(closed_socket_list_head, socket) closed_socket_list_head;
 TAILQ_HEAD(write_ready_socket_list_head, socket) write_ready_socket_list_head;
 TAILQ_HEAD(accept_ready_socket_list_head, socket) accept_ready_socket_list_head;
@@ -78,6 +79,7 @@ static void app_glue_sock_readable(struct sock *sk, int len)
 	}
 	sk->sk_socket->read_queue_present = 1;
 	TAILQ_INSERT_TAIL(&read_ready_socket_list_head,sk->sk_socket,read_queue_entry);
+        read_sockets_queue_len++;
 }
 /*
  * This callback function is invoked when data canbe transmitted on socket.
@@ -394,6 +396,7 @@ void app_glue_init()
 static void process_rx_ready_sockets()
 {
 	struct socket *sock;
+        uint64_t idx,limit;
 
 	while(!TAILQ_EMPTY(&closed_socket_list_head)) {
 		sock = TAILQ_FIRST(&closed_socket_list_head);
@@ -409,12 +412,19 @@ static void process_rx_ready_sockets()
 		sock->accept_queue_present = 0;
 		TAILQ_REMOVE(&accept_ready_socket_list_head,sock,accept_queue_entry);
 	}
-
-	while(!TAILQ_EMPTY(&read_ready_socket_list_head)) {
+        idx = 0;
+        limit = read_sockets_queue_len;
+	while((idx < limit)&&(!TAILQ_EMPTY(&read_ready_socket_list_head))) {
 		sock = TAILQ_FIRST(&read_ready_socket_list_head);
-		user_data_available_cbk(sock);
-		sock->read_queue_present = 0;
+                sock->read_queue_present = 0;
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
+		if(!user_data_available_cbk(sock)) {
+                    TAILQ_INSERT_TAIL(&read_ready_socket_list_head,sock,read_queue_entry);
+	        }
+                else {
+                    read_sockets_queue_len--;
+                }
+                idx++;	
 	}
 }
 /*

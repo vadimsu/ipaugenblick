@@ -95,8 +95,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 
 	mbuf->pkt.data_len = (*copy) > 1448 ? 1448 : (*copy);
 	*copy = mbuf->pkt.data_len;
-	if(unlikely(mbuf->pkt.data_len == 0))
-	{
+	if(unlikely(mbuf->pkt.data_len == 0)) {
 		rte_pktmbuf_free_seg(mbuf);
 		return NULL;
 	}
@@ -114,22 +113,19 @@ int user_on_transmission_opportunity(struct socket *sock)
 
 	to_send_this_time = app_glue_calc_size_of_data_to_send(sock);
 
-	if(likely(to_send_this_time > 0))
-	{
+	if(likely(to_send_this_time > 0)) {
 		sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
 		i = kernel_sendpage(sock, &page, 0,/*offset*/to_send_this_time /* size*/, 0 /*flags*/);
 		if(i <= 0)
 			user_on_tx_opportunity_api_failed++;
 	}
-	else
-	{
+	else {
 		user_on_tx_opportunity_api_not_called++;
 	}
 #else
 	while(likely((sk_stream_memory_free(sock->sk))&&
 		         (kmem_cache_get_free(get_fclone_cache()) > 2)&&
-		         (kmem_cache_get_free(get_header_cache()) > 2)))
-	{
+		         (kmem_cache_get_free(get_header_cache()) > 2))) {
 		page.mbuf = app_glue_get_buffer();
 		if (unlikely(page.mbuf == NULL)) {
 			printf("%s %d\n",__FILE__,__LINE__);
@@ -138,8 +134,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 		strcpy(page.mbuf->pkt.data,"SEKTOR GAZA FOREVER");
 		page.mbuf->pkt.data_len = 1448;
 		i = kernel_sendpage(sock, &page, 0/*offset*/,page.mbuf->pkt.data_len /* size*/, 0 /*flags*/);
-		if(unlikely(i <= 0))
-		{
+		if(unlikely(i <= 0)) {
 			rte_pktmbuf_free_seg(page.mbuf);
 			break;
 		}
@@ -150,7 +145,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 	return i;
 }
 
-void user_data_available_cbk(struct socket *sock)
+int user_data_available_cbk(struct socket *sock)
 {
 	struct msghdr msg;
 	struct iovec vec;
@@ -158,15 +153,12 @@ void user_data_available_cbk(struct socket *sock)
 	int i,dummy = 1;
 	user_on_rx_opportunity_called++;
 	memset(&vec,0,sizeof(vec));
-	if(unlikely(sock == NULL))
-	{
-		return;
+	if(unlikely(sock == NULL)) {
+		return 0;
 	}
-	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0))
-	{
+	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0)) {
 		dummy = 0;
-		while(unlikely(mbuf = msg.msg_iov->head))
-		{
+		while(unlikely(mbuf = msg.msg_iov->head)) {
 			msg.msg_iov->head = msg.msg_iov->head->pkt.next;
 
 			rte_pktmbuf_free_seg(mbuf);
@@ -175,7 +167,9 @@ void user_data_available_cbk(struct socket *sock)
 	}
 	if(dummy) {
 		user_on_rx_opportunity_called_wo_result++;
+                return 0;
 	}
+        return 1;
 }
 void user_on_socket_fatal(struct socket *sock)
 {

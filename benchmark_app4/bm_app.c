@@ -92,8 +92,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 	}
 	mbuf->pkt.data_len = (*copy) > 1448 ? 1448 : (*copy);
 	*copy = mbuf->pkt.data_len;
-	if(unlikely(mbuf->pkt.data_len == 0))
-	{
+	if(unlikely(mbuf->pkt.data_len == 0)) {
 		rte_pktmbuf_free_seg(mbuf);
 		return NULL;
 	}
@@ -112,8 +111,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 
 	to_send_this_time = app_glue_calc_size_of_data_to_send(sock);
 
-	if(likely(to_send_this_time > 0))
-	{
+	if(likely(to_send_this_time > 0)) {
 		mbuf = app_glue_get_buffer();
 	    if (unlikely(mbuf == NULL)) {
 			user_on_tx_opportunity_cannot_get_buff++;
@@ -138,15 +136,14 @@ int user_on_transmission_opportunity(struct socket *sock)
 			user_on_tx_opportunity_api_failed++;
                 }
 	}
-	else
-	{
+	else {
 		user_on_tx_opportunity_api_not_called++;
 	}
 	user_on_tx_opportunity_cycles += rte_rdtsc() - ts;
 	return i;
 }
 
-void user_data_available_cbk(struct socket *sock)
+int user_data_available_cbk(struct socket *sock)
 {
 	struct msghdr msg;
 	struct iovec vec;
@@ -155,17 +152,14 @@ void user_data_available_cbk(struct socket *sock)
 	int i,dummy = 1;
 	user_on_rx_opportunity_called++;
 	memset(&vec,0,sizeof(vec));
-	if(unlikely(sock == NULL))
-	{
-		return;
+	if(unlikely(sock == NULL)) {
+		return 0;
 	}
 	msg.msg_namelen = sizeof(sockaddrin);
 	msg.msg_name = &sockaddrin;
-	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0))
-	{
+	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0)) {
 		dummy = 0;
-		while(unlikely(mbuf = msg.msg_iov->head))
-		{
+		while(unlikely(mbuf = msg.msg_iov->head)) {
 			msg.msg_iov->head = msg.msg_iov->head->pkt.next;
 			//printf("received %d\n",i);
 			rte_pktmbuf_free_seg(mbuf);
@@ -177,7 +171,9 @@ void user_data_available_cbk(struct socket *sock)
 	}
 	if(dummy) {
 		user_on_rx_opportunity_called_wo_result++;
+                return 0;
 	}
+        return 1;
 }
 void user_on_socket_fatal(struct socket *sock)
 {

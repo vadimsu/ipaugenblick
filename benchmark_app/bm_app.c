@@ -128,7 +128,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 	return sent;
 }
 
-void user_data_available_cbk(struct socket *sock)
+int user_data_available_cbk(struct socket *sock)
 {
 	struct msghdr msg;
 	struct iovec vec;
@@ -137,7 +137,7 @@ void user_data_available_cbk(struct socket *sock)
 	user_on_rx_opportunity_called++;
 	memset(&vec,0,sizeof(vec));
 	if(unlikely(sock == NULL)) {
-		return;
+		return 0;
 	}
 	while(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, 1448 /*size*/, 0 /*flags*/)) > 0)) {
 		dummy = 0;
@@ -149,8 +149,10 @@ void user_data_available_cbk(struct socket *sock)
 		memset(&vec,0,sizeof(vec));
 	}
 	if(dummy) {
-		user_on_rx_opportunity_called_wo_result++;
+            user_on_rx_opportunity_called_wo_result++;
+            return 0;
 	}
+        return 1;
 }
 void user_on_socket_fatal(struct socket *sock)
 {
