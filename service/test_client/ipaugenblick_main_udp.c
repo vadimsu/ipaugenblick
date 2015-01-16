@@ -52,18 +52,18 @@ int main(int argc,char **argv)
 #endif
 #if 1
         if(ipaugenblick_receivefrom(sock,&buff,&len,&from_ip,&from_port) == 0) {
-            //printf("received %p\n",buff);
+     //       printf("received %p %x %d\n",buff,from_ip,from_port);
             ipaugenblick_release_rx_buffer(buff);
-#if 0
+#if 1
             buff = ipaugenblick_get_buffer(1448);
             if(buff) {
-             printf("sending...\n");
-                if(ipaugenblick_sendto(sock,buff,0,1448,inet_addr("192.168.150.62"),7777)) { 
-                    printf("failed\n");
+             //printf("sending...\n");
+                if(ipaugenblick_sendto(sock,buff,0,1448,from_ip,htons(from_port))) { 
+//                    printf("failed\n");
                     ipaugenblick_release_tx_buffer(buff);
                 }
-            }
-            ipaugenblick_socket_kick(sock);
+                ipaugenblick_socket_kick(sock);
+            } 
 #endif
         }
 #endif

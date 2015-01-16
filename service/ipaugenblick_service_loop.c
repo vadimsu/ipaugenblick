@@ -126,12 +126,15 @@ int user_on_transmission_opportunity(struct socket *sock)
             struct iovec iov;
             struct rte_mbuf *mbuf;
 
-            while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
+//            while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
+              do {
                 mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
                 if(!mbuf) 
                     break;
-                msghdr.msg_namelen = 0;
-                msghdr.msg_name = NULL;
+                char *p_addr = (char *)mbuf->pkt.data;
+                p_addr -= sizeof(struct sockaddr_in);
+                msghdr.msg_name = p_addr;
+                msghdr.msg_namelen = sizeof(struct sockaddr_in);
                 msghdr.msg_iov = &iov;
                 iov.head = mbuf;
                 msghdr.msg_iovlen = 1;
@@ -147,7 +150,7 @@ int user_on_transmission_opportunity(struct socket *sock)
                 }
                 else
                     sent += i;
-            }
+            }while(1);
         }
         if(!sent) {
             user_on_tx_opportunity_cannot_send++;
@@ -171,13 +174,19 @@ int user_data_available_cbk(struct socket *sock)
 	return 0;
     }
     ringset_idx = (unsigned int)app_glue_get_user_data(sock);
-
-    msg.msg_namelen = sizeof(sockaddrin);
-    msg.msg_name = &sockaddrin;
+    if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
+        msg.msg_namelen = sizeof(sockaddrin);
+        msg.msg_name = &sockaddrin;
+    }
     ring_free = ipaugenblick_rx_buf_free_count(ringset_idx);
     while(((ring_free) > 0)&&(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) > 0))) {
 	dummy = 0;
         ring_free--;
+        if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
+            char *p_addr = (char *)msg.msg_iov->head->pkt.data;
+            p_addr -= msg.msg_namelen;
+            rte_memcpy(p_addr,msg.msg_name,msg.msg_namelen);
+        }
         ipaugenblick_submit_rx_buf(msg.msg_iov->head,ringset_idx);
 	memset(&vec,0,sizeof(vec));
     }

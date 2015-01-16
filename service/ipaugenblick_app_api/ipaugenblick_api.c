@@ -12,6 +12,7 @@
 #include <rte_byteorder.h>
 #include "ipaugenblick_ring_ops.h"
 #include "ipaugenblick_api.h"
+#include <netinet/in.h> 
 #if 0
 #define offsetof(TYPE, MEMBER) ((size_t)&((TYPE*)0)->MEMBER)
 #endif
@@ -201,6 +202,14 @@ int ipaugenblick_send(int sock,void *buffer,int offset,int length)
 int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
+    char *p_addr = mbuf->pkt.data;
+    struct sockaddr_in *p_addr_in;
+    mbuf->pkt.data_len = length;
+    p_addr -= sizeof(struct sockaddr_in);
+    p_addr_in = p_addr;
+    p_addr_in->sin_family = AF_INET;
+    p_addr_in->sin_port = port;
+    p_addr_in->sin_addr.s_addr = ipaddr;
     return ipaugenblick_enqueue_tx_buf(sock,mbuf);
 }
 
@@ -223,6 +232,11 @@ int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipadd
         return -1;
     *buffer = &(mbuf->pkt.data);
     *len = mbuf->pkt.data_len;
+    char *p_addr = mbuf->pkt.data;
+    p_addr -= sizeof(struct sockaddr_in);
+    struct sockaddr_in *p_addr_in = p_addr;
+    *port = p_addr_in->sin_port;
+    *ipaddr = p_addr_in->sin_addr.s_addr;
     return 0;
 }
 
