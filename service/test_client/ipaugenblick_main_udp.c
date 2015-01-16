@@ -51,6 +51,11 @@ int main(int argc,char **argv)
         }
 #endif
 #if 1
+        if(socket_connected == -1) {
+            socket_connected = ipaugenblick_get_connected();
+            if(socket_connected == -1)
+                continue;
+        }
         if(ipaugenblick_receivefrom(sock,&buff,&len,&from_ip,&from_port) == 0) {
      //       printf("received %p %x %d\n",buff,from_ip,from_port);
             ipaugenblick_release_rx_buffer(buff);
@@ -58,11 +63,13 @@ int main(int argc,char **argv)
             buff = ipaugenblick_get_buffer(1448);
             if(buff) {
              //printf("sending...\n");
-                if(ipaugenblick_sendto(sock,buff,0,1448,from_ip,htons(from_port))) { 
+                if(ipaugenblick_sendto(sock,buff,0,1448,from_ip,from_port)) { 
 //                    printf("failed\n");
                     ipaugenblick_release_tx_buffer(buff);
                 }
-                ipaugenblick_socket_kick(sock);
+                else
+                    printf("sent...\n");
+                ipaugenblick_socket_kick(socket_connected);
             } 
 #endif
         }
