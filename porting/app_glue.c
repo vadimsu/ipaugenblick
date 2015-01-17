@@ -328,7 +328,7 @@ void *create_server_socket2(unsigned int my_ip_addr,unsigned short port)
 #endif
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = my_ip_addr;
-	sin.sin_port = port;
+	sin.sin_port = htons(port);
 
 	if(kernel_bind(server_sock,(struct sockaddr *)&sin,sizeof(sin))) {
 		printf("cannot bind %s %d\n",__FILE__,__LINE__);

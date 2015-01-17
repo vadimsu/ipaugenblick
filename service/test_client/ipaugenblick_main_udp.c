@@ -20,6 +20,8 @@ int main(int argc,char **argv)
     int socket_connected = -1;
     unsigned int from_ip;
     unsigned short from_port;
+    unsigned long received_packets = 0;
+    unsigned long  sent_packets = 0;
 
     if(ipaugenblick_app_init(argc,argv) != 0) {
         printf("cannot initialize memory\n");
@@ -57,7 +59,10 @@ int main(int argc,char **argv)
                 continue;
         }
         if(ipaugenblick_receivefrom(sock,&buff,&len,&from_ip,&from_port) == 0) {
-     //       printf("received %p %x %d\n",buff,from_ip,from_port);
+            received_packets++;
+            if(!(received_packets%1000)) {
+                printf("received %u\n",received_packets);
+            }
             ipaugenblick_release_rx_buffer(buff);
 #if 1
             buff = ipaugenblick_get_buffer(1448);
@@ -66,10 +71,14 @@ int main(int argc,char **argv)
                 if(ipaugenblick_sendto(sock,buff,0,1448,from_ip,from_port)) { 
 //                    printf("failed\n");
                     ipaugenblick_release_tx_buffer(buff);
+                    ipaugenblick_socket_kick(socket_connected);
                 }
-                else
-                    printf("sent...\n");
-                ipaugenblick_socket_kick(socket_connected);
+                else {
+                    sent_packets++;
+                    if(!(sent_packets%1000)) {
+                        printf("sent %u\n",sent_packets); 
+                    }
+                }
             } 
 #endif
         }
