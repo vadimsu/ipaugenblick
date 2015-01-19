@@ -54,11 +54,16 @@ int ipaugenblick_app_init(int argc,char **argv)
     for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
         sprintf(ringname,RX_RING_NAME_BASE"%d",i);
         socket_descriptors[i].rx_ring = rte_ring_lookup(ringname);
+        if(!socket_descriptors[i].rx_ring) {
+            printf("%s %d\n",__FILE__,__LINE__);
+            exit(0);
+        }
         sprintf(ringname,TX_RING_NAME_BASE"%d",i);
         socket_descriptors[i].tx_ring = rte_ring_lookup(ringname);
-        sprintf(ringname,FEEDBACKS_RING_NAME_BASE"%d",i);
-        socket_descriptors[i].feedbacks_ring = rte_ring_lookup(ringname);
-        printf("%s %d %p\n",__FILE__,__LINE__,socket_descriptors[i].feedbacks_ring);
+        if(!socket_descriptors[i].tx_ring) {
+            printf("%s %d\n",__FILE__,__LINE__);
+            exit(0);
+        }
         rte_ring_enqueue(free_connections_ring,&socket_descriptors[i]);
     }
     tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
@@ -112,6 +117,8 @@ int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigne
     }
 
     cmd->cmd = IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND;
+    cmd->ringset_idx = idx;
+    cmd->parent_idx = 0;
     cmd->u.open_client_sock.my_ipaddress = myipaddr;
     cmd->u.open_client_sock.my_port = myport;
     cmd->u.open_client_sock.peer_ipaddress = ipaddr;
@@ -142,6 +149,8 @@ int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port)
     }
 
     cmd->cmd = IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND;
+    cmd->ringset_idx = idx;
+    cmd->parent_idx = 0;
     cmd->u.open_listening_sock.ipaddress = ipaddr;
     cmd->u.open_listening_sock.port = port;
 
@@ -170,6 +179,8 @@ int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port)
     }
 
     cmd->cmd = IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND;
+    cmd->ringset_idx = idx;
+    cmd->parent_idx = 0;
     cmd->u.open_listening_sock.ipaddress = ipaddr;
     cmd->u.open_listening_sock.port = port;
 
@@ -191,7 +202,7 @@ void ipaugenblick_close(int sock)
 }
 
 /* TCP or connected UDP */
-int ipaugenblick_send(int sock,void *buffer,int offset,int length)
+inline int ipaugenblick_send(int sock,void *buffer,int offset,int length)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     mbuf->pkt.data_len = length;
@@ -199,7 +210,7 @@ int ipaugenblick_send(int sock,void *buffer,int offset,int length)
 }
 
 /* UDP or RAW */
-int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port)
+inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     char *p_addr = mbuf->pkt.data;
@@ -214,7 +225,7 @@ int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int
 }
 
 /* TCP */
-int ipaugenblick_receive(int sock,void **pbuffer,int *len)
+inline int ipaugenblick_receive(int sock,void **pbuffer,int *len)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     if(!mbuf)
@@ -225,7 +236,7 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *len)
 }
 
 /* UDP or RAW */
-int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port)
+inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     if(!mbuf)
@@ -241,7 +252,7 @@ int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipadd
 }
 
 /* Allocate buffer to use later in *send* APIs */
-void *ipaugenblick_get_buffer(int length)
+inline void *ipaugenblick_get_buffer(int length)
 {
     struct rte_mbuf *mbuf;
     mbuf = rte_pktmbuf_alloc(tx_bufs_pool);
@@ -259,7 +270,7 @@ void ipaugenblick_release_tx_buffer(void *buffer)
     rte_pktmbuf_free_seg(mbuf);
 }
 
-void ipaugenblick_release_rx_buffer(void *buffer)
+inline void ipaugenblick_release_rx_buffer(void *buffer)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     rte_pktmbuf_free(mbuf); 
@@ -273,22 +284,8 @@ void ipaugenblick_socket_kick(int sock)
         return;
     }
     cmd->cmd = IPAUGENBLICK_SOCKET_KICK_COMMAND;
-    cmd->u.socket_kick_cmd.socket_descr = socket_descriptors[sock].sock;
+    cmd->ringset_idx = sock;
     ipaugenblick_enqueue_command_buf(cmd);
-}
-
-int ipaugenblick_get_connected()
-{
-    ipaugenblick_cmd_t *cmd;
-    int ringset_idx;
-    
-    if(rte_ring_dequeue(socket_descriptors[ringset_idx].feedbacks_ring,(void **)&cmd)) {
-        return -1;
-    }
-    socket_descriptors[ringset_idx].sock = cmd->u.open_socket_feedback.socket_descr;
-    ringset_idx = cmd->ringset_idx;
-    ipaugenblick_free_command_buf(cmd);
-    return ringset_idx;
 }
 
 int ipaugenblick_accept(int sock)

@@ -508,7 +508,6 @@ struct sock {
 	int			(*sk_backlog_rcv)(struct sock *sk,
 						  struct sk_buff *skb);
 	void                    (*sk_destruct)(struct sock *sk);
-	void        *user_data;
 }__attribute__ ((aligned (CACHE_LINE_SIZE)));
 
 #define __sk_user_data(sk) ((*((void __rcu **)&(sk)->sk_user_data)))

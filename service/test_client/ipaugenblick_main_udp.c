@@ -17,7 +17,6 @@ int main(int argc,char **argv)
     ipaugenblick_cmd_t *cmd;
     char *p;
     int size = 0,ringset_idx;
-    int socket_connected = -1;
     unsigned int from_ip;
     unsigned short from_port;
     unsigned long received_packets = 0;
@@ -32,12 +31,6 @@ int main(int argc,char **argv)
         return 0;
     }
     while(1) {
-/*        if(socket_connected == -1) {
-            socket_connected = ipaugenblick_get_connected();
-        }
-        if(socket_connected == -1) {
-            continue;
-        }*/
 #if 0
         buff = ipaugenblick_get_buffer(1448);
         if(buff) {
@@ -52,15 +45,10 @@ int main(int argc,char **argv)
 //            ipaugenblick_socket_kick(sock);
         }
 #endif
-#if 1
-        if(socket_connected == -1) {
-            socket_connected = ipaugenblick_get_connected();
-            if(socket_connected == -1)
-                continue;
-        }
+#if 1 
         if(ipaugenblick_receivefrom(sock,&buff,&len,&from_ip,&from_port) == 0) {
             received_packets++;
-            if(!(received_packets%1000)) {
+            if(!(received_packets%1000000)) {
                 printf("received %u\n",received_packets);
             }
             ipaugenblick_release_rx_buffer(buff);
@@ -71,11 +59,11 @@ int main(int argc,char **argv)
                 if(ipaugenblick_sendto(sock,buff,0,1448,from_ip,from_port)) { 
 //                    printf("failed\n");
                     ipaugenblick_release_tx_buffer(buff);
-                    ipaugenblick_socket_kick(socket_connected);
+                    ipaugenblick_socket_kick(sock);
                 }
                 else {
                     sent_packets++;
-                    if(!(sent_packets%1000)) {
+                    if(!(sent_packets%1000000)) {
                         printf("sent %u\n",sent_packets); 
                     }
                 }

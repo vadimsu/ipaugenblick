@@ -566,7 +566,7 @@ void app_glue_set_user_data(void *socket,void *data)
 		printf("PANIC: socket NULL %s %d \n",__FILE__,__LINE__);while(1);
 	}
 //	if(sock->sk)
-		sock->sk->user_data = data;
+		sock->sk->sk_user_data = data;
 //	else
 //		printf("PANIC: socket->sk is NULL\n");while(1);
 }
@@ -585,7 +585,7 @@ void *app_glue_get_user_data(void *socket)
 	if(!sock->sk) {
 		printf("PANIC: socket->sk NULL\n");while(1);
 	}
-	return sock->sk->user_data;
+	return sock->sk->sk_user_data;
 }
 /*
  * This function may be called to get next closable socket .
@@ -602,7 +602,7 @@ void *app_glue_get_next_closed()
 		sock->closed_queue_present = 0;
 		TAILQ_REMOVE(&closed_socket_list_head,sock,closed_queue_entry);
 		if(sock->sk)
-			user_data = sock->sk->user_data;
+			user_data = sock->sk->sk_user_data;
 			//kernel_close(sock);
 		return user_data;
 	}
@@ -623,7 +623,7 @@ void *app_glue_get_next_writer()
 		sock->write_queue_present = 0;
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
 		if(sock->sk)
-		    return sock->sk->user_data;
+		    return sock->sk->sk_user_data;
   	    printf("PANIC: socket->sk is NULL\n");
 	}
 	return NULL;
@@ -642,7 +642,7 @@ void *app_glue_get_next_reader()
 		sock->read_queue_present = 0;
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
 		if(sock->sk)
-		    return sock->sk->user_data;
+		    return sock->sk->sk_user_data;
 	    printf("PANIC: socket->sk is NULL\n");
 	}
 	return NULL;
@@ -662,7 +662,7 @@ void *app_glue_get_next_listener()
 		sock->accept_queue_present = 0;
 		TAILQ_REMOVE(&accept_ready_socket_list_head,sock,accept_queue_entry);
 		if(sock->sk)
-	        return sock->sk->user_data;
+	        return sock->sk->sk_user_data;
 	    printf("PANIC: socket->sk is NULL\n");
 		return NULL;
 	}
@@ -699,7 +699,7 @@ void app_glue_close_socket(void *sk)
 		sock->closed_queue_present = 0;
 	}
 	if(sock->sk)
-		sock->sk->user_data = NULL;
+		sock->sk->sk_user_data = NULL;
 	kernel_close(sock);
 }
 /*

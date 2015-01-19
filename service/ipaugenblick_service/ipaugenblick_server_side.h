@@ -13,11 +13,11 @@ struct ipaugenblick_ring_set
 };
 
 extern struct rte_ring *command_ring;
-extern struct rte_ring *feedbacks_ring;
 extern struct rte_ring *free_connections_ring;
 extern struct rte_ring *rx_mbufs_ring;
 extern struct rte_mempool *free_command_pool;
 extern struct ipaugenblick_ring_set ringsets[IPAUGENBLICK_CONNECTION_POOL_SIZE];
+extern void *ringidx_to_socket[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 
 static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int command_bufs_count,
                                                           int rx_bufs_count,
@@ -28,11 +28,19 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 
     sprintf(ringname,COMMAND_RING_NAME);
 
-    command_ring = rte_ring_create(ringname, command_bufs_count,rte_socket_id(), 0);
+    command_ring = rte_ring_create(ringname, command_bufs_count,rte_socket_id(), RING_F_SC_DEQ);
+    if(!command_ring) {
+        printf("cannot create ring %s %d\n",__FILE__,__LINE__);
+        exit(0);
+    }
 
     sprintf(ringname,"rx_mbufs_ring");
 
     rx_mbufs_ring = rte_ring_create(ringname, rx_bufs_count*IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
+    if(!rx_mbufs_ring) {
+        printf("cannot create ring %s %d\n",__FILE__,__LINE__);
+        exit(0);
+    }
 
     sprintf(ringname,FREE_COMMAND_POOL_NAME);
 
@@ -42,25 +50,39 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 				           NULL, NULL,
 				           NULL, NULL,
 				           rte_socket_id(), 0);
+    if(!free_command_pool) {
+        printf("cannot create mempool %s %d\n",__FILE__,__LINE__);
+        exit(0);
+    }
 
     free_connections_ring = rte_ring_create(FREE_CONNECTIONS_RING,IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
-
-    sprintf(ringname,FEEDBACKS_RING_NAME_BASE"%d",ringset_idx);
-    feedbacks_ring = rte_ring_create(ringname, 1024,rte_socket_id(), 0);
+    if(!free_connections_ring) {
+        printf("cannot create ring %s %d\n",__FILE__,__LINE__);
+        exit(0);
+    }
 
     for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CONNECTION_POOL_SIZE;ringset_idx++) { 
         rte_ring_enqueue(free_connections_ring,(void*)ringset_idx);
         sprintf(ringname,TX_RING_NAME_BASE"%d",ringset_idx);
-        ringsets[ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), 0);
+        ringsets[ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
+        if(!ringsets[ringset_idx].tx_ring) {
+            printf("cannot create ring %s %d\n",__FILE__,__LINE__);
+            exit(0);
+        }
         sprintf(ringname,RX_RING_NAME_BASE"%d",ringset_idx);
-        ringsets[ringset_idx].rx_ring = rte_ring_create(ringname, rx_bufs_count,rte_socket_id(), 0);
+        ringsets[ringset_idx].rx_ring = rte_ring_create(ringname, rx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
+        if(!ringsets[ringset_idx].rx_ring) {
+            printf("cannot create ring %s %d\n",__FILE__,__LINE__);
+            exit(0);
+        }
     }
+    memset(ringidx_to_socket,0,sizeof(void *)*IPAUGENBLICK_CONNECTION_POOL_SIZE);
     return 0;
 }
 static inline ipaugenblick_cmd_t *ipaugenblick_dequeue_command_buf()
 {
     ipaugenblick_cmd_t *cmd;
-    if(rte_ring_dequeue(command_ring,(void **)&cmd)) {
+    if(rte_ring_sc_dequeue_bulk(command_ring,(void **)&cmd,1)) {
         return NULL;
     }
     return cmd;
@@ -69,13 +91,6 @@ static inline ipaugenblick_cmd_t *ipaugenblick_dequeue_command_buf()
 static inline void ipaugenblick_free_command_buf(ipaugenblick_cmd_t *cmd)
 {
     rte_mempool_put(free_command_pool,(void *)cmd);
-}
-
-static inline void ipaugenblick_post_feedback(ipaugenblick_cmd_t *cmd)
-{
-    if(rte_ring_enqueue(feedbacks_ring,(void *)cmd)) { 
-        ipaugenblick_free_command_buf(cmd);
-    }
 }
 
 static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
@@ -96,7 +111,7 @@ static inline void ipaugenblick_post_accepted(ipaugenblick_cmd_t *cmd)
 static inline struct rte_mbuf *ipaugenblick_dequeue_tx_buf(int ringset_idx)
 {
     struct rte_mbuf *mbuf;
-    if(rte_ring_dequeue(ringsets[ringset_idx].tx_ring,(void **)&mbuf)) { 
+    if(rte_ring_sc_dequeue_bulk(ringsets[ringset_idx].tx_ring,(void **)&mbuf,1)) { 
         return NULL;
     }
     return mbuf;
@@ -114,7 +129,7 @@ static inline int ipaugenblick_rx_buf_free_count(int ringset_idx)
 
 int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,int ringset_idx)
 {
-    return rte_ring_enqueue(ringsets[ringset_idx].rx_ring,(void *)mbuf);
+    return rte_ring_sp_enqueue_bulk(ringsets[ringset_idx].rx_ring,(void *)&mbuf,1);
 }
 
 #endif

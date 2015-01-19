@@ -27,6 +27,7 @@
 #include <rte_common.h>
 #include <rte_cycles.h>
 #include <rte_timer.h>
+#include <rte_ring.h>
 #include <api.h>
 #include <porting/libinit.h>
 #include "ipaugenblick_common/ipaugenblick_common.h"
@@ -40,17 +41,17 @@ uint64_t user_on_tx_opportunity_api_failed = 0;
 uint64_t user_on_tx_opportunity_api_mbufs_sent = 0;
 uint64_t user_on_tx_opportunity_cannot_get_buff = 0;
 uint64_t user_on_rx_opportunity_called = 0;
-uint64_t user_on_rx_opportunity_called_wo_result = 0;
+uint64_t user_on_rx_opportunity_called_exhausted = 0;
 uint64_t user_rx_mbufs = 0;
 uint64_t user_kick_tx = 0;
 uint64_t user_on_tx_opportunity_cannot_send = 0;
 
 struct rte_ring *command_ring = NULL;
-struct rte_ring *feedbacks_ring = NULL;
 struct rte_ring *free_connections_ring = NULL;
 struct rte_ring *rx_mbufs_ring = NULL;
 struct rte_mempool *free_command_pool = NULL;
 struct ipaugenblick_ring_set ringsets[IPAUGENBLICK_CONNECTION_POOL_SIZE];
+void *ringidx_to_socket[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 
 #ifdef OPTIMIZE_SENDPAGES
 /* this is called from tcp_sendpages when tcp knows exactly
@@ -125,6 +126,13 @@ int user_on_transmission_opportunity(struct socket *sock)
             struct msghdr msghdr;
             struct iovec iov;
             struct rte_mbuf *mbuf;
+  
+            msghdr.msg_namelen = sizeof(struct sockaddr_in);
+            msghdr.msg_iov = &iov;
+            msghdr.msg_iovlen = 1;
+            msghdr.msg_controllen = 0;
+            msghdr.msg_control = 0;
+            msghdr.msg_flags = 0;
 
 //            while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
               do {
@@ -134,15 +142,11 @@ int user_on_transmission_opportunity(struct socket *sock)
                 char *p_addr = (char *)mbuf->pkt.data;
                 p_addr -= sizeof(struct sockaddr_in);
                 msghdr.msg_name = p_addr;
-                msghdr.msg_namelen = sizeof(struct sockaddr_in);
-                msghdr.msg_iov = &iov;
-                iov.head = mbuf;
-                msghdr.msg_iovlen = 1;
-                msghdr.msg_controllen = 0;
-                msghdr.msg_control = 0;
-                msghdr.msg_flags = 0;
-                sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
-                i = kernel_sendmsg(sock, &msghdr, mbuf->pkt.data_len);
+                
+                iov.head = mbuf; 
+//                sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
+//                i = kernel_sendmsg(sock, &msghdr, mbuf->pkt.data_len);
+                i = udp_sendmsg(NULL, sock->sk, &msghdr, mbuf->pkt.data_len);
                 if(i <= 0) {
                     rte_pktmbuf_free(mbuf);
                     user_on_tx_opportunity_api_failed++;
@@ -164,7 +168,7 @@ int user_data_available_cbk(struct socket *sock)
     struct msghdr msg;
     struct iovec vec;
     struct rte_mbuf *mbuf;
-    int i,ring_free,dummy = 1;
+    int i,ring_free,exhausted = 0;
     unsigned int ringset_idx;
     struct sockaddr_in sockaddrin;
 
@@ -179,8 +183,11 @@ int user_data_available_cbk(struct socket *sock)
         msg.msg_name = &sockaddrin;
     }
     ring_free = ipaugenblick_rx_buf_free_count(ringset_idx);
-    while(((ring_free) > 0)&&(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) > 0))) {
-	dummy = 0;
+    while(ring_free > 0) {
+        if(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) <= 0)) {
+            exhausted = 1;
+            break;
+        }
         ring_free--;
         if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             char *p_addr = (char *)msg.msg_iov->head->pkt.data;
@@ -191,11 +198,11 @@ int user_data_available_cbk(struct socket *sock)
 	memset(&vec,0,sizeof(vec));
     }
 
-    if(dummy) {
-	user_on_rx_opportunity_called_wo_result++;
-        return 0;
+    if(exhausted) {
+	user_on_rx_opportunity_called_exhausted++;
+        return 1;
     }
-    return 1;
+    return 0;
 }
 void user_on_socket_fatal(struct socket *sock)
 {
@@ -238,11 +245,7 @@ static void process_commands()
            if(sock) {
                printf("setting user data\n");
                app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
-               cmd->cmd = IPAUGENBLICK_OPEN_SOCKET_FEEDBACK;
-               cmd->u.open_socket_feedback.socket_descr = sock;
-               /* ring idx is already set */
-               ipaugenblick_post_feedback(cmd);
-               return;
+               ringidx_to_socket[cmd->ringset_idx] = sock;
            }
            printf("Done\n");
            break;
@@ -261,11 +264,7 @@ static void process_commands()
            if(sock) {
                printf("setting user data\n");
                app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
-               cmd->cmd = IPAUGENBLICK_OPEN_SOCKET_FEEDBACK;
-               cmd->u.open_socket_feedback.socket_descr = sock;
-               /* ring idx is already set */
-               ipaugenblick_post_feedback(cmd);
-               return;
+               ringidx_to_socket[cmd->ringset_idx] = sock;
            }
            break;
         case IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND:
@@ -274,16 +273,14 @@ static void process_commands()
            if(sock) {
                printf("setting user data\n");
                app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
-               cmd->cmd = IPAUGENBLICK_OPEN_SOCKET_FEEDBACK;
-               cmd->u.open_socket_feedback.socket_descr = sock;
-               /* ring idx is already set */
-               ipaugenblick_post_feedback(cmd);
-               return;
+               ringidx_to_socket[cmd->ringset_idx] = sock;
            }
            break;
         case IPAUGENBLICK_SOCKET_KICK_COMMAND:
-           user_kick_tx++;
-           user_on_transmission_opportunity((struct socket *)cmd->u.socket_kick_cmd.socket_descr);
+           if(ringidx_to_socket[cmd->ringset_idx]) {
+               user_kick_tx++;
+               user_on_transmission_opportunity((struct socket *)ringidx_to_socket[cmd->ringset_idx]);
+           }
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,cmd->ringset_idx);
@@ -322,7 +319,7 @@ void print_user_stats()
 	printf("user_on_tx_opportunity_getbuff_called %"PRIu64"\n",user_on_tx_opportunity_getbuff_called);
 	printf("user_on_tx_opportunity_api_failed %"PRIu64"\n",	user_on_tx_opportunity_api_failed);
 	printf("user_on_rx_opportunity_called %"PRIu64"\n",user_on_rx_opportunity_called);
-	printf("user_on_rx_opportunity_called_wo_result %"PRIu64"\n",user_on_rx_opportunity_called_wo_result);
+	printf("user_on_rx_opportunity_called_exhausted %"PRIu64"\n",user_on_rx_opportunity_called_exhausted);
 	printf("user_rx_mbufs %"PRIu64"\n",user_rx_mbufs,user_rx_mbufs);
         printf("user_on_tx_opportunity_api_mbufs_sent %"PRIu64"\n",user_on_tx_opportunity_api_mbufs_sent);
 }

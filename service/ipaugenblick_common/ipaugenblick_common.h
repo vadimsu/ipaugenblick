@@ -44,11 +44,6 @@ typedef struct
 typedef struct
 {
     unsigned long socket_descr;
-}__attribute__((packed))ipaugenblick_open_socket_feedback_t;
-
-typedef struct
-{
-    unsigned long socket_descr;
 }__attribute__((packed))ipaugenblick_open_accepted_socket_t;
 
 typedef struct
@@ -65,12 +60,12 @@ typedef struct
 {
     int cmd;
     unsigned int ringset_idx;
+    unsigned int parent_idx;
     union {
         ipaugenblick_open_client_sock_cmd_t open_client_sock;
         ipaugenblick_open_listening_sock_cmd_t open_listening_sock;
         ipaugenblick_open_udp_sock_cmd_t open_udp_sock;
         ipaugenblick_open_raw_sock_cmd_t open_raw_sock;
-        ipaugenblick_open_socket_feedback_t open_socket_feedback;
         ipaugenblick_socket_kick_cmd_t socket_kick_cmd;
         ipaugenblick_open_accepted_socket_t accepted_socket;
         ipaugenblick_set_socket_ring_cmd_t set_socket_ring;
@@ -82,10 +77,9 @@ typedef struct
 #define COMMAND_RING_NAME "command_ring"
 #define FREE_COMMAND_POOL_NAME "free_command_pool"
 #define RX_RING_NAME_BASE "rx_ring"
-#define TX_RING_NAME_BASE "tx_ring" 
-#define FEEDBACKS_RING_NAME_BASE "feedbacks_ring"
+#define TX_RING_NAME_BASE "tx_ring"
 #define ACCEPTED_RING_NAME "accepted_ring"
 #define FREE_ACCEPTED_POOL_NAME "free_accepted_pool"
-#define IPAUGENBLICK_CONNECTION_POOL_SIZE 1024
+#define IPAUGENBLICK_CONNECTION_POOL_SIZE 32
 
 #endif /* __IPAUGENBLICK_MEMORY_COMMON_H__ */
