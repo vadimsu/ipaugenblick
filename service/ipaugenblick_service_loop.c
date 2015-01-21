@@ -30,6 +30,7 @@
 #include <rte_ring.h>
 #include <api.h>
 #include <porting/libinit.h>
+#include <rte_atomic.h>
 #include "ipaugenblick_common/ipaugenblick_common.h"
 #include "ipaugenblick_service/ipaugenblick_server_side.h"
 
@@ -47,11 +48,16 @@ uint64_t user_kick_tx = 0;
 uint64_t user_on_tx_opportunity_cannot_send = 0;
 
 struct rte_ring *command_ring = NULL;
+struct rte_ring *selectors_ring = NULL;
+struct rte_mempool *free_connections_pool = NULL;
 struct rte_ring *free_connections_ring = NULL;
+struct rte_mempool *selectors_pool = NULL;
 struct rte_ring *rx_mbufs_ring = NULL;
 struct rte_mempool *free_command_pool = NULL;
 struct ipaugenblick_ring_set ringsets[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 void *ringidx_to_socket[IPAUGENBLICK_CONNECTION_POOL_SIZE];
+ipaugenblick_socket_t *g_ipaugenblick_sockets = NULL;
+ipaugenblick_selector_t *g_ipaugenblick_selectors = NULL;
 
 #ifdef OPTIMIZE_SENDPAGES
 /* this is called from tcp_sendpages when tcp knows exactly
@@ -63,12 +69,14 @@ void *ringidx_to_socket[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 {
     struct rte_mbuf *mbuf, *first = NULL,*prev;
+    sock_and_selector_idx_t sock_and_selector_idx;
     unsigned int ringset_idx,i=0;
 
     user_on_tx_opportunity_getbuff_called++;
     if(sk->sk_socket == NULL)
         return NULL;
-    ringset_idx = (unsigned int)app_glue_get_user_data(sk->sk_socket);
+    sock_and_selector_idx.data = (unsigned long)app_glue_get_user_data(sk->sk_socket);
+    ringset_idx = RINGSET_IDX(sock_and_selector_idx);
     while(*copy > 1448) {
         mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
         if(unlikely(mbuf == NULL)) {
@@ -90,6 +98,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 int user_on_transmission_opportunity(struct socket *sock)
 {
 	struct page page;
+        sock_and_selector_idx_t sock_and_selector_idx;
 	int i = 0,sent = 0;
 	uint32_t to_send_this_time;
 	uint64_t ts = rte_rdtsc();
@@ -101,9 +110,11 @@ int user_on_transmission_opportunity(struct socket *sock)
         if(!sock) {
             return 0;
         }
-        ringset_idx = (unsigned int)app_glue_get_user_data(sock);
+        sock_and_selector_idx.data = (unsigned long)app_glue_get_user_data(sock);
+        ringset_idx = RINGSET_IDX(sock_and_selector_idx);
         ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
         if(ring_entries == 0) {
+            /* TODO let user know it is writable */
             user_on_tx_opportunity_api_nothing_to_tx++;
             return 0;
         }
@@ -169,6 +180,7 @@ int user_data_available_cbk(struct socket *sock)
     struct iovec vec;
     struct rte_mbuf *mbuf;
     int i,ring_free,exhausted = 0;
+    sock_and_selector_idx_t sock_and_selector_idx;
     unsigned int ringset_idx;
     struct sockaddr_in sockaddrin;
 
@@ -177,7 +189,8 @@ int user_data_available_cbk(struct socket *sock)
     if(unlikely(sock == NULL)) {
 	return 0;
     }
-    ringset_idx = (unsigned int)app_glue_get_user_data(sock);
+    sock_and_selector_idx.data = (unsigned long)app_glue_get_user_data(sock);
+    ringset_idx = RINGSET_IDX(sock_and_selector_idx);
     if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
         msg.msg_namelen = sizeof(sockaddrin);
         msg.msg_name = &sockaddrin;
@@ -284,6 +297,9 @@ static void process_commands()
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,cmd->ringset_idx);
+           break;
+        case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
+//           cmd->u.set_socket_select.socket_select;
            break;
         default:
            printf("unknown cmd %d\n",cmd->cmd);

@@ -1,5 +1,6 @@
 #include <sys/errno.h>
 #include <stdlib.h>
+#include <rte_atomic.h>
 #include "../ipaugenblick_common/ipaugenblick_common.h"
 #include <rte_config.h>
 #include <rte_common.h>
@@ -26,11 +27,20 @@ const typeof(((type*) 0)->member)*__mptr=(ptr); \
 #define RTE_MBUF(d) container_of(PKT(d),struct rte_mbuf,pkt)
 
 socket_descriptor_t socket_descriptors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
+struct rte_mempool *free_connections_pool = NULL;
 struct rte_ring *free_connections_ring = NULL;
 struct rte_mempool *tx_bufs_pool = NULL;
 struct rte_ring *rx_bufs_ring = NULL;
 struct rte_mempool *free_command_pool = NULL;
 struct rte_ring *command_ring = NULL;
+struct rte_ring *selectors_ring = NULL;
+
+typedef struct
+{
+    struct rte_ring *ready_connections;
+}selector_t;
+
+static selector_t selectors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 
 /* must be called per process */
 int ipaugenblick_app_init(int argc,char **argv)
@@ -50,6 +60,13 @@ int ipaugenblick_app_init(int argc,char **argv)
         return -1;
     }
 
+    free_connections_pool = rte_mempool_lookup(FREE_CONNECTIONS_POOL_NAME);
+
+    if(!free_connections_pool) {
+        printf("cannot find free connections pool\n");
+        return -1;
+    }
+
     memset(socket_descriptors,0,sizeof(socket_descriptors));
     for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
         sprintf(ringname,RX_RING_NAME_BASE"%d",i);
@@ -64,6 +81,7 @@ int ipaugenblick_app_init(int argc,char **argv)
             printf("%s %d\n",__FILE__,__LINE__);
             exit(0);
         }
+        socket_descriptors[i].select = -1;
         rte_ring_enqueue(free_connections_ring,&socket_descriptors[i]);
     }
     tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
@@ -88,8 +106,50 @@ int ipaugenblick_app_init(int argc,char **argv)
         printf("cannot find rx bufs ring\n");
         return -1;
     }
+    selectors_ring = rte_ring_lookup(SELECTOR_RING_NAME);
+    
+    for(i = 0;i < IPAUGENBLICK_SELECTOR_POOL_SIZE;i++) {
+        sprintf(ringname,"SELECTOR_RING_NAME%d",i);
+        selectors[i].ready_connections = rte_ring_lookup(ringname);
+        if(!selectors[i].ready_connections) {
+            printf("cannot find ring %s %d\n",__FILE__,__LINE__);
+            exit(0);
+        }
+    }
     return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
 }
+
+int ipaugenblick_open_select(void)
+{
+    int ringset_idx;
+
+    if(rte_ring_dequeue(selectors_ring,(void **)&ringset_idx)) {
+        printf("%s %d\n",__FILE__,__LINE__);
+        return -1;
+    }
+    return (int)ringset_idx;
+}
+
+int ipaugenblick_set_socket_select(int sock,int select)
+{
+   ipaugenblick_cmd_t *cmd;
+
+    if(sock < 0)
+        return -1;
+
+   cmd = ipaugenblick_get_free_command_buf();
+   if(!cmd) {
+       printf("%s %d\n",__FILE__,__LINE__);
+       return -2;
+   }
+
+   cmd->cmd = IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND;
+   cmd->ringset_idx = sock;
+   cmd->u.set_socket_select.socket_select = select;
+   ipaugenblick_enqueue_command_buf(cmd);
+   socket_descriptors[sock].select = select;
+}
+
 static inline void ipaugenblick_free_command_buf(ipaugenblick_cmd_t *cmd)
 {
     rte_mempool_put(free_command_pool,(void *)cmd);
@@ -97,17 +157,13 @@ static inline void ipaugenblick_free_command_buf(ipaugenblick_cmd_t *cmd)
 /* open asynchronous TCP client socket */
 int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigned int myipaddr,unsigned short myport)
 {
-    struct _socket_descriptor *descr;
-    int idx;
+    ipaugenblick_socket_t *ipaugenblick_socket;
     ipaugenblick_cmd_t *cmd; 
 
-    if(rte_ring_dequeue(free_connections_ring,(void **)&descr)) {
+    if(rte_ring_dequeue(free_connections_ring,(void **)&ipaugenblick_socket)) {
         printf("%s %d\n",__FILE__,__LINE__);
         return -1;
     }
-
-//    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]));
-    idx = (int)descr;
 
     /* allocate a ringset (cmd/tx/rx) here */
     cmd = ipaugenblick_get_free_command_buf();
@@ -117,7 +173,7 @@ int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigne
     }
 
     cmd->cmd = IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND;
-    cmd->ringset_idx = idx;
+    cmd->ringset_idx = ipaugenblick_socket->connection_idx;
     cmd->parent_idx = 0;
     cmd->u.open_client_sock.my_ipaddress = myipaddr;
     cmd->u.open_client_sock.my_port = myport;
@@ -126,22 +182,18 @@ int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigne
 
     ipaugenblick_enqueue_command_buf(cmd);
 
-    return idx;
+    return ipaugenblick_socket->connection_idx;
 }
 
 /* open listener */
 int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port)
 {
-    struct _socket_descriptor *descr;
-    int idx;
+    ipaugenblick_socket_t *ipaugenblick_socket;
     ipaugenblick_cmd_t *cmd;
 
-    if(rte_ring_dequeue(free_connections_ring,(void **)&descr)) {
+    if(rte_ring_dequeue(free_connections_ring,(void **)&ipaugenblick_socket)) {
         return -1;
     }
-
-//    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]));
-    idx = (int)descr;
 
     cmd = ipaugenblick_get_free_command_buf();
     if(!cmd) {
@@ -149,29 +201,25 @@ int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port)
     }
 
     cmd->cmd = IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND;
-    cmd->ringset_idx = idx;
+    cmd->ringset_idx = ipaugenblick_socket->connection_idx;
     cmd->parent_idx = 0;
     cmd->u.open_listening_sock.ipaddress = ipaddr;
     cmd->u.open_listening_sock.port = port;
 
     ipaugenblick_enqueue_command_buf(cmd);
 
-    return idx;
+    return ipaugenblick_socket->connection_idx;
 }
 
 /* open UDP socket */
 int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port)
 {
-    struct _socket_descriptor *descr;
-    int idx;
+    ipaugenblick_socket_t *ipaugenblick_socket;
     ipaugenblick_cmd_t *cmd;
 
-    if(rte_ring_dequeue(free_connections_ring,(void **)&descr)) {
+    if(rte_ring_dequeue(free_connections_ring,(void **)&ipaugenblick_socket)) {
         return -1;
     }
-
-//    idx = ((descr - &socket_descriptors[0])/sizeof(socket_descriptors[0]));
-    idx = (int)descr;
 
     cmd = ipaugenblick_get_free_command_buf();
     if(!cmd) {
@@ -179,14 +227,14 @@ int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port)
     }
 
     cmd->cmd = IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND;
-    cmd->ringset_idx = idx;
+    cmd->ringset_idx = ipaugenblick_socket->connection_idx;
     cmd->parent_idx = 0;
     cmd->u.open_listening_sock.ipaddress = ipaddr;
     cmd->u.open_listening_sock.port = port;
 
     ipaugenblick_enqueue_command_buf(cmd);
 
-    return idx;
+    return ipaugenblick_socket->connection_idx;
 }
 
 /* close any socket */
@@ -307,4 +355,14 @@ int ipaugenblick_accept(int sock)
     cmd->u.set_socket_ring.socket_descr = socket_descriptors[(int)descr].sock;
     ipaugenblick_enqueue_command_buf(cmd); 
     return (int)descr;
+}
+
+int ipaugenblick_select(int selector,unsigned int mask)
+{
+    ipaugenblick_cmd_t *cmd;
+
+    if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&cmd)) {
+        return -1;
+    }
+    return 0;
 }

@@ -12,7 +12,9 @@ enum
     IPAUGENBLICK_OPEN_SOCKET_FEEDBACK,
     IPAUGENBLICK_SOCKET_KICK_COMMAND,
     IPAUGENBLICK_SOCKET_ACCEPTED_COMMAND,
-    IPAUGENBLICK_SET_SOCKET_RING_COMMAND
+    IPAUGENBLICK_SET_SOCKET_RING_COMMAND,
+    IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND,
+    IPAUGENBLICK_SOCKET_READY_FEEDBACK
 };
 
 typedef struct
@@ -58,9 +60,22 @@ typedef struct
 
 typedef struct
 {
+    int socket_select;
+}__attribute__((packed))ipaugenblick_set_socket_select_cmd_t;
+
+#define SOCKET_READABLE_SHIFT 1
+#define SOCKET_WRITABLE_SHIFT 2
+
+typedef struct
+{
+    unsigned int bitmask;
+}__attribute__((packed))ipaugenblick_socket_ready_feedback_t;
+
+typedef struct
+{
     int cmd;
     unsigned int ringset_idx;
-    unsigned int parent_idx;
+    int          parent_idx;
     union {
         ipaugenblick_open_client_sock_cmd_t open_client_sock;
         ipaugenblick_open_listening_sock_cmd_t open_listening_sock;
@@ -69,10 +84,25 @@ typedef struct
         ipaugenblick_socket_kick_cmd_t socket_kick_cmd;
         ipaugenblick_open_accepted_socket_t accepted_socket;
         ipaugenblick_set_socket_ring_cmd_t set_socket_ring;
+        ipaugenblick_set_socket_select_cmd_t set_socket_select;
+        ipaugenblick_socket_ready_feedback_t socket_ready_feedback;
     }u;
 }__attribute__((packed))ipaugenblick_cmd_t;
 
+typedef struct
+{
+    unsigned long connection_idx; /* to be aligned */
+    rte_atomic16_t  is_in_select;
+}__attribute__((packed))ipaugenblick_socket_t;
+
+typedef struct
+{
+    int ringset_idx;
+    struct rte_ring  *ready_connections;
+}__attribute__((packed))ipaugenblick_selector_t;
+
 #define COMMAND_POOL_SIZE 100
+#define FREE_CONNECTIONS_POOL_NAME "free_connections_pool"
 #define FREE_CONNECTIONS_RING "free_connections_ring"
 #define COMMAND_RING_NAME "command_ring"
 #define FREE_COMMAND_POOL_NAME "free_command_pool"
@@ -80,6 +110,9 @@ typedef struct
 #define TX_RING_NAME_BASE "tx_ring"
 #define ACCEPTED_RING_NAME "accepted_ring"
 #define FREE_ACCEPTED_POOL_NAME "free_accepted_pool"
+#define SELECTOR_POOL_NAME "selector_pool"
+#define SELECTOR_RING_NAME "selector_ring"
 #define IPAUGENBLICK_CONNECTION_POOL_SIZE 32
+#define IPAUGENBLICK_SELECTOR_POOL_SIZE 32
 
 #endif /* __IPAUGENBLICK_MEMORY_COMMON_H__ */

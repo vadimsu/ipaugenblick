@@ -43,4 +43,10 @@ void ipaugenblick_socket_kick(int sock);
 
 int ipaugenblick_accept(int sock);
 
+int ipaugenblick_open_select(void);
+
+int ipaugenblick_set_socket_select(int sock,int select);
+
+int ipaugenblick_select(int selector,unsigned int mask);
+
 #endif
