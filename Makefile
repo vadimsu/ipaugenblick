@@ -25,7 +25,7 @@ drivers/net/loopback.c kernel/notifier.c porting/mm_porting.c porting/timer_port
 porting/timing_porting.c porting/tasklet_workqueues_porting.c porting/app_glue.c \
 porting/libinit.c porting/show_mib_stats.c \
 drivers/net/dpdk/rx.c drivers/net/dpdk/tx.c \
-drivers/net/dpdk/dpdk_sw_loop.c drivers/net/dpdk/device.c 
+drivers/net/dpdk/dpdk_sw_loop.c drivers/net/dpdk/device.c service/ipaugenblick_service_loop.c
 #CFLAGS += -g
 CFLAGS += -Ofast   
 CFLAGS += $(WERROR_FLAGS) 
@@ -36,7 +36,7 @@ CFLAGS += $(ALL_HEADERS) -DMAXCPU=32 -D__UAPI_DEF_IN6_ADDR=1 -D__UAPI_DEF_SOCKAD
 -D__UAPI_DEF_IPPROTO_V6=1 -DCONFIG_SLAB -DCONFIG_HZ=1000 -DNR_CPUS=32 -DCONFIG_64BIT -DCONFIG_SMP \
 -DCONFIG_NETFILTER -DCONFIG_NETLABEL -DCONFIG_NET_POLL_CONTROLLER \
 -DCONFIG_X86_64 -DCONFIG_GENERIC_ATOMIC64 -DTCP_BIND_CACHE_SIZE=16384 \
--DINET_PEER_CACHE_SIZE=16384 -DSOCK_CACHE_SIZE=32768 -DRUN_TO_COMPLETE -DMAX_PKT_BURST=64 \
+-DINET_PEER_CACHE_SIZE=16384 -DSOCK_CACHE_SIZE=32768 -DRUN_TO_COMPLETE -DMAX_PKT_BURST=32 \
 -DMULTIPLE_MEM_ALLOC=0 -DOPTIMIZE_SENDPAGES -DOPTIMIZE_TCP_RECEIVE -DCONFIG_SYN_COOKIES -DIPAUGENBLICK_UDP_OPTIMIZATION
 #-DGSO 
 LIB = libnetinet.a

@@ -15,14 +15,16 @@ struct ipaugenblick_ring_set
 typedef struct
 {
     union {
-        int ring_idx;
-        int parent_idx;
-    }u;
-    unsigned long data;
+        struct {
+            int ring_idx;
+            int parent_idx;
+        }rings_ids;
+        unsigned long data;
+    }u; 
 }sock_and_selector_idx_t;
 
-#define PARENT_IDX(sock_and_selector_idx) sock_and_selector_idx.u.parent_idx
-#define RINGSET_IDX(sock_and_selector_idx) sock_and_selector_idx.u.ring_idx
+#define PARENT_IDX(sock_and_selector_idx) sock_and_selector_idx.u.rings_ids.parent_idx
+#define RINGSET_IDX(sock_and_selector_idx) sock_and_selector_idx.u.rings_ids.ring_idx
 
 extern struct rte_ring *command_ring;
 extern struct rte_ring *selectors_ring;
@@ -52,7 +54,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         printf("cannot create ring %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
-
+    printf("COMMAND RING CREATED\n");
     sprintf(ringname,"rx_mbufs_ring");
 
     rx_mbufs_ring = rte_ring_create(ringname, rx_bufs_count*IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
@@ -60,7 +62,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         printf("cannot create ring %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
-
+    printf("RX RING CREATED\n");
     sprintf(ringname,FREE_COMMAND_POOL_NAME);
 
     free_command_pool = rte_mempool_create(ringname, COMMAND_POOL_SIZE,
@@ -73,7 +75,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         printf("cannot create mempool %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
-
+    printf("COMMAND POOL CREATED\n");
     sprintf(ringname,FREE_CONNECTIONS_POOL_NAME);
 
     free_connections_pool = rte_mempool_create(ringname, 1,
@@ -87,6 +89,8 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         exit(0);
     }
 
+    printf("FREE CONNECTIONS POOL CREATED\n");
+
     if(rte_mempool_get(free_connections_pool,&g_ipaugenblick_sockets)) {
         printf("cannot get from mempool %s %d \n",__FILE__,__LINE__);
         exit(0);
@@ -99,6 +103,8 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         printf("cannot create ring %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
+
+    printf("FREE CONNECTIONS RING CREATED\n");
 
     for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CONNECTION_POOL_SIZE;ringset_idx++,ipaugenblick_socket++) { 
           
@@ -119,6 +125,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
             exit(0);
         }
     }
+    printf("CONNECTIONS Tx/Rx RINGS CREATED\n");
     memset(ringidx_to_socket,0,sizeof(void *)*IPAUGENBLICK_CONNECTION_POOL_SIZE);
     sprintf(ringname,SELECTOR_POOL_NAME);
 
@@ -132,7 +139,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         printf("cannot create mempool %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
-
+    printf("SELECTOR POOL CREATED\n");
     if(rte_mempool_get(selectors_pool,&g_ipaugenblick_selectors)) {
         printf("cannot get from mempool %s %d \n",__FILE__,__LINE__);
         exit(0);
@@ -142,8 +149,9 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         printf("cannot create ring %s %d \n",__FILE__,__LINE__);
         exit(0);
     }
+    printf("SELECTOR RING CREATED\n");
     ipaugenblick_selector = g_ipaugenblick_selectors;
-    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_SELECTOR_POOL_SIZE;ringset_idx++,ipaugenblick_selector++) {
+    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_SELECTOR_POOL_SIZE;ringset_idx++) {
         sprintf(ringname,"SELECTOR_RING_NAME%d",ringset_idx);
         ipaugenblick_selector[ringset_idx].ringset_idx = ringset_idx;
         ipaugenblick_selector[ringset_idx].ready_connections = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
@@ -151,8 +159,10 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
             printf("cannot create ring %s %d\n",__FILE__,__LINE__);
             exit(0);
         }
+        printf("SELECTOR READY RING#%d CREATED\n",ringset_idx);
         rte_ring_enqueue(selectors_ring,(void*)ringset_idx);
     }
+    printf("DONE\n");
     return 0;
 }
 static inline ipaugenblick_cmd_t *ipaugenblick_dequeue_command_buf()
@@ -191,6 +201,11 @@ static inline struct rte_mbuf *ipaugenblick_dequeue_tx_buf(int ringset_idx)
         return NULL;
     }
     return mbuf;
+}
+
+static inline struct rte_mbuf *ipaugenblick_dequeue_tx_buf_burst(int ringset_idx,struct rte_mbuf **mbufs,int max_count)
+{
+    return rte_ring_sc_dequeue_burst(ringsets[ringset_idx].tx_ring,(void **)mbufs,max_count);
 }
 
 static inline int ipaugenblick_tx_buf_count(int ringset_idx)

@@ -1574,8 +1574,8 @@ void __init ip_init(void)
 #endif
 }
 #ifdef IPAUGENBLICK_UDP_OPTIMIZATION
-struct sk_buff *ipaugenblick_make_skb(struct sock *sk,
-			              struct flowi4 *fl4,
+inline struct sk_buff *ipaugenblick_make_skb(struct sock *sk,
+  			              struct flowi4 *fl4,
 			              void *from,
 			              int length, int transhdrlen,
 			              struct ipcm_cookie *ipc, struct rtable **rtp,

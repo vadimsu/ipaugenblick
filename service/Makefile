@@ -1,8 +1,8 @@
 RTE_SDK=$(CURRENT_DIR)../dpdk-1.6.0r2
 RTE_TARGET ?= x86_64-default-linuxapp-gcc
-include $(RTE_SDK)/mk/rte.extvars.mk
+include $(RTE_SDK)/mk/rte.vars.mk
 SRC_ROOT=$(CURRENT_DIR)
-SRCS-y :=  ipaugenblick_service_loop.c
+SRCS-y :=  ipaugenblick_main.c
 #CFLAGS += -g
 CFLAGS += -Ofast  
 CFLAGS += $(WERROR_FLAGS) 
@@ -15,5 +15,6 @@ CFLAGS += $(ALL_HEADERS) -DMAXCPU=32 -D__UAPI_DEF_IN6_ADDR=1 -D__UAPI_DEF_SOCKAD
 -DCONFIG_X86_64 -DCONFIG_GENERIC_ATOMIC64 -DTCP_BIND_CACHE_SIZE=16384 \
 -DINET_PEER_CACHE_SIZE=16384 -DSOCK_CACHE_SIZE=32768 -DRUN_TO_COMPLETE -DMAX_PKT_BURST=32 \
 -DMULTIPLE_MEM_ALLOC=0 -DOPTIMIZE_SENDPAGES -DOPTIMIZE_TCP_RECEIVE -DCONFIG_NET_POLL_CONTROLLER -DMBUF_SIZE=1448
-LIB = libipaugenblickservice.a
-include $(RTE_SDK)/mk/rte.extlib.mk
+LDFLAGS += -L$(CURRENT_DIR)../build/lib -lnetinet
+APP = ipaugenblick_srv
+include $(RTE_SDK)/mk/rte.extapp.mk

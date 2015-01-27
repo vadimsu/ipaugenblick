@@ -363,7 +363,7 @@ void *create_server_socket(const char *my_ip_addr,unsigned short port)
  * Returns: None
  *
  */
-static void app_glue_poll(int port_num)
+static inline void app_glue_poll(int port_num)
 {
 	struct net_device *netdev = (struct net_device *)get_dpdk_dev_by_port_num(port_num);
 
@@ -395,7 +395,7 @@ void app_glue_init()
  * Returns: None
  *
  */
-static void process_rx_ready_sockets()
+static inline void process_rx_ready_sockets()
 {
 	struct socket *sock;
         uint64_t idx,limit;
@@ -436,7 +436,7 @@ static void process_rx_ready_sockets()
  * Returns: None
  *
  */
-static void process_tx_ready_sockets()
+static inline void process_tx_ready_sockets()
 {
 	struct socket *sock;
         uint64_t idx,limit;
@@ -508,7 +508,7 @@ uint64_t app_glue_rx_queues_process = 0;
  * Returns: None
  *
  */
-void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to_poll_count)
+inline void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to_poll_count)
 {
 	uint64_t ts,ts2,ts3,ts4;
     uint8_t port_idx;

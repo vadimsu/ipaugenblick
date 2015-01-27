@@ -11,13 +11,13 @@
 #ifndef __USER_CALLBACKS_H_
 #define __USER_CALLBACKS_H_
 
-extern void user_on_socket_fatal(struct socket *sock);
+inline void user_on_socket_fatal(struct socket *sock);
 
-extern int user_on_transmission_opportunity(struct socket *sock);
+inline int user_on_transmission_opportunity(struct socket *sock);
 
-extern int user_data_available_cbk(struct socket *sock);
+inline int user_data_available_cbk(struct socket *sock);
 
-extern void user_accept_pending_cbk(struct socket *sock);
+inline void user_accept_pending_cbk(struct socket *sock);
 
 extern void print_user_stats();
 

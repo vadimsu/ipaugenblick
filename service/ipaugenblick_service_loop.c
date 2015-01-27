@@ -75,7 +75,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
     user_on_tx_opportunity_getbuff_called++;
     if(sk->sk_socket == NULL)
         return NULL;
-    sock_and_selector_idx.data = (unsigned long)app_glue_get_user_data(sk->sk_socket);
+    sock_and_selector_idx.u.data = (unsigned long)app_glue_get_user_data(sk->sk_socket);
     ringset_idx = RINGSET_IDX(sock_and_selector_idx);
     while(*copy > 1448) {
         mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
@@ -95,7 +95,7 @@ struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
     return first;
 }
 #endif
-int user_on_transmission_opportunity(struct socket *sock)
+inline int user_on_transmission_opportunity(struct socket *sock)
 {
 	struct page page;
         sock_and_selector_idx_t sock_and_selector_idx;
@@ -110,7 +110,7 @@ int user_on_transmission_opportunity(struct socket *sock)
         if(!sock) {
             return 0;
         }
-        sock_and_selector_idx.data = (unsigned long)app_glue_get_user_data(sock);
+        sock_and_selector_idx.u.data = (unsigned long)app_glue_get_user_data(sock);
         ringset_idx = RINGSET_IDX(sock_and_selector_idx);
         ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
         if(ring_entries == 0) {
@@ -136,7 +136,9 @@ int user_on_transmission_opportunity(struct socket *sock)
         else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             struct msghdr msghdr;
             struct iovec iov;
-            struct rte_mbuf *mbuf;
+            struct rte_mbuf *mbuf[MAX_PKT_BURST];
+            struct sock *sk = sock->sk;
+            int dequeued,rc = 0,loop = 1;
   
             msghdr.msg_namelen = sizeof(struct sockaddr_in);
             msghdr.msg_iov = &iov;
@@ -146,26 +148,24 @@ int user_on_transmission_opportunity(struct socket *sock)
             msghdr.msg_flags = 0;
 
 //            while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
-              do {
-                mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
-                if(!mbuf) 
-                    break;
-                char *p_addr = (char *)mbuf->pkt.data;
-                p_addr -= sizeof(struct sockaddr_in);
-                msghdr.msg_name = p_addr;
+          do {
+                dequeued = ipaugenblick_dequeue_tx_buf_burst(ringset_idx,mbuf,MAX_PKT_BURST);
+                for(i = 0;(i < dequeued)&&(rc >= 0);i++) {
+                    char *p_addr = (char *)mbuf[i]->pkt.data;
+                    p_addr -= sizeof(struct sockaddr_in);
+                    msghdr.msg_name = p_addr;
                 
-                iov.head = mbuf; 
-//                sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
-//                i = kernel_sendmsg(sock, &msghdr, mbuf->pkt.data_len);
-                i = udp_sendmsg(NULL, sock->sk, &msghdr, mbuf->pkt.data_len);
-                if(i <= 0) {
-                    rte_pktmbuf_free(mbuf);
-                    user_on_tx_opportunity_api_failed++;
-                    break;
+                    iov.head = mbuf[i]; 
+                    sent += rc;
+
+                    rc = udp_sendmsg(NULL, sk, &msghdr, mbuf[i]->pkt.data_len);
                 }
-                else
-                    sent += i;
-            }while(1);
+                user_on_tx_opportunity_api_failed += dequeued - i;
+                for(;i < dequeued;i++) {
+                    rte_pktmbuf_free(mbuf[i]); 
+                    loop = 0;
+                }
+            }while(loop);
         }
         if(!sent) {
             user_on_tx_opportunity_cannot_send++;
@@ -174,7 +174,7 @@ int user_on_transmission_opportunity(struct socket *sock)
 	return sent;
 }
 
-int user_data_available_cbk(struct socket *sock)
+inline int user_data_available_cbk(struct socket *sock)
 {
     struct msghdr msg;
     struct iovec vec;
@@ -189,7 +189,7 @@ int user_data_available_cbk(struct socket *sock)
     if(unlikely(sock == NULL)) {
 	return 0;
     }
-    sock_and_selector_idx.data = (unsigned long)app_glue_get_user_data(sock);
+    sock_and_selector_idx.u.data = (unsigned long)app_glue_get_user_data(sock);
     ringset_idx = RINGSET_IDX(sock_and_selector_idx);
     if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
         msg.msg_namelen = sizeof(sockaddrin);
@@ -217,11 +217,11 @@ int user_data_available_cbk(struct socket *sock)
     }
     return 0;
 }
-void user_on_socket_fatal(struct socket *sock)
+inline void user_on_socket_fatal(struct socket *sock)
 {
 	user_data_available_cbk(sock);/* flush data */
 }
-int user_on_accept(struct socket *sock)
+inline int user_on_accept(struct socket *sock)
 {
 	struct socket *newsock = NULL;
         ipaugenblick_cmd_t *cmd;
@@ -238,13 +238,14 @@ int user_on_accept(struct socket *sock)
 	}
 }
 
-static void process_commands()
+static inline void process_commands()
 {
     int ringset_idx;
     ipaugenblick_cmd_t *cmd;
     struct rte_mbuf *mbuf;
     struct socket *sock;
     char *p;
+    sock_and_selector_idx_t sock_and_selector_idx;
 
     cmd = ipaugenblick_dequeue_command_buf();
     if(!cmd)
@@ -257,7 +258,9 @@ static void process_commands()
                                         cmd->u.open_client_sock.peer_ipaddress,cmd->u.open_client_sock.peer_port);
            if(sock) {
                printf("setting user data\n");
-               app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
+               RINGSET_IDX(sock_and_selector_idx) = cmd->ringset_idx;
+               PARENT_IDX(sock_and_selector_idx) = cmd->parent_idx;
+               app_glue_set_user_data(sock,(void *)sock_and_selector_idx.u.data);
                ringidx_to_socket[cmd->ringset_idx] = sock;
            }
            printf("Done\n");
@@ -268,15 +271,19 @@ static void process_commands()
            sock = create_server_socket2(cmd->u.open_listening_sock.ipaddress,cmd->u.open_listening_sock.port);
            if(sock) {
                printf("setting user data\n");
-               app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
+               RINGSET_IDX(sock_and_selector_idx) = cmd->ringset_idx;
+               PARENT_IDX(sock_and_selector_idx) = cmd->parent_idx;
+               app_glue_set_user_data(sock,(void *)sock_and_selector_idx.u.data);
            }
            break;
         case IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND:
            printf("open_udp_sock %x %x\n",cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
            sock = create_udp_socket2(cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
            if(sock) {
-               printf("setting user data\n");
-               app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
+               printf("setting user data %d\n",cmd->ringset_idx);
+               RINGSET_IDX(sock_and_selector_idx) = cmd->ringset_idx;
+               PARENT_IDX(sock_and_selector_idx) = cmd->parent_idx;
+               app_glue_set_user_data(sock,(void *)sock_and_selector_idx.u.data);
                ringidx_to_socket[cmd->ringset_idx] = sock;
            }
            break;
@@ -285,7 +292,9 @@ static void process_commands()
            sock = create_raw_socket2(cmd->u.open_raw_sock.ipaddress,cmd->u.open_raw_sock.protocol);
            if(sock) {
                printf("setting user data\n");
-               app_glue_set_user_data(sock,(void *)cmd->ringset_idx);
+               RINGSET_IDX(sock_and_selector_idx) = cmd->ringset_idx;
+               PARENT_IDX(sock_and_selector_idx) = cmd->parent_idx;
+               app_glue_set_user_data(sock,(void *)sock_and_selector_idx.u.data);
                ringidx_to_socket[cmd->ringset_idx] = sock;
            }
            break;
@@ -296,7 +305,9 @@ static void process_commands()
            }
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
-           app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,cmd->ringset_idx);
+           RINGSET_IDX(sock_and_selector_idx) = cmd->ringset_idx;
+           PARENT_IDX(sock_and_selector_idx) = cmd->parent_idx;
+           app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,sock_and_selector_idx.u.data);
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
 //           cmd->u.set_socket_select.socket_select;

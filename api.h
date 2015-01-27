@@ -73,7 +73,7 @@ extern void app_glue_init_poll_intervals(int drv_poll_interval,
  * Returns: None
  *
  */
-extern void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to_poll_count);
+inline void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to_poll_count);
 /*
  * This function may be called to attach user's data to the socket.
  * Paramters: a pointer  to socket (returned, for example, by create_*_socket)
