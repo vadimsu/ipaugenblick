@@ -1,3 +1,5 @@
+News
+27, January 2015: IPAugenblick as Linux service is going to be released shortly. It will run as user space daemon while providing an API (as static library) to interfact the service from different applications running in other processes. At the same time it is going to upgrade the DPDK version from 1.6 to 1.8
 Intro
 
 At the end of April 2014, I started the poring of Linux TCP/IP into the user space and integrating it with DPDK, after I had done the same with FreeBSD for the company I worked for. Today, almost 5 months (or 20 weekends) later, I decided to publish it. Please feel free to contact me for any question you may have. In case you have questions/difficulties to wirk with the package, you can also ask me to schedule a skype session, if you wish. Contact me to schedule. I'll be glad to help
