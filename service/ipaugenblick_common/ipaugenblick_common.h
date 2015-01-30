@@ -1,6 +1,6 @@
 
 #ifndef __IPAUGENBLICK__COMMON_H__
-#define __IPAUGENBLICK_COMMON_H__
+#define __IPAUGENBLICK__COMMON_H__
 
 enum
 {

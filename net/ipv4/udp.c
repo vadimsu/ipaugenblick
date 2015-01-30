@@ -338,7 +338,7 @@ int udp_v4_get_port(struct sock *sk, unsigned short snum)
 	return udp_lib_get_port(sk, snum, ipv4_rcv_saddr_equal, hash2_nulladdr);
 }
 
-static inline int compute_score(struct sock *sk, struct net *net, __be32 saddr,
+static inline __attribute__ ((always_inline)) int compute_score(struct sock *sk, struct net *net, __be32 saddr,
 			 unsigned short hnum,
 			 __be16 sport, __be32 daddr, __be16 dport, int dif)
 {
@@ -376,7 +376,7 @@ static inline int compute_score(struct sock *sk, struct net *net, __be32 saddr,
 /*
  * In this second variant, we check (daddr, dport) matches (inet_rcv_sadd, inet_num)
  */
-static inline int compute_score2(struct sock *sk, struct net *net,
+static inline __attribute__ ((always_inline))  int compute_score2(struct sock *sk, struct net *net,
 				 __be32 saddr, __be16 sport,
 				 __be32 daddr, unsigned int hnum, int dif)
 {
@@ -559,7 +559,7 @@ begin:
 }
 EXPORT_SYMBOL_GPL(__udp4_lib_lookup);
 
-static inline struct sock *__udp4_lib_lookup_skb(struct sk_buff *skb,
+static inline __attribute__ ((always_inline))  struct sock *__udp4_lib_lookup_skb(struct sk_buff *skb,
 						 __be16 sport, __be16 dport,
 						 struct udp_table *udptable)
 {
@@ -577,7 +577,7 @@ struct sock *udp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
 }
 EXPORT_SYMBOL_GPL(udp4_lib_lookup);
 
-static inline bool __udp_is_mcast_sock(struct net *net, struct sock *sk,
+static inline __attribute__ ((always_inline))  bool __udp_is_mcast_sock(struct net *net, struct sock *sk,
 				       __be16 loc_port, __be32 loc_addr,
 				       __be16 rmt_port, __be32 rmt_addr,
 				       int dif, unsigned short hnum)
@@ -597,7 +597,7 @@ static inline bool __udp_is_mcast_sock(struct net *net, struct sock *sk,
 	return true;
 }
 
-static inline struct sock *udp_v4_mcast_next(struct net *net, struct sock *sk,
+static inline __attribute__ ((always_inline))  struct sock *udp_v4_mcast_next(struct net *net, struct sock *sk,
 					     __be16 loc_port, __be32 loc_addr,
 					     __be16 rmt_port, __be32 rmt_addr,
 					     int dif)
@@ -845,7 +845,7 @@ out:
 }
 EXPORT_SYMBOL(udp_push_pending_frames);
 
-inline int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
+inline __attribute__ ((always_inline)) int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		size_t len)
 {
 	struct inet_sock *inet = inet_sk(sk);
@@ -1680,7 +1680,7 @@ static int __udp4_lib_mcast_deliver(struct net *net, struct sk_buff *skb,
  * Otherwise, csum completion requires chacksumming packet body,
  * including udp header and folding it to skb->csum.
  */
-static inline int udp4_csum_init(struct sk_buff *skb, struct udphdr *uh,
+static inline __attribute__ ((always_inline))  int udp4_csum_init(struct sk_buff *skb, struct udphdr *uh,
 				 int proto)
 {
 	const struct iphdr *iph;

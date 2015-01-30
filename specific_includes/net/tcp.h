@@ -477,7 +477,7 @@ int __cookie_v4_check(const struct iphdr *iph, const struct tcphdr *th,
 		      u32 cookie);
 struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb,
 			     struct ip_options *opt);
-struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy);
+#include "user_get_buffer_callback.h"
 #ifdef CONFIG_SYN_COOKIES
 #include <specific_includes/linux/ktime.h>
 

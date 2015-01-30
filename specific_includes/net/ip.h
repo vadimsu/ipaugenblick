@@ -137,13 +137,6 @@ struct sk_buff *ip_make_skb(struct sock *sk, struct flowi4 *fl4,
 			    struct ipcm_cookie *ipc, struct rtable **rtp,
 			    unsigned int flags);
 
-inline struct sk_buff *ipaugenblick_make_skb(struct sock *sk,
-                                      struct flowi4 *fl4,
-                                      void *from,
-                                      int length, int transhdrlen,
-                                      struct ipcm_cookie *ipc, struct rtable **rtp,
-                                      unsigned int flags);
-
 static inline struct sk_buff *ip_finish_skb(struct sock *sk, struct flowi4 *fl4)
 {
 	return __ip_make_skb(sk, fl4, &sk->sk_write_queue, &inet_sk(sk)->cork.base);
@@ -519,5 +512,127 @@ void ip_local_error(struct sock *sk, int err, __be32 daddr, __be16 dport,
 #ifdef CONFIG_PROC_FS
 int ip_misc_proc_init(void);
 #endif
+
+/*
+ * copy saddr and daddr, possibly using 64bit load/stores
+ * Equivalent to :
+ *   iph->saddr = fl4->saddr;
+ *   iph->daddr = fl4->daddr;
+ */
+static inline __attribute__ ((always_inline)) void ip_copy_addrs(struct iphdr *iph, const struct flowi4 *fl4)
+{
+        BUILD_BUG_ON(offsetof(typeof(*fl4), daddr) !=
+                     offsetof(typeof(*fl4), saddr) + sizeof(fl4->saddr));
+        memcpy(&iph->saddr, &fl4->saddr,
+               sizeof(fl4->saddr) + sizeof(fl4->daddr));
+}
+
+
+static inline __attribute__ ((always_inline)) int ip_select_ttl(struct inet_sock *inet, struct dst_entry *dst)
+{
+        int ttl = inet->uc_ttl;
+
+        if (ttl < 0)
+                ttl = ip4_dst_hoplimit(dst);
+        return ttl;
+}
+
+#ifdef IPAUGENBLICK_UDP_OPTIMIZATION
+static inline __attribute__ ((always_inline))  struct sk_buff *ipaugenblick_make_skb(struct sock *sk,
+                                      struct flowi4 *fl4,
+                                      void *from,
+                                      int length, int transhdrlen,
+                                      struct ipcm_cookie *ipc, struct rtable **rtp,
+                                      unsigned int flags)
+{
+    int hh_len;
+    unsigned int fragheaderlen,fraglen,alloclen;
+    struct inet_sock *inet = inet_sk(sk);
+    struct net *net = sock_net(sk);
+    struct ip_options *opt = NULL;
+    struct rtable *rt = *rtp;
+    struct iphdr *iph;
+    __be16 df = 0;
+    __u8 ttl;
+    int mtu;
+    int err;
+    int csummode = CHECKSUM_NONE;
+    struct sk_buff *skb;
+    int exthdrlen = rt->dst.header_len;
+
+    *rtp = NULL;
+
+    hh_len = LL_RESERVED_SPACE(rt->dst.dev);
+
+    mtu = ip_sk_use_pmtu(sk) ? dst_mtu(&rt->dst) : rt->dst.dev->mtu;
+
+    fragheaderlen = sizeof(struct iphdr); /* no ip options */
+
+    fraglen = fragheaderlen+transhdrlen;/* because we fill skb frag */
+
+    if (rt->rt_type == RTN_MULTICAST)
+        ttl = inet->mc_ttl;
+    else
+        ttl = ip_select_ttl(inet, &rt->dst);
+
+    alloclen = fraglen + exthdrlen;
+
+    if (transhdrlen &&
+            length + fragheaderlen <= mtu &&
+            rt->dst.dev->features & NETIF_F_V4_CSUM &&
+            !exthdrlen)
+                csummode = CHECKSUM_PARTIAL;
+
+    skb = sock_alloc_send_skb(sk,alloclen + hh_len + 15,(flags & MSG_DONTWAIT), &err);
+    if(!skb) {
+        return skb;
+    }
+
+    /*
+     *  Fill in the control structures
+     */
+    skb->ip_summed = csummode;
+    skb->csum = 0;
+    skb_reserve(skb, hh_len);
+    skb_shinfo(skb)->tx_flags = ipc->tx_flags;
+    /*
+     *  Find where to start putting bytes.
+     */
+    /*data = */skb_put(skb, fraglen + exthdrlen);
+    skb_set_network_header(skb, exthdrlen);
+    skb->transport_header = (skb->network_header + fragheaderlen);
+
+
+    /* move skb->data to ip header from ext header */
+    if (skb->data < skb_network_header(skb))
+        __skb_pull(skb, skb_network_offset(skb));
+
+    iph = ip_hdr(skb);
+    iph->version = 4;
+    iph->ihl = 5;
+    iph->tos = ipc->tos;
+    iph->frag_off = df;
+    iph->ttl = ttl;
+    iph->protocol = sk->sk_protocol;
+    ip_copy_addrs(iph, fl4);
+    ip_select_ident(skb, &rt->dst, sk);
+
+    if (opt) {
+        iph->ihl += opt->optlen>>2;
+        ip_options_build(skb, opt, ipc->addr, rt, 0);
+    }
+
+    skb->priority = sk->sk_priority;
+    skb->mark = sk->sk_mark;
+    /*
+         * Steal rt from cork.dst to avoid a pair of atomic_inc/atomic_dec
+         * on dst refcount
+         */
+    skb_dst_set(skb, &rt->dst);
+    ip_generic_getfrag(from, NULL, 0, length - transhdrlen, 0, skb);
+    return skb;
+}
+#endif
+
 
 #endif	/* _IP_H */

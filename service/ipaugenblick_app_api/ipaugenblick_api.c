@@ -265,7 +265,7 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
     struct sockaddr_in *p_addr_in;
     mbuf->pkt.data_len = length;
     p_addr -= sizeof(struct sockaddr_in);
-    p_addr_in = p_addr;
+    p_addr_in = (struct sockaddr_in *)p_addr;
     p_addr_in->sin_family = AF_INET;
     p_addr_in->sin_port = port;
     p_addr_in->sin_addr.s_addr = ipaddr;
@@ -293,7 +293,7 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int
     *len = mbuf->pkt.data_len;
     char *p_addr = mbuf->pkt.data;
     p_addr -= sizeof(struct sockaddr_in);
-    struct sockaddr_in *p_addr_in = p_addr;
+    struct sockaddr_in *p_addr_in = (struct sockaddr_in *)p_addr;
     *port = p_addr_in->sin_port;
     *ipaddr = p_addr_in->sin_addr.s_addr;
     return 0;

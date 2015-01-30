@@ -38,6 +38,8 @@ extern void *ringidx_to_socket[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 extern ipaugenblick_socket_t *g_ipaugenblick_sockets;
 extern ipaugenblick_selector_t *g_ipaugenblick_selectors;
 
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+
 static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int command_bufs_count,
                                                           int rx_bufs_count,
                                                           int tx_bufs_count)
@@ -91,7 +93,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 
     printf("FREE CONNECTIONS POOL CREATED\n");
 
-    if(rte_mempool_get(free_connections_pool,&g_ipaugenblick_sockets)) {
+    if(rte_mempool_get(free_connections_pool,(void **)&g_ipaugenblick_sockets)) {
         printf("cannot get from mempool %s %d \n",__FILE__,__LINE__);
         exit(0);
     }
@@ -140,7 +142,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         exit(0);
     }
     printf("SELECTOR POOL CREATED\n");
-    if(rte_mempool_get(selectors_pool,&g_ipaugenblick_selectors)) {
+    if(rte_mempool_get(selectors_pool,(void **)&g_ipaugenblick_selectors)) {
         printf("cannot get from mempool %s %d \n",__FILE__,__LINE__);
         exit(0);
     }
@@ -203,7 +205,7 @@ static inline struct rte_mbuf *ipaugenblick_dequeue_tx_buf(int ringset_idx)
     return mbuf;
 }
 
-static inline struct rte_mbuf *ipaugenblick_dequeue_tx_buf_burst(int ringset_idx,struct rte_mbuf **mbufs,int max_count)
+static inline int ipaugenblick_dequeue_tx_buf_burst(int ringset_idx,struct rte_mbuf **mbufs,int max_count)
 {
     return rte_ring_sc_dequeue_burst(ringsets[ringset_idx].tx_ring,(void **)mbufs,max_count);
 }
@@ -218,7 +220,7 @@ static inline int ipaugenblick_rx_buf_free_count(int ringset_idx)
     return rte_ring_free_count(ringsets[ringset_idx].rx_ring);
 }
 
-int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,int ringset_idx)
+static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,int ringset_idx)
 {
     return rte_ring_sp_enqueue_bulk(ringsets[ringset_idx].rx_ring,(void *)&mbuf,1);
 }

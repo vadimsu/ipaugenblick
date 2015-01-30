@@ -43,6 +43,8 @@
 #include <rte_timer.h>
 #include <api.h>
 #include <porting/libinit.h>
+#include "service/ipaugenblick_common/ipaugenblick_common.h"
+#include "service/ipaugenblick_service/ipaugenblick_server_side.h"
 #include <user_callbacks.h>
 
 TAILQ_HEAD(read_ready_socket_list_head, socket) read_ready_socket_list_head;
@@ -576,7 +578,7 @@ void app_glue_set_user_data(void *socket,void *data)
  * Returns: pointer to data to be attached to the socket
  *
  */
-void *app_glue_get_user_data(void *socket)
+inline void *app_glue_get_user_data(void *socket)
 {
 	struct socket *sock = (struct socket *)socket;
 	if(!sock) {
