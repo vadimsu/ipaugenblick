@@ -78,7 +78,7 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
             struct iovec iov;
             struct rte_mbuf *mbuf[MAX_PKT_BURST];
             struct sock *sk = sock->sk;
-            int dequeued,rc = 0,loop = 1;
+            int dequeued,rc = 0,loop = 0;
 
             msghdr.msg_namelen = sizeof(struct sockaddr_in);
             msghdr.msg_iov = &iov;
@@ -95,20 +95,16 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                     p_addr -= sizeof(struct sockaddr_in);
                     msghdr.msg_name = p_addr;
 
-                    iov.head = mbuf[i];
-                    sent += rc;
-
+                    iov.head = mbuf[i]; 
+                    sent = 1;
                     rc = udp_sendmsg(NULL, sk, &msghdr, mbuf[i]->pkt.data_len);
+                    sent = (rc > 0);
                 }
                 user_on_tx_opportunity_api_failed += dequeued - i;
                 for(;i < dequeued;i++) {
                     rte_pktmbuf_free(mbuf[i]);
-                    loop = 0;
                 }
-            }while(loop);
-        }
-        if(!sent) {
-            user_on_tx_opportunity_cannot_send++;
+            }while((dequeued > 0) && (sent > 0));
         }
         user_on_tx_opportunity_cycles += rte_rdtsc() - ts;
         return sent;

@@ -154,7 +154,6 @@ struct ixgbe_advctx_info {
 	uint16_t flags;           /**< ol_flags for context build. */
 	uint32_t cmp_mask;        /**< compare mask for vlan_macip_lens */
 	union rte_vlan_macip vlan_macip_lens; /**< vlan, mac ip length. */
-        uint32_t mss_l4_len;
 };
 
 /**

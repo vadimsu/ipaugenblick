@@ -153,8 +153,16 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
                                                           IPPROTO_TCP,
                                                           0);
         }
-#else
-        head->ol_flags = PKT_TX_IP_CKSUM;        
+#else 
+//        if (skb->protocol == htons(ETH_P_IP)) {
+//            head->ol_flags = PKT_TX_IP_CKSUM;        
+ //           struct iphdr *iph = ip_hdr(skb);
+ //           iph->check = 0;
+ //           if (ip_hdr(skb)->protocol == IPPROTO_TCP)
+ //               head->ol_flags = PKT_TX_TCP_CKSUM;
+ //           else if(ip_hdr(skb)->protocol == IPPROTO_UDP)
+ //               head->ol_flags = PKT_TX_UDP_CKSUM;
+ //       }
 #endif
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
@@ -403,7 +411,7 @@ void *create_netdev(int port_num)
 #ifdef GSO
 	netdev->features = NETIF_F_SG | NETIF_F_GSO | NETIF_F_FRAGLIST;
 #else
-        netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST|NETIF_F_V4_CSUM;
+        netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST/*|NETIF_F_V4_CSUM*/;
 #endif
 	netdev->hw_features = 0;
 
