@@ -765,7 +765,7 @@ void udp4_hwcsum(struct sk_buff *skb, __be32 src, __be32 dst)
 }
 EXPORT_SYMBOL_GPL(udp4_hwcsum);
 
-static int udp_send_skb(struct sk_buff *skb, struct flowi4 *fl4)
+static inline __attribute__((always_inline))  int udp_send_skb(struct sk_buff *skb, struct flowi4 *fl4)
 {
 	struct sock *sk = skb->sk;
 	struct inet_sock *inet = inet_sk(sk);
@@ -824,7 +824,7 @@ send:
 /*
  * Push out all pending data as one UDP datagram. Socket is locked.
  */
-int udp_push_pending_frames(struct sock *sk)
+static inline __attribute__((always_inline)) int udp_push_pending_frames(struct sock *sk)
 {
 	struct udp_sock  *up = udp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
@@ -843,7 +843,7 @@ out:
 	up->pending = 0;
 	return err;
 }
-EXPORT_SYMBOL(udp_push_pending_frames);
+//EXPORT_SYMBOL(udp_push_pending_frames);
 
 inline __attribute__ ((always_inline)) int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		size_t len)

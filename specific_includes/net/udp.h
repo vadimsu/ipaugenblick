@@ -182,7 +182,7 @@ int udp_get_port(struct sock *sk, unsigned short snum,
 void udp_err(struct sk_buff *, u32);
 inline __attribute__ ((always_inline)) int udp_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 		size_t len);
-int udp_push_pending_frames(struct sock *sk);
+//int udp_push_pending_frames(struct sock *sk);
 void udp_flush_pending_frames(struct sock *sk);
 void udp4_hwcsum(struct sk_buff *skb, __be32 src, __be32 dst);
 int udp_rcv(struct sk_buff *skb);
