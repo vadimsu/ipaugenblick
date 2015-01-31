@@ -14,7 +14,8 @@ enum
     IPAUGENBLICK_SOCKET_ACCEPTED_COMMAND,
     IPAUGENBLICK_SET_SOCKET_RING_COMMAND,
     IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND,
-    IPAUGENBLICK_SOCKET_READY_FEEDBACK
+    IPAUGENBLICK_SOCKET_READY_FEEDBACK,
+    IPAUGENBLICK_SOCKET_CONNECT_COMMAND
 };
 
 typedef struct
@@ -63,6 +64,12 @@ typedef struct
     int socket_select;
 }__attribute__((packed))ipaugenblick_set_socket_select_cmd_t;
 
+typedef struct
+{
+    unsigned int ipaddr;
+    unsigned short port;
+}__attribute__((packed))ipaugenblick_socket_connect_cmd_t;
+
 #define SOCKET_READABLE_SHIFT 1
 #define SOCKET_WRITABLE_SHIFT 2
 
@@ -86,6 +93,7 @@ typedef struct
         ipaugenblick_set_socket_ring_cmd_t set_socket_ring;
         ipaugenblick_set_socket_select_cmd_t set_socket_select;
         ipaugenblick_socket_ready_feedback_t socket_ready_feedback;
+        ipaugenblick_socket_connect_cmd_t socket_connect;
     }u;
 }__attribute__((packed))ipaugenblick_cmd_t;
 

@@ -22,6 +22,7 @@ extern uint64_t user_on_rx_opportunity_called;
 extern uint64_t user_on_rx_opportunity_called_exhausted;
 extern uint64_t user_rx_mbufs;
 extern uint64_t user_on_tx_opportunity_cannot_send;
+extern uint64_t g_last_time_transmitted;
 
 static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
 {
@@ -41,7 +42,6 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
         sock_and_selector_idx_t sock_and_selector_idx;
         int i = 0,sent = 0;
         uint32_t to_send_this_time;
-        uint64_t ts = rte_rdtsc();
         unsigned int ringset_idx;
         uint64_t ring_entries;
 
@@ -52,15 +52,14 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
         }
         sock_and_selector_idx.u.data = (unsigned long)get_user_data(sock);
         ringset_idx = RINGSET_IDX(sock_and_selector_idx);
-        ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
-        if(ring_entries == 0) {
-            /* TODO let user know it is writable */
-            user_on_tx_opportunity_api_nothing_to_tx++;
-            return 0;
-        }
-
+        
         if(sock->type == SOCK_STREAM) {
-
+            ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
+            if(ring_entries == 0) {
+                /* TODO let user know it is writable */
+                user_on_tx_opportunity_api_nothing_to_tx++;
+                return 0;
+            }
             while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
                     sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
                    to_send_this_time = (to_send_this_time > (ring_entries<<10)) ? (ring_entries<<10) : to_send_this_time;
@@ -87,8 +86,11 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
             msghdr.msg_control = 0;
             msghdr.msg_flags = 0;
 
-//            while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
           do {
+                ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
+                if((ring_entries < MAX_PKT_BURST)&&((rte_rdtsc() - g_last_time_transmitted) < 30000)) {
+                    break;
+                }
                 dequeued = ipaugenblick_dequeue_tx_buf_burst(ringset_idx,mbuf,MAX_PKT_BURST);
                 for(i = 0;(i < dequeued)&&(rc >= 0);i++) {
                     char *p_addr = (char *)mbuf[i]->pkt.data;
@@ -96,17 +98,18 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                     msghdr.msg_name = p_addr;
 
                     iov.head = mbuf[i]; 
-                    sent = 1;
+                //    sent = 1;
                     rc = udp_sendmsg(NULL, sk, &msghdr, mbuf[i]->pkt.data_len);
                     sent = (rc > 0);
+                    if(sent > 0)
+                        g_last_time_transmitted = rte_rdtsc();
                 }
                 user_on_tx_opportunity_api_failed += dequeued - i;
                 for(;i < dequeued;i++) {
                     rte_pktmbuf_free(mbuf[i]);
                 }
             }while((dequeued > 0) && (sent > 0));
-        }
-        user_on_tx_opportunity_cycles += rte_rdtsc() - ts;
+        } 
         return sent;
 }
 

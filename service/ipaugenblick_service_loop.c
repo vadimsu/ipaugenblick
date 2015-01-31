@@ -48,6 +48,8 @@ uint64_t user_rx_mbufs = 0;
 uint64_t user_kick_tx = 0;
 uint64_t user_on_tx_opportunity_cannot_send = 0;
 
+uint64_t g_last_time_transmitted = 0;
+
 struct rte_ring *command_ring = NULL;
 struct rte_ring *selectors_ring = NULL;
 struct rte_mempool *free_connections_pool = NULL;
@@ -102,7 +104,7 @@ static inline void process_commands()
            printf("open_udp_sock %x %x\n",cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
            sock = create_udp_socket2(cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
            if(sock) {
-               printf("setting user data %d\n",cmd->ringset_idx);
+               printf("setting user data %d %p\n",cmd->ringset_idx,sock->sk);
                RINGSET_IDX(sock_and_selector_idx) = cmd->ringset_idx;
                PARENT_IDX(sock_and_selector_idx) = cmd->parent_idx;
                app_glue_set_user_data(sock,(void *)sock_and_selector_idx.u.data);
@@ -133,6 +135,15 @@ static inline void process_commands()
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
 //           cmd->u.set_socket_select.socket_select;
+           break;
+        case IPAUGENBLICK_SOCKET_CONNECT_COMMAND:
+           if(ringidx_to_socket[cmd->ringset_idx]) {
+               struct sockaddr_in addr;
+               addr.sin_family = AF_INET;
+               addr.sin_addr.s_addr = cmd->u.socket_connect.ipaddr;
+               addr.sin_port = cmd->u.socket_connect.port;
+               kernel_connect((struct socket *)ringidx_to_socket[cmd->ringset_idx],(struct sockaddr *)&addr,sizeof(addr),0);
+           }
            break;
         default:
            printf("unknown cmd %d\n",cmd->cmd);

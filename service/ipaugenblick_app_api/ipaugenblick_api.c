@@ -366,3 +366,16 @@ int ipaugenblick_select(int selector,unsigned int mask)
     }
     return 0;
 }
+
+int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port)
+{
+    ipaugenblick_cmd_t *cmd;
+    cmd = ipaugenblick_get_free_command_buf();
+    if(!cmd) {
+        return -1;
+    }
+    cmd->cmd = IPAUGENBLICK_SOCKET_CONNECT_COMMAND;
+    cmd->ringset_idx = sock;
+    ipaugenblick_enqueue_command_buf(cmd);
+    return 0;
+}
