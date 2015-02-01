@@ -93,9 +93,14 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                 }
                 dequeued = ipaugenblick_dequeue_tx_buf_burst(ringset_idx,mbuf,MAX_PKT_BURST);
                 for(i = 0;(i < dequeued)&&(rc >= 0);i++) {
-                    char *p_addr = (char *)mbuf[i]->pkt.data;
-                    p_addr -= sizeof(struct sockaddr_in);
-                    msghdr.msg_name = p_addr;
+                    char *p_addr;
+                    if((sock->sk)&&(sock->sk->sk_state != TCP_ESTABLISHED)) {
+                        p_addr = (char *)mbuf[i]->pkt.data;
+                        p_addr -= sizeof(struct sockaddr_in);
+                        msghdr.msg_name = p_addr;
+                    }
+                    else
+                       msghdr.msg_name = NULL;
 
                     iov.head = mbuf[i]; 
                 //    sent = 1;

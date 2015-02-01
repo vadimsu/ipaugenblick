@@ -142,7 +142,15 @@ static inline void process_commands()
                addr.sin_family = AF_INET;
                addr.sin_addr.s_addr = cmd->u.socket_connect.ipaddr;
                addr.sin_port = cmd->u.socket_connect.port;
-               kernel_connect((struct socket *)ringidx_to_socket[cmd->ringset_idx],(struct sockaddr *)&addr,sizeof(addr),0);
+               if(kernel_connect((struct socket *)ringidx_to_socket[cmd->ringset_idx],(struct sockaddr *)&addr,sizeof(addr),0)) {
+                   printf("failed to connect socket\n");
+               }
+               else {
+                   printf("socket connected\n");
+               }
+           }
+           else {
+              printf("no socket to invoke command!!!\n");
            }
            break;
         default:

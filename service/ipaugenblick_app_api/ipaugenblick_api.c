@@ -375,6 +375,8 @@ int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port
         return -1;
     }
     cmd->cmd = IPAUGENBLICK_SOCKET_CONNECT_COMMAND;
+    cmd->u.socket_connect.ipaddr = ipaddr;
+    cmd->u.socket_connect.port = port;
     cmd->ringset_idx = sock;
     ipaugenblick_enqueue_command_buf(cmd);
     return 0;

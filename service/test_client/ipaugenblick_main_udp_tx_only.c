@@ -9,7 +9,8 @@
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
-#define DATAGRAM_LENGTH 1448
+#define DATAGRAM_LENGTH 512
+#define USE_CONNECTED 1
 
 int main(int argc,char **argv)
 {
@@ -34,15 +35,22 @@ int main(int argc,char **argv)
     from_port = htons(7777);
     printf("waiting for creation feedback %d\n",sock);
     sleep(1);
-    ipaugenblick_socket_connect(sock,from_ip,ntohs(from_port));
+#if USE_CONNECTED
+        printf("connecting %d\n",sock);
+        ipaugenblick_socket_connect(sock,from_ip,from_port);
+#endif
+    printf("done\n");
     while(1) {
         buff = ipaugenblick_get_buffer(DATAGRAM_LENGTH);
         if(buff) {
-            if(ipaugenblick_sendto(sock,buff,0,DATAGRAM_LENGTH,from_ip,from_port)) { 
-//              if(ipaugenblick_send(sock,buff,0,60)) {
+#if USE_CONNECTED
+            if(ipaugenblick_send(sock,buff,0,DATAGRAM_LENGTH)) {
+#else
+            if(ipaugenblick_sendto(sock,buff,0,DATAGRAM_LENGTH,from_ip,from_port)) {
+#endif
                     usleep(1000);
                     ipaugenblick_release_tx_buffer(buff);
-        //            ipaugenblick_socket_kick(sock);
+                    ipaugenblick_socket_kick(sock);
             }
             else {
                 sent_packets++; 
