@@ -160,10 +160,10 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
            iph->check = 0;
            head->pkt.vlan_macip.f.l3_len = sizeof(struct iphdr);
            head->pkt.vlan_macip.f.l2_len = skb_network_offset(skb);
- //           if (ip_hdr(skb)->protocol == IPPROTO_TCP)
- //               head->ol_flags = PKT_TX_TCP_CKSUM;
- //           else if(ip_hdr(skb)->protocol == IPPROTO_UDP)
- //               head->ol_flags = PKT_TX_UDP_CKSUM;
+           if (ip_hdr(skb)->protocol == IPPROTO_TCP)
+               head->ol_flags |= PKT_TX_TCP_CKSUM;
+           else if(ip_hdr(skb)->protocol == IPPROTO_UDP)
+               head->ol_flags |= PKT_TX_UDP_CKSUM;
        }
 #endif
 	/* this will pass the mbuf to DPDK PMD driver */
