@@ -9,7 +9,7 @@
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
-#define DATAGRAM_LENGTH 512
+#define DATAGRAM_LENGTH 60
 #define USE_CONNECTED 1
 
 int main(int argc,char **argv)
@@ -48,7 +48,7 @@ int main(int argc,char **argv)
 #else
             if(ipaugenblick_sendto(sock,buff,0,DATAGRAM_LENGTH,from_ip,from_port)) {
 #endif
-                    usleep(1000);
+                    usleep(1);
                     ipaugenblick_release_tx_buffer(buff);
                     ipaugenblick_socket_kick(sock);
             }
