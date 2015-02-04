@@ -9,7 +9,7 @@
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
-#define USE_TX 1
+#define USE_TX 0
 
 int main(int argc,char **argv)
 {
@@ -41,7 +41,7 @@ int main(int argc,char **argv)
         if(socket_connected == -1) {
             socket_connected = ipaugenblick_accept(sock);
             if(socket_connected != -1) {
-                printf("socket accepted\n");
+                printf("socket accepted %d %d\n",socket_connected,selector);
                 ipaugenblick_set_socket_select(socket_connected,selector);
             }
         }
@@ -52,7 +52,9 @@ int main(int argc,char **argv)
         if(socket_to_read == -1) {
             continue;
         }
+        //printf("%s %d %d\n",__FILE__,__LINE__,socket_to_read);
         if(ipaugenblick_receive(socket_to_read,&rxbuff,&len) == 0) {
+          //  printf("%s %d\n",__FILE__,__LINE__);
             ipaugenblick_release_rx_buffer(rxbuff);
 #if USE_TX
             buff = ipaugenblick_get_buffer(1448);
@@ -66,7 +68,7 @@ int main(int argc,char **argv)
                 ipaugenblick_socket_kick(socket_to_read);
             } 
 #endif
-        }
+        } 
     }
     return 0;
 }

@@ -10,7 +10,7 @@ typedef struct _socket_descriptor
     }u;*/
     struct rte_ring *tx_ring;
     struct rte_ring *rx_ring;
-    unsigned int sock;
+    unsigned long sock;
     ipaugenblick_socket_t *socket;
     int select;
 }socket_descriptor_t;

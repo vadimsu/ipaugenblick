@@ -225,14 +225,15 @@ static inline int ipaugenblick_rx_buf_free_count(int ringset_idx)
 
 static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,int ringset_idx,int selector)
 {
-    uint32_t ringidx_ready_mask;
-    if(selector != -1) {
+    uint32_t ringidx_ready_mask; 
+    int rc;
+    rc = rte_ring_sp_enqueue_bulk(ringsets[ringset_idx].rx_ring,(void *)&mbuf,1);
+    if((selector != -1)&&(rc == 0)) {
         if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[ringset_idx].read_ready))
             return 0;
         ringidx_ready_mask = ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
-        return rte_ring_sp_enqueue_bulk(g_ipaugenblick_selectors[selector].ready_connections,(void *)ringidx_ready_mask,1);
+        return rte_ring_enqueue(g_ipaugenblick_selectors[selector].ready_connections,(void *)ringidx_ready_mask);
     }
-    return rte_ring_sp_enqueue_bulk(ringsets[ringset_idx].rx_ring,(void *)&mbuf,1);
 }
 
 static inline void ipaugenblick_mark_writable(int ringset_idx,int selector)
@@ -244,7 +245,7 @@ static inline void ipaugenblick_mark_writable(int ringset_idx,int selector)
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[ringset_idx].write_ready))
         return;
     ringidx_ready_mask = ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
-    rte_ring_sp_enqueue_bulk(g_ipaugenblick_selectors[selector].ready_connections,(void *)ringidx_ready_mask,1);
+    rte_ring_enqueue(g_ipaugenblick_selectors[selector].ready_connections,(void *)ringidx_ready_mask);
 }
 
 #endif

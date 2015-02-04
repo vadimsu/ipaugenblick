@@ -356,6 +356,7 @@ int ipaugenblick_accept(int sock)
         return -1;
     } 
     socket_descriptors[ipaugenblick_socket->connection_idx].sock = cmd->u.accepted_socket.socket_descr;
+    socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
     cmd->cmd = IPAUGENBLICK_SET_SOCKET_RING_COMMAND;
     cmd->ringset_idx = ipaugenblick_socket->connection_idx;
     cmd->u.set_socket_ring.socket_descr = socket_descriptors[ipaugenblick_socket->connection_idx].sock;

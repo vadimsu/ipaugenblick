@@ -132,10 +132,12 @@ static inline void process_commands()
            RINGSET_IDX(sock_and_selector_idx) = cmd->ringset_idx;
            PARENT_IDX(sock_and_selector_idx) = cmd->parent_idx;
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,sock_and_selector_idx.u.data);
+           ringidx_to_socket[cmd->ringset_idx] = cmd->u.set_socket_ring.socket_descr;
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
            sock_and_selector_idx.u.data = app_glue_get_user_data((struct socket *)ringidx_to_socket[cmd->ringset_idx]);
            PARENT_IDX(sock_and_selector_idx) = cmd->u.set_socket_select.socket_select;
+           printf("%s %d %d %d\n",__FILE__,__LINE__,RINGSET_IDX(sock_and_selector_idx),PARENT_IDX(sock_and_selector_idx));
            app_glue_set_user_data((struct socket *)ringidx_to_socket[cmd->ringset_idx],sock_and_selector_idx.u.data);
            break;
         case IPAUGENBLICK_SOCKET_CONNECT_COMMAND:
