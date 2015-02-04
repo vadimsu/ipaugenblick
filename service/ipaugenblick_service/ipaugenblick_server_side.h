@@ -112,7 +112,8 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
           
         memset(ipaugenblick_socket,0,sizeof(ipaugenblick_socket_t));
         ipaugenblick_socket->connection_idx = ringset_idx;
-        rte_atomic16_init(&ipaugenblick_socket->is_in_select);
+        rte_atomic16_init(&ipaugenblick_socket->read_ready);
+        rte_atomic16_init(&ipaugenblick_socket->write_ready);
         rte_ring_enqueue(free_connections_ring,(void*)ipaugenblick_socket);
         sprintf(ringname,TX_RING_NAME_BASE"%d",ringset_idx);
         ringsets[ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
@@ -218,13 +219,32 @@ static inline int ipaugenblick_tx_buf_count(int ringset_idx)
 }
 
 static inline int ipaugenblick_rx_buf_free_count(int ringset_idx)
-{
+{ 
     return rte_ring_free_count(ringsets[ringset_idx].rx_ring);
 }
 
-static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,int ringset_idx)
+static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,int ringset_idx,int selector)
 {
+    uint32_t ringidx_ready_mask;
+    if(selector != -1) {
+        if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[ringset_idx].read_ready))
+            return 0;
+        ringidx_ready_mask = ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
+        return rte_ring_sp_enqueue_bulk(g_ipaugenblick_selectors[selector].ready_connections,(void *)ringidx_ready_mask,1);
+    }
     return rte_ring_sp_enqueue_bulk(ringsets[ringset_idx].rx_ring,(void *)&mbuf,1);
+}
+
+static inline void ipaugenblick_mark_writable(int ringset_idx,int selector)
+{
+    uint32_t ringidx_ready_mask;
+    if(selector == -1) {
+        return;
+    }
+    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[ringset_idx].write_ready))
+        return;
+    ringidx_ready_mask = ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
+    rte_ring_sp_enqueue_bulk(g_ipaugenblick_selectors[selector].ready_connections,(void *)ringidx_ready_mask,1);
 }
 
 #endif

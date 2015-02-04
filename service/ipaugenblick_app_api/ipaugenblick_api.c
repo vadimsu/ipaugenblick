@@ -182,6 +182,8 @@ int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigne
 
     ipaugenblick_enqueue_command_buf(cmd);
 
+    socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
+
     return ipaugenblick_socket->connection_idx;
 }
 
@@ -208,6 +210,8 @@ int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port)
 
     ipaugenblick_enqueue_command_buf(cmd);
 
+    socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
+
     return ipaugenblick_socket->connection_idx;
 }
 
@@ -233,6 +237,8 @@ int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port)
     cmd->u.open_listening_sock.port = port;
 
     ipaugenblick_enqueue_command_buf(cmd);
+
+    socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
 
     return ipaugenblick_socket->connection_idx;
 }
@@ -357,14 +363,19 @@ int ipaugenblick_accept(int sock)
     return ipaugenblick_socket->connection_idx;
 }
 
-int ipaugenblick_select(int selector,unsigned int mask)
+int ipaugenblick_select(int selector,unsigned short *mask)
 {
-    ipaugenblick_cmd_t *cmd;
+    uint32_t ringset_idx_and_ready_mask;
 
-    if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&cmd)) {
+    if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) {
         return -1;
     }
-    return 0;
+    *mask = ringset_idx_and_ready_mask >> SOCKET_READY_SHIFT;
+    if((*mask) & SOCKET_READABLE_BIT)
+        rte_atomic16_set(&(socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].socket->read_ready),0);
+    if((*mask) & SOCKET_WRITABLE_BIT)
+        rte_atomic16_set(&(socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].socket->write_ready),0);
+    return ringset_idx_and_ready_mask & SOCKET_READY_MASK;
 }
 
 int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port)

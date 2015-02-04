@@ -56,7 +56,7 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
         if(sock->type == SOCK_STREAM) {
             ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
             if(ring_entries == 0) {
-                /* TODO let user know it is writable */
+                ipaugenblick_mark_writable(ringset_idx,PARENT_IDX(sock_and_selector_idx));
                 user_on_tx_opportunity_api_nothing_to_tx++;
                 return 0;
             }
@@ -89,6 +89,8 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
           do {
                 ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
                 if((ring_entries < MAX_PKT_BURST)&&((rte_rdtsc() - g_last_time_transmitted) < 30000)) {
+                    if(!ring_entries)
+                        ipaugenblick_mark_writable(ringset_idx,PARENT_IDX(sock_and_selector_idx));
                     break;
                 }
                 dequeued = ipaugenblick_dequeue_tx_buf_burst(ringset_idx,mbuf,MAX_PKT_BURST);
@@ -114,6 +116,8 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                     rte_pktmbuf_free(mbuf[i]);
                 }
             }while((dequeued > 0) && (sent > 0));
+            if(rc > 0)
+                ipaugenblick_mark_writable(ringset_idx,PARENT_IDX(sock_and_selector_idx));
         } 
         return sent;
 }
@@ -151,7 +155,7 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
             p_addr -= msg.msg_namelen;
             rte_memcpy(p_addr,msg.msg_name,msg.msg_namelen);
         }
-        ipaugenblick_submit_rx_buf(msg.msg_iov->head,ringset_idx);
+        ipaugenblick_submit_rx_buf(msg.msg_iov->head,ringset_idx,PARENT_IDX(sock_and_selector_idx));
         memset(&vec,0,sizeof(vec));
     }
 

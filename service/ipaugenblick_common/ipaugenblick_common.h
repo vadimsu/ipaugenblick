@@ -70,8 +70,10 @@ typedef struct
     unsigned short port;
 }__attribute__((packed))ipaugenblick_socket_connect_cmd_t;
 
-#define SOCKET_READABLE_SHIFT 1
-#define SOCKET_WRITABLE_SHIFT 2
+#define SOCKET_READABLE_BIT 1
+#define SOCKET_WRITABLE_BIT 2
+#define SOCKET_READY_SHIFT 16
+#define SOCKET_READY_MASK 0xFFFF
 
 typedef struct
 {
@@ -100,7 +102,8 @@ typedef struct
 typedef struct
 {
     unsigned long connection_idx; /* to be aligned */
-    rte_atomic16_t  is_in_select;
+    rte_atomic16_t  read_ready;
+    rte_atomic16_t  write_ready;
 }__attribute__((packed))ipaugenblick_socket_t;
 
 typedef struct

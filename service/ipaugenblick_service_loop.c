@@ -134,7 +134,8 @@ static inline void process_commands()
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,sock_and_selector_idx.u.data);
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
-//           cmd->u.set_socket_select.socket_select;
+           sock_and_selector_idx.u.data = app_glue_get_user_data((struct socket *)ringidx_to_socket[cmd->ringset_idx]);
+           PARENT_IDX(sock_and_selector_idx) = cmd->u.set_socket_select.socket_select;
            break;
         case IPAUGENBLICK_SOCKET_CONNECT_COMMAND:
            if(ringidx_to_socket[cmd->ringset_idx]) {

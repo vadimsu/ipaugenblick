@@ -47,7 +47,7 @@ int ipaugenblick_open_select(void);
 
 int ipaugenblick_set_socket_select(int sock,int select);
 
-int ipaugenblick_select(int selector,unsigned int mask);
+int ipaugenblick_select(int selector,unsigned short *mask);
 
 int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port);
 
