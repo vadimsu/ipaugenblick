@@ -14,10 +14,10 @@
 int main(int argc,char **argv)
 {
     void *buff,**rxbuff;
-    int sock,len;
+    int sock,newsock,len;
     char *p;
     int size = 0,ringset_idx;
-    int socket_connected = -1;
+    int sockets_connected = 0;
     int selector;
     int socket_to_read;
     int i;
@@ -38,14 +38,13 @@ int main(int argc,char **argv)
         printf("selector opened\n");
     }
     while(1) {
-        if(socket_connected == -1) {
-            socket_connected = ipaugenblick_accept(sock);
-            if(socket_connected != -1) {
-                printf("socket accepted %d %d\n",socket_connected,selector);
-                ipaugenblick_set_socket_select(socket_connected,selector);
-            }
+        newsock = ipaugenblick_accept(sock);
+        if(newsock != -1) {
+            printf("socket accepted %d %d\n",newsock,selector);
+            ipaugenblick_set_socket_select(newsock,selector);
+            sockets_connected++;
         }
-        if(socket_connected == -1) {
+        if(sockets_connected == 0) {
             continue;
         }
         socket_to_read = ipaugenblick_select(selector,&mask);
