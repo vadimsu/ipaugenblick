@@ -9,6 +9,8 @@
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
+#define USE_TX 1
+
 int main(int argc,char **argv)
 {
     void *buff,**rxbuff;
@@ -38,46 +40,21 @@ int main(int argc,char **argv)
         if(socket_connected == -1) {
             continue;
         }
-#if 0
-        buff = ipaugenblick_get_buffer(1448);
-        if(buff) {
-            if(ipaugenblick_send(socket_connected,buff,0,1448)) { 
-                ipaugenblick_release_tx_buffer(buff);
-            } 
-        }
-//        iterations++;
-//        if(iterations == 1000000) {
-//            ipaugenblick_socket_kick(socket_connected);
-//            iterations = 0;
-//        }
-#endif
-#if 1
         if(ipaugenblick_receive(socket_connected,&rxbuff,&len) == 0) {
-            if(++iterations2 == 1) {
-                iterations2 = 0;
-            //    printf("received %p %d\n",*rxbuff,len);
-#if 0
-                for(i = 0;i < len;i++) {
-                    if(!(i%8))
-                        printf("\n");
-                    printf(" %x",((char *)*rxbuff)[i]);
-                }
-#endif
-            }
             ipaugenblick_release_rx_buffer(rxbuff);
-#if 0
-            buff = ipaugenblick_get_buffer(1024);
+#if USE_TX
+            buff = ipaugenblick_get_buffer(1448);
             if(buff) {
-             printf("sending...\n");
-                if(ipaugenblick_send(sock,buff,0,1024)) { 
-                    printf("failed\n");
+                if(ipaugenblick_send(sock,buff,0,1448)) { 
                     ipaugenblick_release_tx_buffer(buff);
+                    ipaugenblick_socket_kick(sock);
                 }
             }
-            ipaugenblick_socket_kick(sock);
+            else {
+                ipaugenblick_socket_kick(sock);
+            } 
 #endif
         }
-#endif
     }
     return 0;
 }

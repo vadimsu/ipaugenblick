@@ -108,7 +108,6 @@ typedef struct
 
 typedef struct
 {
-    int ringset_idx;
     struct rte_ring  *ready_connections;
 }__attribute__((packed))ipaugenblick_selector_t;
 

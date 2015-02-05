@@ -156,7 +156,6 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
     ipaugenblick_selector = g_ipaugenblick_selectors;
     for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_SELECTOR_POOL_SIZE;ringset_idx++) {
         sprintf(ringname,"SELECTOR_RING_NAME%d",ringset_idx);
-        ipaugenblick_selector[ringset_idx].ringset_idx = ringset_idx;
         ipaugenblick_selector[ringset_idx].ready_connections = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
         if(!ipaugenblick_selector[ringset_idx].ready_connections) {
             printf("cannot create ring %s %d\n",__FILE__,__LINE__);
