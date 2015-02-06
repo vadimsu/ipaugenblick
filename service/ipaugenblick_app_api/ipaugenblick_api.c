@@ -14,6 +14,8 @@
 #include "ipaugenblick_ring_ops.h"
 #include "ipaugenblick_api.h"
 #include <netinet/in.h> 
+#include <unistd.h>
+#include <signal.h>
 #if 0
 #define offsetof(TYPE, MEMBER) ((size_t)&((TYPE*)0)->MEMBER)
 #endif
@@ -41,6 +43,21 @@ typedef struct
 }selector_t;
 
 static selector_t selectors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
+
+void sig_handler(int signum)
+{
+    uint32_t i;
+
+    printf("terminating on signal %d\n",signum);
+
+    for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
+        if(local_socket_descriptors[i].socket) {
+            ipaugenblick_close(local_socket_descriptors[i].socket->connection_idx);
+        }
+    }
+    signal(signum,SIG_DFL);
+    kill(getpid(),signum);
+}
 
 /* must be called per process */
 int ipaugenblick_app_init(int argc,char **argv)
@@ -82,6 +99,7 @@ int ipaugenblick_app_init(int argc,char **argv)
             exit(0);
         }
         local_socket_descriptors[i].select = -1;
+        local_socket_descriptors[i].socket = NULL;
     }
     tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
     if(!tx_bufs_pool) {
@@ -115,6 +133,14 @@ int ipaugenblick_app_init(int argc,char **argv)
             exit(0);
         }
     }
+    signal(SIGHUP, sig_handler);
+    signal(SIGINT, sig_handler);
+    signal(SIGILL, sig_handler);
+    signal(SIGABRT, sig_handler);
+    signal(SIGFPE, sig_handler);
+    signal(SIGFPE, sig_handler);
+    signal(SIGSEGV, sig_handler);
+    signal(SIGTERM, sig_handler);
     return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
 }
 
@@ -250,8 +276,10 @@ void ipaugenblick_close(int sock)
     if(!cmd) {
         return;
     }
+    cmd->cmd = IPAUGENBLICK_SOCKET_CLOSE_COMMAND;
+    cmd->ringset_idx = sock;
+    cmd->parent_idx = local_socket_descriptors[sock].select;
     ipaugenblick_enqueue_command_buf(cmd);
-    rte_ring_enqueue(free_connections_ring,&local_socket_descriptors[sock]);
 }
 
 /* TCP or connected UDP */

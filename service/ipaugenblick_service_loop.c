@@ -98,6 +98,7 @@ static inline void process_commands()
                RINGSET_IDX(sock_and_selector_idx) = cmd->ringset_idx;
                PARENT_IDX(sock_and_selector_idx) = cmd->parent_idx;
                app_glue_set_user_data(sock,(void *)sock_and_selector_idx.u.data);
+               ringidx_to_socket[cmd->ringset_idx] = sock;
            }
            break;
         case IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND:
@@ -156,6 +157,11 @@ static inline void process_commands()
            else {
               printf("no socket to invoke command!!!\n");
            }
+           break;
+       case IPAUGENBLICK_SOCKET_CLOSE_COMMAND:
+           printf("closing socket %d\n",cmd->ringset_idx);
+           kernel_close((struct socket *)ringidx_to_socket[cmd->ringset_idx]);
+           printf("%s %d\n",__FILE__,__LINE__);
            break;
         default:
            printf("unknown cmd %d\n",cmd->cmd);

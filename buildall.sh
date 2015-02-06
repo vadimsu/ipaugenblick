@@ -19,6 +19,7 @@ cd service
 rm -rf build
 make CURRENT_DIR=$(pwd)/ clean
 make CURRENT_DIR=$(pwd)/
+cp build/ipaugenblick_srv .
 cd ipaugenblick_app_api
 rm -rf build
 make CURRENT_DIR=$(pwd)/ clean
