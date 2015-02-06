@@ -424,6 +424,7 @@ static inline void process_rx_ready_sockets()
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
 		if(!user_data_available_cbk(sock)) {
                     TAILQ_INSERT_TAIL(&read_ready_socket_list_head,sock,read_queue_entry);
+                    sock->read_queue_present = 1;
 	        }
                 else {
                     read_sockets_queue_len--;
