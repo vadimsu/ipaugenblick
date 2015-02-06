@@ -445,7 +445,7 @@ static inline void process_tx_ready_sockets()
  
         idx = 0;
         limit = write_sockets_queue_len;
-	if((idx < limit)&&(!TAILQ_EMPTY(&write_ready_socket_list_head))) {
+	while((idx < limit)&&(!TAILQ_EMPTY(&write_ready_socket_list_head))) {
 		sock = TAILQ_FIRST(&write_ready_socket_list_head);
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
 		if(user_on_transmission_opportunity(sock) > 0) {
@@ -453,10 +453,14 @@ static inline void process_tx_ready_sockets()
 		    set_bit(SOCK_NOSPACE, &sock->flags);
                     write_sockets_queue_len--;
 		}
-		else {
+		else if((sock->sk)&&((sock->sk->sk_socket->type != SOCK_STREAM)||(sock->sk->sk_state == TCP_ESTABLISHED))) {
 			TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sock,write_queue_entry);
 			clear_bit(SOCK_NOSPACE, &sock->flags);
 		}
+                else {
+                    sock->write_queue_present = 0;
+                    write_sockets_queue_len--;
+                }
                 idx++;
 	}
 }

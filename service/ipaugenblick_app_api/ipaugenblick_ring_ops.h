@@ -35,7 +35,7 @@ static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
 
 static inline int ipaugenblick_enqueue_tx_buf(int ringset_idx,struct rte_mbuf *mbuf)
 {
-    return rte_ring_sp_enqueue_bulkl(local_socket_descriptors[ringset_idx].tx_ring,(void *)&mbuf,1); 
+    return rte_ring_sp_enqueue_bulk(local_socket_descriptors[ringset_idx].tx_ring,(void *)&mbuf,1); 
 }
 
 static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)

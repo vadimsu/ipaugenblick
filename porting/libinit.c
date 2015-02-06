@@ -261,6 +261,8 @@ static struct rte_mempool *mbufs_mempool = NULL;
 
 extern unsigned long tcp_memory_allocated;
 extern uint64_t sk_stream_alloc_skb_failed;
+extern uint64_t write_sockets_queue_len;
+extern uint64_t read_sockets_queue_len;
 
 void show_mib_stats(void);
 /* This function only prints statistics, it it not called on data path */
@@ -279,6 +281,8 @@ static int print_stats(__attribute__((unused)) void *dummy)
 		dump_fclone_cache();
 		printf("rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
 		printf("stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
+                printf("write_sockets_queue_len %"PRIu64" read_sockets_queue_len %"PRIu64"\n",
+                       write_sockets_queue_len,read_sockets_queue_len);
 		print_skb_iov_stats();
 #endif
 		sleep(1);
