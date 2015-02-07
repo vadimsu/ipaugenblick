@@ -1,7 +1,8 @@
 
 #ifndef __IPAUGENBLICK_SERVER_SIDE_H__
 #define __IPAUGENBLICK_SERVER_SIDE_H__
-
+//#include <sys/types.h>
+//#include <signal.h>
 #define PKTMBUF_HEADROOM 128
 #define IPAUGENBLICK_BUFSIZE (PKTMBUF_HEADROOM+1448)
 #define COMMAND_POOL_SIZE 100
@@ -221,15 +222,18 @@ static inline int ipaugenblick_rx_buf_free_count(int ringset_idx)
 { 
     return rte_ring_free_count(ringsets[ringset_idx].rx_ring);
 }
-
+extern unsigned long app_pid;
 static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,int ringset_idx,int selector)
 {
     uint32_t ringidx_ready_mask; 
     int rc;
     rc = rte_ring_sp_enqueue_bulk(ringsets[ringset_idx].rx_ring,(void *)&mbuf,1);
     if((selector != -1)&&(rc == 0)) {
-        if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[ringset_idx].read_ready))
+        if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[ringset_idx].read_ready)) {
+//            if(app_pid)
+//               kill(app_pid,/*SIGUSR1*/10);
             return 0;
+        }
         ringidx_ready_mask = ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
         return rte_ring_enqueue(g_ipaugenblick_selectors[selector].ready_connections,(void *)ringidx_ready_mask);
     }
@@ -245,6 +249,13 @@ static inline void ipaugenblick_mark_writable(int ringset_idx,int selector)
         return;
     ringidx_ready_mask = ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
     rte_ring_enqueue(g_ipaugenblick_selectors[selector].ready_connections,(void *)ringidx_ready_mask);
+//    if(app_pid)
+//        kill(app_pid,/*SIGUSR1*/10);
+}
+
+static inline void ipaugenblick_free_socket(int connidx)
+{
+   rte_ring_enqueue(free_connections_ring,(void *)&g_ipaugenblick_sockets[connidx]);
 }
 
 #endif

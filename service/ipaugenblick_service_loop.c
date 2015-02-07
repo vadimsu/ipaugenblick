@@ -61,6 +61,7 @@ struct ipaugenblick_ring_set ringsets[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 void *ringidx_to_socket[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 ipaugenblick_socket_t *g_ipaugenblick_sockets = NULL;
 ipaugenblick_selector_t *g_ipaugenblick_selectors = NULL;
+//unsigned long app_pid = 0;
 
 static inline void process_commands()
 {
@@ -137,6 +138,7 @@ static inline void process_commands()
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
            sock_and_selector_idx.u.data = app_glue_get_user_data((struct socket *)ringidx_to_socket[cmd->ringset_idx]);
+       //    app_pid = cmd->u.set_socket_select.pid;
            PARENT_IDX(sock_and_selector_idx) = cmd->u.set_socket_select.socket_select;
            printf("%s %d %d %d\n",__FILE__,__LINE__,RINGSET_IDX(sock_and_selector_idx),PARENT_IDX(sock_and_selector_idx));
            app_glue_set_user_data((struct socket *)ringidx_to_socket[cmd->ringset_idx],sock_and_selector_idx.u.data);
@@ -161,6 +163,8 @@ static inline void process_commands()
        case IPAUGENBLICK_SOCKET_CLOSE_COMMAND:
            printf("closing socket %d\n",cmd->ringset_idx);
            kernel_close((struct socket *)ringidx_to_socket[cmd->ringset_idx]);
+           ringidx_to_socket[cmd->ringset_idx] = NULL;
+           ipaugenblick_free_socket(cmd->ringset_idx);
            printf("%s %d\n",__FILE__,__LINE__);
            break;
         default:

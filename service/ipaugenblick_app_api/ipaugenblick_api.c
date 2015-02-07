@@ -16,6 +16,7 @@
 #include <netinet/in.h> 
 #include <unistd.h>
 #include <signal.h>
+#include <pthread.h>
 #if 0
 #define offsetof(TYPE, MEMBER) ((size_t)&((TYPE*)0)->MEMBER)
 #endif
@@ -39,7 +40,7 @@ struct rte_ring *selectors_ring = NULL;
 
 typedef struct
 {
-    struct rte_ring *ready_connections;
+    struct rte_ring *ready_connections; 
 }selector_t;
 
 static selector_t selectors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
@@ -47,6 +48,11 @@ static selector_t selectors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 void sig_handler(int signum)
 {
     uint32_t i;
+
+    if(signum == SIGUSR1) {
+        /* T.B.D. do something to wake up the thread */
+        return;
+    }
 
     printf("terminating on signal %d\n",signum);
 
@@ -131,8 +137,10 @@ int ipaugenblick_app_init(int argc,char **argv)
         if(!selectors[i].ready_connections) {
             printf("cannot find ring %s %d\n",__FILE__,__LINE__);
             exit(0);
-        }
+        } 
     }
+    //pthread_mutex_init(&selectors_mutex, NULL);
+    //pthread_mutex_lock (&selectors_mutex);
     signal(SIGHUP, sig_handler);
     signal(SIGINT, sig_handler);
     signal(SIGILL, sig_handler);
@@ -141,6 +149,7 @@ int ipaugenblick_app_init(int argc,char **argv)
     signal(SIGFPE, sig_handler);
     signal(SIGSEGV, sig_handler);
     signal(SIGTERM, sig_handler);
+    signal(SIGUSR1, sig_handler);
     return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
 }
 
@@ -171,6 +180,7 @@ int ipaugenblick_set_socket_select(int sock,int select)
    cmd->cmd = IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND;
    cmd->ringset_idx = sock;
    cmd->u.set_socket_select.socket_select = select;
+   cmd->u.set_socket_select.pid = getpid();
    ipaugenblick_enqueue_command_buf(cmd);
    local_socket_descriptors[sock].select = select;
 }
@@ -396,8 +406,10 @@ int ipaugenblick_select(int selector,unsigned short *mask)
 {
     uint32_t ringset_idx_and_ready_mask;
 
-    if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) {
-        return -1;
+restart_waiting:
+    if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) { 
+       usleep(1);
+       goto restart_waiting;
     }
     *mask = ringset_idx_and_ready_mask >> SOCKET_READY_SHIFT;
     if((*mask) & SOCKET_READABLE_BIT)

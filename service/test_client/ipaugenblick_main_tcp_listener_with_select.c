@@ -51,10 +51,8 @@ int main(int argc,char **argv)
         if(ready_socket == -1) {
             continue;
         }
-        //printf("%s %d %d\n",__FILE__,__LINE__,socket_to_read);
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
             if(ipaugenblick_receive(ready_socket,&rxbuff,&len) == 0) {
-              //  printf("%s %d\n",__FILE__,__LINE__);
                 ipaugenblick_release_rx_buffer(rxbuff);
             }
         }

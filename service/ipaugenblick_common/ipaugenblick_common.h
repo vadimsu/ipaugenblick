@@ -63,6 +63,7 @@ typedef struct
 typedef struct
 {
     int socket_select;
+    unsigned long pid;
 }__attribute__((packed))ipaugenblick_set_socket_select_cmd_t;
 
 typedef struct
