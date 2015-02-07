@@ -121,7 +121,7 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
             if(rc > 0)
                 ipaugenblick_mark_writable(socket_satelite_data);
         } 
-        return sent;
+        return /*sent*/1;
 }
 
 static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct socket *sock)
