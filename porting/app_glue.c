@@ -592,6 +592,7 @@ inline void *app_glue_get_user_data(void *socket)
 	if(!sock->sk) {
 		printf("PANIC: socket->sk NULL\n");while(1);
 	}
+printf("%s %d\n",__FILE__,__LINE__);
 	return sock->sk->sk_user_data;
 }
 /*
@@ -684,14 +685,18 @@ void *app_glue_get_next_listener()
 void app_glue_close_socket(void *sk)
 {
 	struct socket *sock = (struct socket *)sk;
+printf("%s %d %p %p\n",__FILE__,__LINE__,sock,sk);
 	if(sock->read_queue_present) {
+printf("%s %d\n",__FILE__,__LINE__);
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
 		sock->read_queue_present = 0;
 	}
+printf("%s %d\n",__FILE__,__LINE__);
 	if(sock->write_queue_present) {
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
 		sock->write_queue_present = 0;
 	}
+printf("%s %d\n",__FILE__,__LINE__);
 	if(sock->accept_queue_present) {
                 struct socket *newsock = NULL;
 
@@ -701,13 +706,17 @@ void app_glue_close_socket(void *sk)
 		TAILQ_REMOVE(&accept_ready_socket_list_head,sock,accept_queue_entry);
 		sock->accept_queue_present = 0;
 	}
+printf("%s %d\n",__FILE__,__LINE__);
 	if(sock->closed_queue_present) {
 		TAILQ_REMOVE(&closed_socket_list_head,sock,closed_queue_entry);
 		sock->closed_queue_present = 0;
 	}
+printf("%s %d\n",__FILE__,__LINE__);
 	if(sock->sk)
 		sock->sk->sk_user_data = NULL;
+printf("%s %d\n",__FILE__,__LINE__);
 	kernel_close(sock);
+printf("%s %d\n",__FILE__,__LINE__);
 }
 /*
  * This function may be called to estimate amount of data can be sent .

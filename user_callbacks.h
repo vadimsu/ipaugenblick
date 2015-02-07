@@ -39,10 +39,9 @@ static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
 static inline __attribute__ ((always_inline)) int user_on_transmission_opportunity(struct socket *sock)
 {
         struct page page;
-        sock_and_selector_idx_t sock_and_selector_idx;
         int i = 0,sent = 0;
         uint32_t to_send_this_time;
-        unsigned int ringset_idx;
+        void *socket_satelite_data;
         uint64_t ring_entries;
 
         user_on_tx_opportunity_called++;
@@ -50,13 +49,16 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
         if(!sock) {
             return 0;
         }
-        sock_and_selector_idx.u.data = (unsigned long)get_user_data(sock);
-        ringset_idx = RINGSET_IDX(sock_and_selector_idx);
+        socket_satelite_data = get_user_data(sock);
+
+        if(!socket_satelite_data) {
+            return 0;
+        }
         
         if(sock->type == SOCK_STREAM) {
-            ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
+            ring_entries = ipaugenblick_tx_buf_count(socket_satelite_data);
             if(ring_entries == 0) {
-                ipaugenblick_mark_writable(ringset_idx,PARENT_IDX(sock_and_selector_idx));
+                ipaugenblick_mark_writable(socket_satelite_data);
                 user_on_tx_opportunity_api_nothing_to_tx++;
                 return 0;
             }
@@ -87,13 +89,13 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
             msghdr.msg_flags = 0;
 
           do {
-                ring_entries = ipaugenblick_tx_buf_count(ringset_idx);
+                ring_entries = ipaugenblick_tx_buf_count(socket_satelite_data);
                 if((ring_entries < MAX_PKT_BURST)&&((rte_rdtsc() - g_last_time_transmitted) < 30000)) {
                     if(!ring_entries)
-                        ipaugenblick_mark_writable(ringset_idx,PARENT_IDX(sock_and_selector_idx));
+                        ipaugenblick_mark_writable(socket_satelite_data);
                     break;
                 }
-                dequeued = ipaugenblick_dequeue_tx_buf_burst(ringset_idx,mbuf,MAX_PKT_BURST);
+                dequeued = ipaugenblick_dequeue_tx_buf_burst(socket_satelite_data,mbuf,MAX_PKT_BURST);
                 for(i = 0;(i < dequeued)&&(rc >= 0);i++) {
                     char *p_addr;
                     if((sock->sk)&&(sock->sk->sk_state != TCP_ESTABLISHED)) {
@@ -117,7 +119,7 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                 }
             }while((dequeued > 0) && (sent > 0));
             if(rc > 0)
-                ipaugenblick_mark_writable(ringset_idx,PARENT_IDX(sock_and_selector_idx));
+                ipaugenblick_mark_writable(socket_satelite_data);
         } 
         return sent;
 }
@@ -128,7 +130,7 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
     struct iovec vec;
     struct rte_mbuf *mbuf;
     int i,ring_free,exhausted = 0;
-    sock_and_selector_idx_t sock_and_selector_idx;
+    void *socket_satelite_data;
     unsigned int ringset_idx;
     struct sockaddr_in sockaddrin;
 
@@ -137,13 +139,16 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
     if(unlikely(sock == NULL)) {
         return 0;
     }
-    sock_and_selector_idx.u.data = (unsigned long)get_user_data(sock);
-    ringset_idx = RINGSET_IDX(sock_and_selector_idx);
+    socket_satelite_data = get_user_data(sock);
+    if(!socket_satelite_data) {
+        return 0;
+    }
+    
     if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
         msg.msg_namelen = sizeof(sockaddrin);
         msg.msg_name = &sockaddrin;
     }
-    ring_free = ipaugenblick_rx_buf_free_count(ringset_idx);
+    ring_free = ipaugenblick_rx_buf_free_count(socket_satelite_data);
     while(ring_free > 0) {
         if(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) <= 0)) {
             exhausted = 1;
@@ -155,7 +160,7 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
             p_addr -= msg.msg_namelen;
             rte_memcpy(p_addr,msg.msg_name,msg.msg_namelen);
         }
-        ipaugenblick_submit_rx_buf(msg.msg_iov->head,ringset_idx,PARENT_IDX(sock_and_selector_idx));
+        ipaugenblick_submit_rx_buf(msg.msg_iov->head,socket_satelite_data);
         memset(&vec,0,sizeof(vec));
     }
 
@@ -173,15 +178,17 @@ static inline __attribute__ ((always_inline)) int user_on_accept(struct socket *
 {
         struct socket *newsock = NULL;
         ipaugenblick_cmd_t *cmd;
+        void *parent_descriptor;
 
         while(likely(kernel_accept(sock, &newsock, 0) == 0)) {
                 newsock->sk->sk_route_caps |= NETIF_F_SG |NETIF_F_ALL_CSUM|NETIF_F_GSO;
                 cmd = ipaugenblick_get_free_command_buf();
                 if(cmd) {
                     cmd->cmd = IPAUGENBLICK_SOCKET_ACCEPTED_COMMAND;
-                    cmd->ringset_idx = get_user_data(sock);
+                    parent_descriptor = get_user_data(sock); 
                     cmd->u.accepted_socket.socket_descr = newsock;
-                    ipaugenblick_post_accepted(cmd);
+                    app_glue_set_user_data(newsock,NULL);
+                    ipaugenblick_post_accepted(cmd,parent_descriptor);
                 }
         }
 }

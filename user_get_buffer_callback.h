@@ -17,16 +17,16 @@ extern uint64_t user_rx_mbufs;
 static inline __attribute__ ((always_inline)) struct rte_mbuf *user_get_buffer(struct sock *sk,int *copy)
 {
     struct rte_mbuf *mbuf, *first = NULL,*prev;
-    sock_and_selector_idx_t sock_and_selector_idx;
-    unsigned int ringset_idx,i=0;
+    void *socket_satelite_data;
+    unsigned int i=0;
 
     user_on_tx_opportunity_getbuff_called++;
     if(sk->sk_socket == NULL)
         return NULL;
-    sock_and_selector_idx.u.data = (unsigned long)sk->sk_user_data;
-    ringset_idx = RINGSET_IDX(sock_and_selector_idx);
+    socket_satelite_data = sk->sk_user_data;
+    
     while(*copy > 1448) {
-        mbuf = ipaugenblick_dequeue_tx_buf(ringset_idx);
+        mbuf = ipaugenblick_dequeue_tx_buf(socket_satelite_data);
         if(unlikely(mbuf == NULL)) {
             user_on_tx_opportunity_cannot_get_buff++;
             return first;

@@ -51,8 +51,9 @@ int main(int argc,char **argv)
         if(ready_socket == -1) {
             continue;
         }
+#if 1
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
-            if(ipaugenblick_receive(ready_socket,&rxbuff,&len) == 0) {
+            while(ipaugenblick_receive(ready_socket,&rxbuff,&len) == 0) {
                 ipaugenblick_release_rx_buffer(rxbuff);
             }
         }
@@ -60,15 +61,19 @@ int main(int argc,char **argv)
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
             buff = ipaugenblick_get_buffer(1448);
             if(buff) {
-                if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
-                    ipaugenblick_release_tx_buffer(buff);
-                    ipaugenblick_socket_kick(ready_socket);
+                for(i = 0;i < 100;i++) {
+                    if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
+                        ipaugenblick_release_tx_buffer(buff);
+                        ipaugenblick_socket_kick(ready_socket);
+                        break;
+                    }
                 }
             }
             else {
                 ipaugenblick_socket_kick(ready_socket);
             } 
         } 
+#endif
 #endif
     }
     return 0;

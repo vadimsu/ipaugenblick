@@ -394,9 +394,11 @@ int ipaugenblick_accept(int sock)
         return -1;
     } 
     accepted_socket = cmd->u.accepted_socket.socket_descr;
+printf("%s %d %p %d %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_socket->connection_idx);
     local_socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
     cmd->cmd = IPAUGENBLICK_SET_SOCKET_RING_COMMAND;
     cmd->ringset_idx = ipaugenblick_socket->connection_idx;
+    cmd->parent_idx = 0;
     cmd->u.set_socket_ring.socket_descr = accepted_socket;
     ipaugenblick_enqueue_command_buf(cmd); 
     return ipaugenblick_socket->connection_idx;
@@ -412,6 +414,10 @@ restart_waiting:
        goto restart_waiting;
     }
     *mask = ringset_idx_and_ready_mask >> SOCKET_READY_SHIFT;
+    if((ringset_idx_and_ready_mask & SOCKET_READY_MASK) >= IPAUGENBLICK_CONNECTION_POOL_SIZE) {
+        printf("FATAL ERROR %s %d %d\n",__FILE__,__LINE__,ringset_idx_and_ready_mask & SOCKET_READY_MASK);
+        exit(0);
+    }
     if((*mask) & SOCKET_READABLE_BIT)
         rte_atomic16_set(&(local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].socket->read_ready),0);
     if((*mask) & SOCKET_WRITABLE_BIT)
