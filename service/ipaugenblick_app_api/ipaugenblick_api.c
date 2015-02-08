@@ -365,7 +365,7 @@ void ipaugenblick_release_tx_buffer(void *buffer)
 
 inline void ipaugenblick_release_rx_buffer(void *buffer)
 {
-    struct rte_mbuf *mbuf = RTE_MBUF(buffer);
+    struct rte_mbuf *mbuf = RTE_MBUF(buffer); 
     rte_pktmbuf_free(mbuf); 
 }
 

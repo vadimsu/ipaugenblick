@@ -56,7 +56,7 @@ int main(int argc,char **argv)
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
             while(ipaugenblick_receive(ready_socket,&rxbuff,&len) == 0) {
                 received_count++;
-                if(!(received_count%1000)) {
+                if(!(received_count%100000)) {
                     printf("received %u\n",received_count);
                 }
                 ipaugenblick_release_rx_buffer(rxbuff);
