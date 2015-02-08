@@ -106,6 +106,8 @@ int ipaugenblick_app_init(int argc,char **argv)
         }
         local_socket_descriptors[i].select = -1;
         local_socket_descriptors[i].socket = NULL;
+        local_socket_descriptors[i].cached_rx_head = NULL;
+        local_socket_descriptors[i].cached_rx_tail = NULL;
     }
     tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
     if(!tx_bufs_pool) {

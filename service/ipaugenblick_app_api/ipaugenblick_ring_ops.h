@@ -9,9 +9,10 @@ typedef struct
 {
     struct rte_ring *tx_ring;
     struct rte_ring *rx_ring;
-    //unsigned long sock;
     ipaugenblick_socket_t *socket;
     int select;
+    struct rte_mbuf *cached_rx_head;
+    struct rte_mbuf *cached_rx_tail;
 }local_socket_descriptor_t;
 
 extern struct rte_ring *free_connections_ring;
@@ -40,9 +41,27 @@ static inline int ipaugenblick_enqueue_tx_buf(int ringset_idx,struct rte_mbuf *m
 
 static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
 {
-    struct rte_mbuf *mbuf;
-    if(rte_ring_sc_dequeue_bulk(local_socket_descriptors[ringset_idx].rx_ring,(void **)&mbuf,1)) {
-        return NULL;
+    struct rte_mbuf *mbufs[MAX_PKT_BURST],*mbuf = NULL;
+    int dequeued,i;
+    dequeued = rte_ring_sc_dequeue_bulk(local_socket_descriptors[ringset_idx].rx_ring,(void **)mbufs,MAX_PKT_BURST);
+    for(i = 0;i < dequeued;i++) {
+        if(local_socket_descriptors[ringset_idx].cached_rx_head == NULL) {
+            local_socket_descriptors[ringset_idx].cached_rx_head = mbufs[i];
+            local_socket_descriptors[ringset_idx].cached_rx_tail = mbufs[i];
+        }
+        else {
+            local_socket_descriptors[ringset_idx].cached_rx_tail->pkt.next = mbufs[i];
+            local_socket_descriptors[ringset_idx].cached_rx_tail = 
+                local_socket_descriptors[ringset_idx].cached_rx_tail->pkt.next;
+        }
+    }
+    mbuf = local_socket_descriptors[ringset_idx].cached_rx_head; 
+    if(mbuf) {
+        local_socket_descriptors[ringset_idx].cached_rx_head = 
+            local_socket_descriptors[ringset_idx].cached_rx_head->pkt.next;
+        if(mbuf == local_socket_descriptors[ringset_idx].cached_rx_tail)
+            local_socket_descriptors[ringset_idx].cached_rx_tail = NULL;
+        mbuf->pkt.next = NULL;
     }
     return mbuf;
 }
