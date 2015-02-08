@@ -19,6 +19,9 @@ int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port);
 /* close any socket */
 void ipaugenblick_close(int sock);
 
+/* how many buffers can be submitted */
+int ipaugenblick_get_socket_tx_space(int sock);
+
 /* TCP or connected UDP */
 int ipaugenblick_send(int sock,void *buffer,int offset,int length);
 

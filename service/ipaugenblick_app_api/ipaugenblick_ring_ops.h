@@ -11,8 +11,7 @@ typedef struct
     struct rte_ring *rx_ring;
     ipaugenblick_socket_t *socket;
     int select;
-    struct rte_mbuf *cached_rx_head;
-    struct rte_mbuf *cached_rx_tail;
+    struct rte_ring *local_cache;
 }local_socket_descriptor_t;
 
 extern struct rte_ring *free_connections_ring;
@@ -39,36 +38,34 @@ static inline int ipaugenblick_enqueue_tx_buf(int ringset_idx,struct rte_mbuf *m
     return rte_ring_sp_enqueue_bulk(local_socket_descriptors[ringset_idx].tx_ring,(void *)&mbuf,1); 
 }
 
+static inline int ipaugenblick_socket_tx_space(int ringset_idx)
+{
+    return rte_ring_free_count(local_socket_descriptors[ringset_idx].tx_ring);
+}
+
 static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
 {
-    struct rte_mbuf *mbufs[MAX_PKT_BURST],*mbuf = NULL,*last;
-    int dequeued,i,send_kick = 0;
+    struct rte_mbuf *mbuf = NULL,*mbufs[MAX_PKT_BURST];
+    int send_kick = 0,dequeued;
     ipaugenblick_cmd_t *cmd;
  
     if(rte_ring_free_count(local_socket_descriptors[ringset_idx].rx_ring) == 0)
         send_kick = 1;
     if(rte_ring_count(local_socket_descriptors[ringset_idx].rx_ring) > 0) {
-        dequeued = rte_ring_sc_dequeue_burst(local_socket_descriptors[ringset_idx].rx_ring,(void **)mbufs,MAX_PKT_BURST);
-        for(i = 0;i < dequeued;i++) {
-            last = rte_pktmbuf_lastseg(mbufs[i]);
-            if(local_socket_descriptors[ringset_idx].cached_rx_head == NULL) {
-                local_socket_descriptors[ringset_idx].cached_rx_head = last;
-                local_socket_descriptors[ringset_idx].cached_rx_tail = last;
-            }
-            else {
-                local_socket_descriptors[ringset_idx].cached_rx_tail->pkt.next = last;
-                local_socket_descriptors[ringset_idx].cached_rx_tail = 
-                    local_socket_descriptors[ringset_idx].cached_rx_tail->pkt.next;
-            }
+        dequeued = rte_ring_free_count(local_socket_descriptors[ringset_idx].local_cache) > MAX_PKT_BURST ? MAX_PKT_BURST : 
+                     rte_ring_free_count(local_socket_descriptors[ringset_idx].local_cache);
+        if(dequeued > 0) 
+            dequeued = rte_ring_sc_dequeue_burst(
+                        local_socket_descriptors[ringset_idx].rx_ring,
+                        (void **)mbufs,
+                        dequeued);
+        if(dequeued > 0) {
+            rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
+                                      (void **)mbufs,dequeued);
         }
     } 
-    mbuf = local_socket_descriptors[ringset_idx].cached_rx_head; 
-    if(mbuf) {
-        local_socket_descriptors[ringset_idx].cached_rx_head = 
-            local_socket_descriptors[ringset_idx].cached_rx_head->pkt.next;
-        if(mbuf == local_socket_descriptors[ringset_idx].cached_rx_tail)
-            local_socket_descriptors[ringset_idx].cached_rx_tail = NULL;
-        mbuf->pkt.next = NULL;
+    if(rte_ring_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf)) {
+        mbuf = NULL;
     }
     if(send_kick) {
         cmd = ipaugenblick_get_free_command_buf();

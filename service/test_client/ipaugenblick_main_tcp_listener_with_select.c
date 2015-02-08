@@ -9,7 +9,7 @@
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
-#define USE_TX 0
+#define USE_TX 1
 
 int main(int argc,char **argv)
 {
@@ -20,7 +20,7 @@ int main(int argc,char **argv)
     int sockets_connected = 0;
     int selector;
     int ready_socket;
-    int i;
+    int i,tx_space;
     unsigned short mask;
     unsigned long received_count = 0;
 
@@ -64,19 +64,17 @@ int main(int argc,char **argv)
         }
 #if USE_TX
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
-            buff = ipaugenblick_get_buffer(1448);
-            if(buff) {
-                for(i = 0;i < 100;i++) {
-                    if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
-                        ipaugenblick_release_tx_buffer(buff);
-                        ipaugenblick_socket_kick(ready_socket);
-                        break;
-                    }
+            tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
+            for(i = 0;i < tx_space;i++) {
+                buff = ipaugenblick_get_buffer(1448);
+                if(!buff)
+                    break;
+                if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
+                    ipaugenblick_release_tx_buffer(buff);
+                    break;
                 }
             }
-            else {
-                ipaugenblick_socket_kick(ready_socket);
-            } 
+            ipaugenblick_socket_kick(ready_socket); 
         } 
 #endif
 #endif

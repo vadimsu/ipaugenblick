@@ -106,8 +106,8 @@ int ipaugenblick_app_init(int argc,char **argv)
         }
         local_socket_descriptors[i].select = -1;
         local_socket_descriptors[i].socket = NULL;
-        local_socket_descriptors[i].cached_rx_head = NULL;
-        local_socket_descriptors[i].cached_rx_tail = NULL;
+        sprintf(ringname,"local_rx_cache%d",i);
+        local_socket_descriptors[i].local_cache = rte_ring_create(ringname, 1024,rte_socket_id(), RING_F_SC_DEQ|RING_F_SP_ENQ);
     }
     tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
     if(!tx_bufs_pool) {
@@ -292,6 +292,11 @@ void ipaugenblick_close(int sock)
     cmd->ringset_idx = sock;
     cmd->parent_idx = local_socket_descriptors[sock].select;
     ipaugenblick_enqueue_command_buf(cmd);
+}
+
+int ipaugenblick_get_socket_tx_space(int sock)
+{
+    return ipaugenblick_socket_tx_space(sock);
 }
 
 /* TCP or connected UDP */
