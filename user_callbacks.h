@@ -159,8 +159,15 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
             char *p_addr = (char *)msg.msg_iov->head->pkt.data;
             p_addr -= msg.msg_namelen;
             rte_memcpy(p_addr,msg.msg_name,msg.msg_namelen);
+        } 
+        if(msg.msg_iov->head->pkt.next)
+            printf("%s %d %d\n",__FILE__,__LINE__,msg.msg_iov->head->pkt.next->pkt.data_len);
+        if(ipaugenblick_submit_rx_buf(msg.msg_iov->head,socket_satelite_data)) {
+            rte_pktmbuf_free(msg.msg_iov->head);
         }
-        ipaugenblick_submit_rx_buf(msg.msg_iov->head,socket_satelite_data);
+        else {
+            user_rx_mbufs++;
+        }
         memset(&vec,0,sizeof(vec));
     }
 

@@ -46,6 +46,7 @@ uint64_t user_on_rx_opportunity_called = 0;
 uint64_t user_on_rx_opportunity_called_exhausted = 0;
 uint64_t user_rx_mbufs = 0;
 uint64_t user_kick_tx = 0;
+uint64_t user_kick_rx = 0;
 uint64_t user_on_tx_opportunity_cannot_send = 0;
 
 uint64_t g_last_time_transmitted = 0;
@@ -73,6 +74,7 @@ static inline void process_commands()
     cmd = ipaugenblick_dequeue_command_buf();
     if(!cmd)
         return;
+    printf("%s %d %d\n",__FILE__,__LINE__,cmd->cmd);
     switch(cmd->cmd) {
         case IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND:
            printf("open_client_sock %x %x %x %x\n",cmd->u.open_client_sock.my_ipaddress,cmd->u.open_client_sock.my_port,
@@ -122,10 +124,16 @@ static inline void process_commands()
                socket_satelite_data[cmd->ringset_idx].socket = sock;
            }
            break;
-        case IPAUGENBLICK_SOCKET_KICK_COMMAND:
+        case IPAUGENBLICK_SOCKET_TX_KICK_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
                user_kick_tx++;
                user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
+           }
+           break;
+        case IPAUGENBLICK_SOCKET_RX_KICK_COMMAND:
+           if(socket_satelite_data[cmd->ringset_idx].socket) {
+               user_kick_rx++;
+               user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
            }
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
@@ -200,7 +208,7 @@ void print_user_stats()
 {
 	printf("user_on_tx_opportunity_called %"PRIu64"\n",user_on_tx_opportunity_called);
 	printf("user_on_tx_opportunity_api_nothing_to_tx %"PRIu64"\n",user_on_tx_opportunity_api_nothing_to_tx);
-        printf("user_kick_tx user_kick_tx %"PRIu64"\n",user_kick_tx);
+        printf("user_kick_tx user_kick_tx %"PRIu64" user_kick_tx user_kick_rx %"PRIu64" \n",user_kick_tx,user_kick_rx);
         printf("user_on_tx_opportunity_cannot_send %"PRIu64"\n",user_on_tx_opportunity_cannot_send);
 	printf("user_on_tx_opportunity_cannot_get_buff %"PRIu64"\n",user_on_tx_opportunity_cannot_get_buff);
 	printf("user_on_tx_opportunity_getbuff_called %"PRIu64"\n",user_on_tx_opportunity_getbuff_called);

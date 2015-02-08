@@ -9,7 +9,7 @@
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
-#define USE_TX 1
+#define USE_TX 0
 
 int main(int argc,char **argv)
 {
@@ -22,6 +22,7 @@ int main(int argc,char **argv)
     int ready_socket;
     int i;
     unsigned short mask;
+    unsigned long received_count = 0;
 
     if(ipaugenblick_app_init(argc,argv) != 0) {
         printf("cannot initialize memory\n");
@@ -54,6 +55,10 @@ int main(int argc,char **argv)
 #if 1
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
             while(ipaugenblick_receive(ready_socket,&rxbuff,&len) == 0) {
+                received_count++;
+                if(!(received_count%1000)) {
+                    printf("received %u\n",received_count);
+                }
                 ipaugenblick_release_rx_buffer(rxbuff);
             }
         }

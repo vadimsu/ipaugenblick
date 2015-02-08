@@ -376,7 +376,7 @@ void ipaugenblick_socket_kick(int sock)
     if(!cmd) {
         return;
     }
-    cmd->cmd = IPAUGENBLICK_SOCKET_KICK_COMMAND;
+    cmd->cmd = IPAUGENBLICK_SOCKET_TX_KICK_COMMAND;
     cmd->ringset_idx = sock;
     ipaugenblick_enqueue_command_buf(cmd);
 }

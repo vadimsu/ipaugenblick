@@ -236,6 +236,7 @@ static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,void *descrip
         ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
         return rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
     }
+    return -1;
 }
 
 static inline void ipaugenblick_mark_writable(void *descriptor)
