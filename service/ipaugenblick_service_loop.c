@@ -47,7 +47,9 @@ uint64_t user_on_rx_opportunity_called_exhausted = 0;
 uint64_t user_rx_mbufs = 0;
 uint64_t user_kick_tx = 0;
 uint64_t user_kick_rx = 0;
+uint64_t user_kick_socket_rx = 0;
 uint64_t user_on_tx_opportunity_cannot_send = 0;
+uint64_t user_rx_ring_full = 0;
 
 uint64_t g_last_time_transmitted = 0;
 
@@ -74,7 +76,6 @@ static inline void process_commands()
     cmd = ipaugenblick_dequeue_command_buf();
     if(!cmd)
         return;
-    printf("%s %d %d\n",__FILE__,__LINE__,cmd->cmd);
     switch(cmd->cmd) {
         case IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND:
            printf("open_client_sock %x %x %x %x\n",cmd->u.open_client_sock.my_ipaddress,cmd->u.open_client_sock.my_port,
@@ -208,13 +209,13 @@ void print_user_stats()
 {
 	printf("user_on_tx_opportunity_called %"PRIu64"\n",user_on_tx_opportunity_called);
 	printf("user_on_tx_opportunity_api_nothing_to_tx %"PRIu64"\n",user_on_tx_opportunity_api_nothing_to_tx);
-        printf("user_kick_tx user_kick_tx %"PRIu64" user_kick_tx user_kick_rx %"PRIu64" \n",user_kick_tx,user_kick_rx);
+        printf("user_kick_tx user_kick_tx %"PRIu64" user_kick_tx user_kick_rx %"PRIu64" user_kick_socket_rx %"PRIu64" \n",user_kick_tx,user_kick_rx,user_kick_socket_rx);
         printf("user_on_tx_opportunity_cannot_send %"PRIu64"\n",user_on_tx_opportunity_cannot_send);
 	printf("user_on_tx_opportunity_cannot_get_buff %"PRIu64"\n",user_on_tx_opportunity_cannot_get_buff);
 	printf("user_on_tx_opportunity_getbuff_called %"PRIu64"\n",user_on_tx_opportunity_getbuff_called);
 	printf("user_on_tx_opportunity_api_failed %"PRIu64"\n",	user_on_tx_opportunity_api_failed);
 	printf("user_on_rx_opportunity_called %"PRIu64"\n",user_on_rx_opportunity_called);
 	printf("user_on_rx_opportunity_called_exhausted %"PRIu64"\n",user_on_rx_opportunity_called_exhausted);
-	printf("user_rx_mbufs %"PRIu64"\n",user_rx_mbufs,user_rx_mbufs);
+	printf("user_rx_mbufs %"PRIu64" user_rx_ring_full %"PRIu64"\n",user_rx_mbufs,user_rx_mbufs,user_rx_ring_full);
         printf("user_on_tx_opportunity_api_mbufs_sent %"PRIu64"\n",user_on_tx_opportunity_api_mbufs_sent);
 }

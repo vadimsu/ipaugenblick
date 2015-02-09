@@ -73,9 +73,9 @@ int main(int argc,char **argv)
                     ipaugenblick_release_tx_buffer(buff);
                     break;
                 }
-            }
-            ipaugenblick_socket_kick(ready_socket); 
+            } 
         } 
+        ipaugenblick_socket_kick(ready_socket);
 #endif
 #endif
     }

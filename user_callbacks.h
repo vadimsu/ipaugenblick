@@ -22,6 +22,8 @@ extern uint64_t user_on_rx_opportunity_called;
 extern uint64_t user_on_rx_opportunity_called_exhausted;
 extern uint64_t user_rx_mbufs;
 extern uint64_t user_on_tx_opportunity_cannot_send;
+extern uint64_t user_rx_ring_full; 
+extern uint64_t user_kick_socket_rx;
 extern uint64_t g_last_time_transmitted;
 
 static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
@@ -141,6 +143,7 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
     }
     socket_satelite_data = get_user_data(sock);
     if(!socket_satelite_data) {
+        printf("%s %d\n",__FILE__,__LINE__);
         return 0;
     }
     
@@ -149,6 +152,11 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
         msg.msg_name = &sockaddrin;
     }
     ring_free = ipaugenblick_rx_buf_free_count(socket_satelite_data);
+    if(!ring_free) {
+        ipaugenblick_kick_socket(socket_satelite_data);
+        user_rx_ring_full++;
+        return 0;
+    }
     while(ring_free > 0) {
         if(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) <= 0)) {
             exhausted = 1;
@@ -162,6 +170,7 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
         } 
         
         if(ipaugenblick_submit_rx_buf(msg.msg_iov->head,socket_satelite_data)) {
+            printf("%s %d\n",__FILE__,__LINE__);
             rte_pktmbuf_free(msg.msg_iov->head);
         }
         else {
@@ -170,9 +179,11 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
         memset(&vec,0,sizeof(vec));
     }
 
-    if(exhausted) {
-        user_on_rx_opportunity_called_exhausted++;
-        return 1;
+    if((!ring_free)||(exhausted)) {
+        user_on_rx_opportunity_called_exhausted += exhausted;
+        user_kick_socket_rx++;
+        ipaugenblick_kick_socket(socket_satelite_data);
+        return exhausted;
     }
     return 0;
 }

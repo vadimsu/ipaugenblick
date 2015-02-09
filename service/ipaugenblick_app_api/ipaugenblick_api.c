@@ -304,6 +304,7 @@ inline int ipaugenblick_send(int sock,void *buffer,int offset,int length)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     mbuf->pkt.data_len = length;
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
     return ipaugenblick_enqueue_tx_buf(sock,mbuf);
 }
 
@@ -319,6 +320,7 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
     p_addr_in->sin_family = AF_INET;
     p_addr_in->sin_port = port;
     p_addr_in->sin_addr.s_addr = ipaddr;
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
     return ipaugenblick_enqueue_tx_buf(sock,mbuf);
 }
 
@@ -326,6 +328,9 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
 inline int ipaugenblick_receive(int sock,void **pbuffer,int *len)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
+
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->read_ready),0);
+    
     if(!mbuf)
         return -1;
     *pbuffer = &(mbuf->pkt.data);
@@ -337,6 +342,9 @@ inline int ipaugenblick_receive(int sock,void **pbuffer,int *len)
 inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
+
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->read_ready),0);
+
     if(!mbuf)
         return -1;
     *buffer = &(mbuf->pkt.data);
@@ -416,6 +424,7 @@ int ipaugenblick_select(int selector,unsigned short *mask)
     uint32_t ringset_idx_and_ready_mask;
 
 restart_waiting:
+    
     if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) { 
        usleep(1);
        goto restart_waiting;
@@ -425,10 +434,7 @@ restart_waiting:
         printf("FATAL ERROR %s %d %d\n",__FILE__,__LINE__,ringset_idx_and_ready_mask & SOCKET_READY_MASK);
         exit(0);
     }
-    if((*mask) & SOCKET_READABLE_BIT)
-        rte_atomic16_set(&(local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].socket->read_ready),0);
-    if((*mask) & SOCKET_WRITABLE_BIT)
-        rte_atomic16_set(&(local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].socket->write_ready),0);
+       
     return ringset_idx_and_ready_mask & SOCKET_READY_MASK;
 }
 
