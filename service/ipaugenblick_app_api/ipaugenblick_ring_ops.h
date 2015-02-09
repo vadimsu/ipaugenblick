@@ -20,9 +20,9 @@ extern struct rte_mempool *free_command_pool;
 extern struct rte_ring *command_ring;
 extern local_socket_descriptor_t local_socket_descriptors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 
-static inline void ipaugenblick_enqueue_command_buf(ipaugenblick_cmd_t *cmd)
+static inline int ipaugenblick_enqueue_command_buf(ipaugenblick_cmd_t *cmd)
 {
-    rte_ring_enqueue(command_ring,(void *)cmd);
+    returb (rte_ring_enqueue(command_ring,(void *)cmd) == -ENOBUFS);
 }
 
 static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
@@ -35,7 +35,7 @@ static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
 
 static inline int ipaugenblick_enqueue_tx_buf(int ringset_idx,struct rte_mbuf *mbuf)
 {
-    return rte_ring_sp_enqueue_bulk(local_socket_descriptors[ringset_idx].tx_ring,(void *)&mbuf,1); 
+    return (rte_ring_sp_enqueue_bulk(local_socket_descriptors[ringset_idx].tx_ring,(void *)&mbuf,1) == -ENOBUFS);
 }
 
 static inline int ipaugenblick_socket_tx_space(int ringset_idx)

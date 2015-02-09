@@ -188,7 +188,7 @@ static inline void ipaugenblick_post_accepted(ipaugenblick_cmd_t *cmd,void *pare
 {
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)parent_descriptor;
 //    cmd->ringset_idx = socket_satelite_data->ringset_idx;
-    if(rte_ring_enqueue(socket_satelite_data->rx_ring,(void *)cmd)) { 
+    if(rte_ring_enqueue(socket_satelite_data->rx_ring,(void *)cmd) == -ENOBUFS) { 
         ipaugenblick_free_command_buf(cmd);
     }
 }
@@ -229,7 +229,7 @@ static inline void ipaugenblick_kick_socket(void *descriptor)
     if(socket_satelite_data->parent_idx == -1)
         return;
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
-    return rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
+    rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
 }
 
 static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,void *descriptor)
@@ -242,11 +242,11 @@ static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,void *descrip
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready)) {
 //        if(app_pid)
 //           kill(app_pid,/*SIGUSR1*/10);
-        return (rc != 0);
+        return (rc == -ENOBUFS);
     }
-    ipaugenblick_kick_socket(descriptor);
+//    ipaugenblick_kick_socket(descriptor);
     
-    return (rc != 0);
+    return (rc == -ENOBUFS);
 }
 
 static inline void ipaugenblick_mark_writable(void *descriptor)
