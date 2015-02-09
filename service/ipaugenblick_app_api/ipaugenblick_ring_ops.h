@@ -22,7 +22,7 @@ extern local_socket_descriptor_t local_socket_descriptors[IPAUGENBLICK_CONNECTIO
 
 static inline int ipaugenblick_enqueue_command_buf(ipaugenblick_cmd_t *cmd)
 {
-    returb (rte_ring_enqueue(command_ring,(void *)cmd) == -ENOBUFS);
+    return (rte_ring_enqueue(command_ring,(void *)cmd) == -ENOBUFS);
 }
 
 static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
