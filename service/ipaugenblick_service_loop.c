@@ -128,6 +128,7 @@ static inline void process_commands()
         case IPAUGENBLICK_SOCKET_TX_KICK_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
                user_kick_tx++;
+               user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
                user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            }
            break;
@@ -135,6 +136,7 @@ static inline void process_commands()
            if(socket_satelite_data[cmd->ringset_idx].socket) {
                user_kick_rx++;
                user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
+               user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            }
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:

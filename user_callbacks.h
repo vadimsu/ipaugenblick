@@ -183,7 +183,7 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
         user_on_rx_opportunity_called_exhausted += exhausted;
         user_kick_socket_rx++;
         ipaugenblick_kick_socket(socket_satelite_data);
-        return exhausted;
+        return 0;
     }
     return 0;
 }
