@@ -51,7 +51,7 @@ static inline int ipaugenblick_socket_tx_space(int ringset_idx)
 static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
 {
     struct rte_mbuf *mbuf = NULL,*mbufs[MAX_PKT_BURST];
-    int send_kick = 0,dequeued;
+    int send_kick = 1,dequeued;
     ipaugenblick_cmd_t *cmd;
  
     if(rte_ring_free_count(local_socket_descriptors[ringset_idx].rx_ring) == 0) {

@@ -75,6 +75,8 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                     else
                         sent += i;
             }
+            if(i > 0)
+                ipaugenblick_mark_writable(socket_satelite_data);
         }
         else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             struct msghdr msghdr;
@@ -183,7 +185,7 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
         user_on_rx_opportunity_called_exhausted += exhausted;
         user_kick_socket_rx++;
         ipaugenblick_kick_socket(socket_satelite_data);
-        return 0;
+        return exhausted;
     }
     return 0;
 }
