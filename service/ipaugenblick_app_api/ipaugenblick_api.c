@@ -54,18 +54,24 @@ uint64_t ipaugenblick_stats_rx_dequeued = 0;
 uint64_t ipaugenblick_stats_rx_dequeued_local = 0;
 uint64_t ipaugenblick_stats_select_called = 0;
 uint64_t ipaugenblick_stats_select_returned = 0;
+uint64_t ipaugenblick_stats_tx_buf_allocation_failure = 0;
+uint64_t ipaugenblick_stats_send_failure = 0;
+uint64_t ipaugenblick_stats_recv_failure = 0;
 pthread_t stats_thread;
+uint8_t g_print_stats_loop = 1;
 
 void print_stats()
 {
-    while(1) {
+    while(g_print_stats_loop) {
         printf("ipaugenblick_stats_receive_called %lu ipaugenblick_stats_send_called %lu \n\t\
                 ipaugenblick_stats_rx_kicks_sent %lu ipaugenblick_stats_tx_kicks_sent %lu \n\t\
                 ipaugenblick_stats_rx_full %lu ipaugenblick_stats_rx_dequeued %lu ipaugenblick_stats_rx_dequeued_local %lu \n\t\
-                ipaugenblick_stats_select_called %lu ipaugenblick_stats_select_returned %lu\n",
+                ipaugenblick_stats_select_called %lu ipaugenblick_stats_select_returned %lu ipaugenblick_stats_tx_buf_allocation_failure %lu \n\t\
+                ipaugenblick_stats_send_failure %lu ipaugenblick_stats_recv_failure %lu\n",
                 ipaugenblick_stats_receive_called,ipaugenblick_stats_send_called,ipaugenblick_stats_rx_kicks_sent,
                 ipaugenblick_stats_tx_kicks_sent,ipaugenblick_stats_rx_full,ipaugenblick_stats_rx_dequeued,
-                ipaugenblick_stats_rx_dequeued_local,ipaugenblick_stats_select_called,ipaugenblick_stats_select_returned);
+                ipaugenblick_stats_rx_dequeued_local,ipaugenblick_stats_select_called,ipaugenblick_stats_select_returned,ipaugenblick_stats_tx_buf_allocation_failure,
+                ipaugenblick_stats_send_failure,ipaugenblick_stats_recv_failure);
         sleep(1);
     }
 }
@@ -87,6 +93,7 @@ void sig_handler(int signum)
         }
     }
     signal(signum,SIG_DFL);
+    g_print_stats_loop = 0;
     kill(getpid(),signum);
 }
 
@@ -328,16 +335,20 @@ int ipaugenblick_get_socket_tx_space(int sock)
 /* TCP or connected UDP */
 inline int ipaugenblick_send(int sock,void *buffer,int offset,int length)
 {
+    int rc;
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     ipaugenblick_stats_send_called++;
     mbuf->pkt.data_len = length;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
-    return ipaugenblick_enqueue_tx_buf(sock,mbuf);
+    rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
+    ipaugenblick_stats_send_failure += (rc != 0);
+    return rc;
 }
 
 /* UDP or RAW */
 inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port)
 {
+    int rc;
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     char *p_addr = mbuf->pkt.data;
     struct sockaddr_in *p_addr_in;
@@ -349,7 +360,9 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
     p_addr_in->sin_port = port;
     p_addr_in->sin_addr.s_addr = ipaddr;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
-    return ipaugenblick_enqueue_tx_buf(sock,mbuf);
+    rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
+    ipaugenblick_stats_send_failure += (rc != 0);
+    return rc;
 }
 
 /* TCP */
@@ -358,8 +371,10 @@ inline int ipaugenblick_receive(int sock,void **pbuffer,int *len)
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     ipaugenblick_stats_receive_called++;
     
-    if(!mbuf)
+    if(!mbuf) {
+        ipaugenblick_stats_recv_failure++;
         return -1;
+    }
     *pbuffer = &(mbuf->pkt.data);
     *len = mbuf->pkt.data_len;
     return 0;
@@ -371,8 +386,10 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     ipaugenblick_stats_receive_called++;
 
-    if(!mbuf)
+    if(!mbuf) {
+        ipaugenblick_stats_recv_failure++;
         return -1;
+    }
     *buffer = &(mbuf->pkt.data);
     *len = mbuf->pkt.data_len;
     char *p_addr = mbuf->pkt.data;
@@ -389,6 +406,7 @@ inline void *ipaugenblick_get_buffer(int length)
     struct rte_mbuf *mbuf;
     mbuf = rte_pktmbuf_alloc(tx_bufs_pool);
     if(!mbuf) {
+        ipaugenblick_stats_tx_buf_allocation_failure++;
         return NULL;
     }
     return &(mbuf->pkt.data);
