@@ -423,18 +423,8 @@ static inline void process_rx_ready_sockets()
 		sock = TAILQ_FIRST(&read_ready_socket_list_head);
                 sock->read_queue_present = 0;
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
-#if 0
-		if(!user_data_available_cbk(sock)) {
-                    TAILQ_INSERT_TAIL(&read_ready_socket_list_head,sock,read_queue_entry);
-                    sock->read_queue_present = 1;
-	        }
-                else {
-                    read_sockets_queue_len--;
-                }
-#else
                 user_data_available_cbk(sock);
                 read_sockets_queue_len--;
-#endif
                 idx++;	
 	}
 }
@@ -455,30 +445,11 @@ static inline void process_tx_ready_sockets()
 	while((idx < limit)&&(!TAILQ_EMPTY(&write_ready_socket_list_head))) {
 		sock = TAILQ_FIRST(&write_ready_socket_list_head);
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
-#if 1
-		if(user_on_transmission_opportunity(sock) > 0) {
-		    sock->write_queue_present = 0;
-		    set_bit(SOCK_NOSPACE, &sock->flags);
-//                    clear_bit(SOCK_NOSPACE, &sock->flags);
-                    write_sockets_queue_len--;
-		}
-		else /*if((sock->sk)&&((sock->sk->sk_socket->type != SOCK_STREAM)||(sock->sk->sk_state == TCP_ESTABLISHED)))*/ {
-			TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sock,write_queue_entry);
-                        sock->write_queue_present = 1;
-			clear_bit(SOCK_NOSPACE, &sock->flags);
-//                        set_bit(SOCK_NOSPACE, &sock->flags);
-		}
-/*                else {
-                    sock->write_queue_present = 0;
-                    write_sockets_queue_len--;
-                }*/
-#else
-                user_on_transmission_opportunity(sock);
                 sock->write_queue_present = 0;
-		set_bit(SOCK_NOSPACE, &sock->flags);
+		user_on_transmission_opportunity(sock);
+                //set_bit(SOCK_NOSPACE, &sock->flags);
                 write_sockets_queue_len--;
-#endif
-                idx++;
+	        idx++;
 	}
 }
 /* These are in translation of micros to cycles */

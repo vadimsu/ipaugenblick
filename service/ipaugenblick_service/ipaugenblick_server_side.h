@@ -25,6 +25,7 @@ extern struct rte_mempool *free_command_pool;
 extern socket_satelite_data_t socket_satelite_data[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 extern ipaugenblick_socket_t *g_ipaugenblick_sockets;
 extern ipaugenblick_selector_t *g_ipaugenblick_selectors;
+extern uint64_t user_kick_select_tx;
 
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 
@@ -223,11 +224,10 @@ static inline int ipaugenblick_rx_buf_free_count(void *descriptor)
 }
 extern unsigned long app_pid;
 
-static inline void ipaugenblick_kick_socket(void *descriptor)
+static inline void ipaugenblick_mark_readable(void *descriptor)
 {
     uint32_t ringidx_ready_mask; 
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
-    printf("%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->ringset_idx);
     if(socket_satelite_data->parent_idx == -1)
         return;
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
@@ -239,7 +239,6 @@ static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,void *descrip
     uint32_t ringidx_ready_mask; 
     int rc;
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
-    printf("%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->ringset_idx);
     rc = rte_ring_sp_enqueue_bulk(socket_satelite_data->rx_ring,(void *)&mbuf,1);
     
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready)) {
@@ -264,6 +263,7 @@ static inline void ipaugenblick_mark_writable(void *descriptor)
         return;
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
     rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
+    user_kick_select_tx++;
 //    if(app_pid)
 //        kill(app_pid,/*SIGUSR1*/10);
 }

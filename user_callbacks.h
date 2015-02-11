@@ -23,7 +23,9 @@ extern uint64_t user_on_rx_opportunity_called_exhausted;
 extern uint64_t user_rx_mbufs;
 extern uint64_t user_on_tx_opportunity_cannot_send;
 extern uint64_t user_rx_ring_full; 
-extern uint64_t user_kick_socket_rx;
+extern uint64_t user_kick_select_rx;
+extern uint64_t user_kick_select_tx;
+extern uint64_t user_on_tx_opportunity_socket_full;
 extern uint64_t g_last_time_transmitted;
 
 static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
@@ -37,8 +39,13 @@ static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
         }
         return sock->sk->sk_user_data;
 }
-
-static inline __attribute__ ((always_inline)) int user_on_transmission_opportunity(struct socket *sock)
+/* once this function is called,
+   user application-toward-socket ring is checked.
+   If empty, the selector is kicked.
+   Otherwise, the data is read from the ring and written to socket. If socket's space is not exhausted,
+   selector is kicked. 
+*/
+static inline __attribute__ ((always_inline)) void user_on_transmission_opportunity(struct socket *sock)
 {
         struct page page;
         int i = 0,sent = 0;
@@ -49,12 +56,12 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
         user_on_tx_opportunity_called++;
 
         if(!sock) {
-            return 1; // should not happen, anyway return 'don't call again'
+            return;
         }
         socket_satelite_data = get_user_data(sock);
 
         if(!socket_satelite_data) {
-            return 1;// this is fatal for socket, return 'don't call again'
+            return;
         }
         if(sock->sk->sk_state == TCP_LISTEN) {
            printf("%s %d\n",__FILE__,__LINE__);exit(0);
@@ -65,7 +72,7 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
             if(ring_entries == 0) {
                 ipaugenblick_mark_writable(socket_satelite_data);
                 user_on_tx_opportunity_api_nothing_to_tx++;
-                return 0;// kicked user, return 'please call again'
+                return;
             }
             while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
                     sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
@@ -78,8 +85,10 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                     else
                         sent += i;
             }
-            if(i > 0)//may write more
+            if(to_send_this_time > 0)//may write more
                 ipaugenblick_mark_writable(socket_satelite_data);
+            else
+                user_on_tx_opportunity_socket_full += !sent;
         }
         else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             struct msghdr msghdr;
@@ -127,11 +136,17 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
             }while((dequeued > 0) && (sent > 0));
             if(rc > 0)//may write more
                 ipaugenblick_mark_writable(socket_satelite_data);
-        } 
-        return !(ipaugenblick_tx_buf_count(socket_satelite_data) > 0);
+        }
 }
-
-static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct socket *sock)
+/* once data is received, this function is called.
+   - If there is no space  in the ring toward user application,
+     don't read and kick the selector. Once user is awake, it reads
+     the buffers from the ring and kicks the socket. On kick,
+     this function is called again
+   - If there is insufficient/enugh space, data is read from the socket as much as possible 
+     and is  placed in ring toward user application, selector is kicked
+*/
+static inline __attribute__ ((always_inline)) void user_data_available_cbk(struct socket *sock)
 {
     struct msghdr msg;
     struct iovec vec;
@@ -144,12 +159,12 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
     user_on_rx_opportunity_called++;
     memset(&vec,0,sizeof(vec));
     if(unlikely(sock == NULL)) {
-        return 0;
+        return;
     }
     socket_satelite_data = get_user_data(sock);
     if(!socket_satelite_data) {
         printf("%s %d\n",__FILE__,__LINE__);
-        return 0;
+        return;
     }
 
     if(sock->sk->sk_state == TCP_LISTEN) {
@@ -161,13 +176,10 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
         msg.msg_name = &sockaddrin;
     }
     ring_free = ipaugenblick_rx_buf_free_count(socket_satelite_data);
-    if(!ring_free) {
-        ipaugenblick_kick_socket(socket_satelite_data);
-        user_rx_ring_full++;
-        return 0;
-    }
+    
+    user_rx_ring_full += !ring_free;
     while(ring_free > 0) {
-        if(unlikely((i = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) <= 0)) {
+        if(unlikely(kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) <= 0) {
             exhausted = 1;
             break;
         }
@@ -179,8 +191,9 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
         } 
         
         if(ipaugenblick_submit_rx_buf(msg.msg_iov->head,socket_satelite_data)) {
-            printf("%s %d\n",__FILE__,__LINE__);
+            printf("%s %d\n",__FILE__,__LINE__);//shoud not happen!!!
             rte_pktmbuf_free(msg.msg_iov->head);
+            break;
         }
         else {
             user_rx_mbufs++;
@@ -188,13 +201,9 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
         memset(&vec,0,sizeof(vec));
     }
 
-    if((!ring_free)||(exhausted)) {
-        user_on_rx_opportunity_called_exhausted += exhausted;
-        user_kick_socket_rx++;
-        ipaugenblick_kick_socket(socket_satelite_data);
-        return exhausted;
-    }
-    return 0;
+    user_on_rx_opportunity_called_exhausted += exhausted;
+    user_kick_select_rx++;
+    ipaugenblick_mark_readable(socket_satelite_data);
 }
 static inline __attribute__ ((always_inline)) void user_on_socket_fatal(struct socket *sock)
 {

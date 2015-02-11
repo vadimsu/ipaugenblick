@@ -41,13 +41,15 @@ uint64_t user_on_tx_opportunity_getbuff_called = 0;
 uint64_t user_on_tx_opportunity_api_nothing_to_tx = 0;
 uint64_t user_on_tx_opportunity_api_failed = 0;
 uint64_t user_on_tx_opportunity_api_mbufs_sent = 0;
+uint64_t user_on_tx_opportunity_socket_full = 0;
 uint64_t user_on_tx_opportunity_cannot_get_buff = 0;
 uint64_t user_on_rx_opportunity_called = 0;
 uint64_t user_on_rx_opportunity_called_exhausted = 0;
 uint64_t user_rx_mbufs = 0;
 uint64_t user_kick_tx = 0;
 uint64_t user_kick_rx = 0;
-uint64_t user_kick_socket_rx = 0;
+uint64_t user_kick_select_rx = 0;
+uint64_t user_kick_select_tx = 0;
 uint64_t user_on_tx_opportunity_cannot_send = 0;
 uint64_t user_rx_ring_full = 0;
 
@@ -128,7 +130,7 @@ static inline void process_commands()
         case IPAUGENBLICK_SOCKET_TX_KICK_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
                user_kick_tx++;
-               user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
+    //           user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
                user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            }
            break;
@@ -136,7 +138,7 @@ static inline void process_commands()
            if(socket_satelite_data[cmd->ringset_idx].socket) {
                user_kick_rx++;
                user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
-               user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
+      //         user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            }
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
@@ -210,8 +212,10 @@ void ipaugenblick_main_loop()
 void print_user_stats()
 {
 	printf("user_on_tx_opportunity_called %"PRIu64"\n",user_on_tx_opportunity_called);
-	printf("user_on_tx_opportunity_api_nothing_to_tx %"PRIu64"\n",user_on_tx_opportunity_api_nothing_to_tx);
-        printf("user_kick_tx user_kick_tx %"PRIu64" user_kick_tx user_kick_rx %"PRIu64" user_kick_socket_rx %"PRIu64" \n",user_kick_tx,user_kick_rx,user_kick_socket_rx);
+	printf("user_on_tx_opportunity_api_nothing_to_tx %"PRIu64"user_on_tx_opportunity_socket_full %"PRIu64" \n",
+                user_on_tx_opportunity_api_nothing_to_tx,user_on_tx_opportunity_socket_full);
+        printf("user_kick_tx %"PRIu64" user_kick_rx %"PRIu64" user_kick_select_tx %"PRIu64" user_kick_select_rx %"PRIu64"\n",
+                user_kick_tx,user_kick_rx,user_kick_select_tx,user_kick_select_rx);
         printf("user_on_tx_opportunity_cannot_send %"PRIu64"\n",user_on_tx_opportunity_cannot_send);
 	printf("user_on_tx_opportunity_cannot_get_buff %"PRIu64"\n",user_on_tx_opportunity_cannot_get_buff);
 	printf("user_on_tx_opportunity_getbuff_called %"PRIu64"\n",user_on_tx_opportunity_getbuff_called);
