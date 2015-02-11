@@ -140,7 +140,7 @@ static inline void process_commands()
            }
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
-           printf("%s %d %d %d\n",__FILE__,__LINE__,cmd->ringset_idx,cmd->parent_idx);
+           printf("%s %d %d %d %p\n",__FILE__,__LINE__,cmd->ringset_idx,cmd->parent_idx,cmd->u.set_socket_ring.socket_descr);
            socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,&socket_satelite_data[cmd->ringset_idx]);

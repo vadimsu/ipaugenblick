@@ -49,12 +49,15 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
         user_on_tx_opportunity_called++;
 
         if(!sock) {
-            return 0;
+            return 1; // should not happen, anyway return 'don't call again'
         }
         socket_satelite_data = get_user_data(sock);
 
         if(!socket_satelite_data) {
-            return 0;
+            return 1;// this is fatal for socket, return 'don't call again'
+        }
+        if(sock->sk->sk_state == TCP_LISTEN) {
+           printf("%s %d\n",__FILE__,__LINE__);exit(0);
         }
         
         if(sock->type == SOCK_STREAM) {
@@ -62,7 +65,7 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
             if(ring_entries == 0) {
                 ipaugenblick_mark_writable(socket_satelite_data);
                 user_on_tx_opportunity_api_nothing_to_tx++;
-                return 0;
+                return 0;// kicked user, return 'please call again'
             }
             while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
                     sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
@@ -75,7 +78,7 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                     else
                         sent += i;
             }
-            if(i > 0)
+            if(i > 0)//may write more
                 ipaugenblick_mark_writable(socket_satelite_data);
         }
         else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
@@ -122,10 +125,10 @@ static inline __attribute__ ((always_inline)) int user_on_transmission_opportuni
                     rte_pktmbuf_free(mbuf[i]);
                 }
             }while((dequeued > 0) && (sent > 0));
-            if(rc > 0)
+            if(rc > 0)//may write more
                 ipaugenblick_mark_writable(socket_satelite_data);
         } 
-        return /*sent*/1;
+        return !(ipaugenblick_tx_buf_count(socket_satelite_data) > 0);
 }
 
 static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct socket *sock)
@@ -147,6 +150,10 @@ static inline __attribute__ ((always_inline)) int user_data_available_cbk(struct
     if(!socket_satelite_data) {
         printf("%s %d\n",__FILE__,__LINE__);
         return 0;
+    }
+
+    if(sock->sk->sk_state == TCP_LISTEN) {
+        printf("%s %d\n",__FILE__,__LINE__);exit(0);
     }
     
     if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
@@ -207,6 +214,7 @@ static inline __attribute__ ((always_inline)) int user_on_accept(struct socket *
                     parent_descriptor = get_user_data(sock); 
                     cmd->u.accepted_socket.socket_descr = newsock;
                     app_glue_set_user_data(newsock,NULL);
+                    printf("%s %d %p\n",__FILE__,__LINE__,newsock);
                     ipaugenblick_post_accepted(cmd,parent_descriptor);
                 }
         }

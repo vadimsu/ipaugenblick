@@ -187,6 +187,7 @@ static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
 static inline void ipaugenblick_post_accepted(ipaugenblick_cmd_t *cmd,void *parent_descriptor)
 {
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)parent_descriptor;
+    printf("%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->ringset_idx);
 //    cmd->ringset_idx = socket_satelite_data->ringset_idx;
     if(rte_ring_enqueue(socket_satelite_data->rx_ring,(void *)cmd) == -ENOBUFS) { 
         ipaugenblick_free_command_buf(cmd);
@@ -226,6 +227,7 @@ static inline void ipaugenblick_kick_socket(void *descriptor)
 {
     uint32_t ringidx_ready_mask; 
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
+    printf("%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->ringset_idx);
     if(socket_satelite_data->parent_idx == -1)
         return;
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
@@ -237,6 +239,7 @@ static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,void *descrip
     uint32_t ringidx_ready_mask; 
     int rc;
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
+    printf("%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->ringset_idx);
     rc = rte_ring_sp_enqueue_bulk(socket_satelite_data->rx_ring,(void *)&mbuf,1);
     
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready)) {
@@ -253,6 +256,7 @@ static inline void ipaugenblick_mark_writable(void *descriptor)
 {
     uint32_t ringidx_ready_mask;
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
+    printf("%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->ringset_idx);
     if(socket_satelite_data->parent_idx == -1) {
         return;
     }
