@@ -158,6 +158,7 @@ static void app_glue_sock_wakeup(struct sock *sk)
               struct tcp_sock *tp;
               tp = tcp_sk(sk);
               printf("%s %d %x %d %x %d %d \n",__FILE__,__LINE__,sk->sk_daddr,sk->sk_dport,sk->sk_rcv_saddr,sk->sk_num,tp->inet_conn.icsk_inet.inet_sport);
+              return;
         }
 	sock_reset_flag(sk,SOCK_USE_WRITE_QUEUE);
 	sk->sk_data_ready = app_glue_sock_readable;
