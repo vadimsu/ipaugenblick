@@ -38,18 +38,21 @@ int main(int argc,char **argv)
     if(selector != -1) {
         printf("selector opened\n");
     }
-    while(1) {
-        newsock = ipaugenblick_accept(sock);
-        if(newsock != -1) {
-            printf("socket accepted %d %d\n",newsock,selector);
-            ipaugenblick_set_socket_select(newsock,selector);
-            sockets_connected++;
-        }
-        if(sockets_connected == 0) {
-            continue;
-        }
+    while(1) {  
         ready_socket = ipaugenblick_select(selector,&mask);
         if(ready_socket == -1) {
+            continue;
+        }
+        if(ready_socket == sock) {
+            newsock = ipaugenblick_accept(sock);
+            if(newsock != -1) {
+                printf("socket accepted %d %d\n",newsock,selector);
+                ipaugenblick_set_socket_select(newsock,selector);
+                sockets_connected++;
+            }
+            continue;
+        }
+        if(sockets_connected == 0) {
             continue;
         }
 #if 1
