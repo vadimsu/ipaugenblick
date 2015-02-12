@@ -38,6 +38,7 @@ int main(int argc,char **argv)
     if(selector != -1) {
         printf("selector opened\n");
     }
+    ipaugenblick_set_socket_select(sock,selector);
     while(1) {  
         ready_socket = ipaugenblick_select(selector,&mask);
         if(ready_socket == -1) {

@@ -114,6 +114,7 @@ static inline void process_commands()
                socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
                app_glue_set_user_data(sock,(void *)&socket_satelite_data[cmd->ringset_idx]);
                socket_satelite_data[cmd->ringset_idx].socket = sock;
+               ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]); 
            }
            break;
         case IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND:

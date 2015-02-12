@@ -134,7 +134,7 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
                     rte_pktmbuf_free(mbuf[i]);
                 }
             }while((dequeued > 0) && (sent > 0));
-            if(rc > 0)//may write more
+            if(sent > 0)//may write more
                 ipaugenblick_mark_writable(socket_satelite_data);
         }
 }
