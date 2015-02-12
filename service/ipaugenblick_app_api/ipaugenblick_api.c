@@ -357,7 +357,7 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
     p_addr -= sizeof(struct sockaddr_in);
     p_addr_in = (struct sockaddr_in *)p_addr;
     p_addr_in->sin_family = AF_INET;
-    p_addr_in->sin_port = port;
+    p_addr_in->sin_port = htons(port);
     p_addr_in->sin_addr.s_addr = ipaddr;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
