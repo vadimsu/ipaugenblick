@@ -55,12 +55,12 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
 
         user_on_tx_opportunity_called++;
 
-        if(!sock) {
+        if(unlikely(!sock)) {
             return;
         }
         socket_satelite_data = get_user_data(sock);
 
-        if(!socket_satelite_data) {
+        if(unlikely(!socket_satelite_data)) {
             return;
         }
         if(sock->sk->sk_state == TCP_LISTEN) {
@@ -74,21 +74,17 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
                 user_on_tx_opportunity_api_nothing_to_tx++;
                 return;
             }
-            while(likely((to_send_this_time = app_glue_calc_size_of_data_to_send(sock)) > 0))/*while(1)*/ {
-                    sock->sk->sk_route_caps |= NETIF_F_SG | NETIF_F_ALL_CSUM;
-                   to_send_this_time = (to_send_this_time > (ring_entries<<10)) ? (ring_entries<<10) : to_send_this_time;
-                    i = kernel_sendpage(sock, &page, 0/*offset*/,to_send_this_time, 0 /*flags*/);
-                    if(i <= 0) {
-                        user_on_tx_opportunity_api_failed++;
-                        break;
-                    }
-                    else
-                        sent += i;
-            }
-            if(to_send_this_time > 0)//may write more
+            do {
+                i = kernel_sendpage(sock, &page, 0/*offset*/,ring_entries<<10, 0 /*flags*/);
+                ring_entries = ipaugenblick_tx_buf_count(socket_satelite_data);
+                sent += (i>0);
+            }while((i > 0)&&(ring_entries > 0));
+            if(ring_entries == 0) {
                 ipaugenblick_mark_writable(socket_satelite_data);
-            else
+            }
+            else {
                 user_on_tx_opportunity_socket_full += !sent;
+            }
         }
         else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             struct msghdr msghdr;
@@ -151,7 +147,7 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
     struct msghdr msg;
     struct iovec vec;
     struct rte_mbuf *mbuf;
-    int i,ring_free,exhausted = 0;
+    int ring_free,exhausted = 0;
     void *socket_satelite_data;
     unsigned int ringset_idx;
     struct sockaddr_in sockaddrin;
@@ -201,9 +197,11 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
         memset(&vec,0,sizeof(vec));
     }
 
-    user_on_rx_opportunity_called_exhausted += exhausted;
-    user_kick_select_rx++;
-    ipaugenblick_mark_readable(socket_satelite_data);
+    user_on_rx_opportunity_called_exhausted += exhausted; 
+    if((!exhausted)&&(!ring_free)) {
+        user_kick_select_rx++;
+        ipaugenblick_mark_readable(socket_satelite_data);
+    }
 }
 static inline __attribute__ ((always_inline)) void user_on_socket_fatal(struct socket *sock)
 {

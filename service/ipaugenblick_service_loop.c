@@ -147,13 +147,15 @@ static inline void process_commands()
            socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,&socket_satelite_data[cmd->ringset_idx]);
-           socket_satelite_data[cmd->ringset_idx].socket = cmd->u.set_socket_ring.socket_descr;
+           socket_satelite_data[cmd->ringset_idx].socket = cmd->u.set_socket_ring.socket_descr; 
            user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
        //    app_pid = cmd->u.set_socket_select.pid;
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select;
+           ipaugenblick_mark_readable(socket_satelite_data[cmd->ringset_idx].socket);
+           ipaugenblick_mark_writable(socket_satelite_data[cmd->ringset_idx].socket);
 //           printf("%s %d %d %d\n",__FILE__,__LINE__,RINGSET_IDX(sock_and_selector_idx),PARENT_IDX(sock_and_selector_idx));
 //           app_glue_set_user_data(socket_satelite_data[cmd->ringset_idx].socket,&socket_satelite_data[cmd->ringset_idx]);
            break;

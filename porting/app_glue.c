@@ -447,7 +447,7 @@ static inline void process_tx_ready_sockets()
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
                 sock->write_queue_present = 0;
 		user_on_transmission_opportunity(sock);
-                //set_bit(SOCK_NOSPACE, &sock->flags);
+                set_bit(SOCK_NOSPACE, &sock->flags);
                 write_sockets_queue_len--;
 	        idx++;
 	}
