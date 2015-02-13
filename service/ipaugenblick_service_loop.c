@@ -153,11 +153,7 @@ static inline void process_commands()
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
        //    app_pid = cmd->u.set_socket_select.pid;
-           socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select;
-           ipaugenblick_mark_readable(socket_satelite_data[cmd->ringset_idx].socket);
-           ipaugenblick_mark_writable(socket_satelite_data[cmd->ringset_idx].socket);
-//           printf("%s %d %d %d\n",__FILE__,__LINE__,RINGSET_IDX(sock_and_selector_idx),PARENT_IDX(sock_and_selector_idx));
-//           app_glue_set_user_data(socket_satelite_data[cmd->ringset_idx].socket,&socket_satelite_data[cmd->ringset_idx]);
+           socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select; 
            break;
         case IPAUGENBLICK_SOCKET_CONNECT_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
