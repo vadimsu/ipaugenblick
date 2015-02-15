@@ -29,10 +29,10 @@ int ipaugenblick_send(int sock,void *buffer,int offset,int length);
 int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port);
 
 /* TCP */
-int ipaugenblick_receive(int sock,void **pbuffer,int *len);
+int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs);
 
 /* UDP or RAW */
-int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port);
+int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs,unsigned int *ipaddr,unsigned short *port);
 
 /* Allocate buffer to use later in *send* APIs */
 void *ipaugenblick_get_buffer(int length);
@@ -53,5 +53,9 @@ int ipaugenblick_set_socket_select(int sock,int select);
 int ipaugenblick_select(int selector,unsigned short *mask);
 
 int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port);
+
+/* receive functions return a chained buffer. this function
+   retrieves a next chunk and its length */
+void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len);
 
 #endif

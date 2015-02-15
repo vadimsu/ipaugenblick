@@ -17,7 +17,7 @@ int main(int argc,char **argv)
     void **buff;
     int sock,selector,len,ready_socket,i,tx_space;
     char *p;
-    int size = 0,ringset_idx;
+    int size = 0,ringset_idx,nb_segs,max_nb_segs = 0,max_total_len = 0;
     unsigned int from_ip;
     unsigned short from_port,mask;
     unsigned long received_packets = 0;
@@ -52,10 +52,14 @@ int main(int argc,char **argv)
             continue;
         }
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
-            if(ipaugenblick_receivefrom(ready_socket,&buff,&len,&from_ip,&from_port) == 0) {
+            if(ipaugenblick_receivefrom(ready_socket,&buff,&len,&nb_segs,&from_ip,&from_port) == 0) {
                 received_packets++;
+                if(nb_segs > max_nb_segs)
+                    max_nb_segs = nb_segs;
+                if(len > max_total_len)
+                    max_total_len = len;
                 if(!(received_packets%1000000)) {
-                    printf("received %u\n",received_packets);
+                    printf("received %u max_nb_segs %u max_total_len %u\n",received_packets,max_nb_segs,max_total_len);
                 }
                 ipaugenblick_release_rx_buffer(buff);
            }

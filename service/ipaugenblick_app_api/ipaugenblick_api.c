@@ -140,6 +140,9 @@ int ipaugenblick_app_init(int argc,char **argv)
         local_socket_descriptors[i].socket = NULL;
         sprintf(ringname,"local_rx_cache%d",i);
         local_socket_descriptors[i].local_cache = rte_ring_create(ringname, 1024,rte_socket_id(), RING_F_SC_DEQ|RING_F_SP_ENQ);
+        if(!local_socket_descriptors[i].local_cache) {
+            local_socket_descriptors[i].local_cache = rte_ring_lookup(ringname);
+        }
     }
     tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
     if(!tx_bufs_pool) {
@@ -366,7 +369,7 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
 }
 
 /* TCP */
-inline int ipaugenblick_receive(int sock,void **pbuffer,int *len)
+inline int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     ipaugenblick_stats_receive_called++;
@@ -376,12 +379,13 @@ inline int ipaugenblick_receive(int sock,void **pbuffer,int *len)
         return -1;
     }
     *pbuffer = &(mbuf->pkt.data);
-    *len = mbuf->pkt.data_len;
+    *len = mbuf->pkt.pkt_len;
+    *nb_segs = mbuf->pkt.nb_segs;
     return 0;
 }
 
 /* UDP or RAW */
-inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port)
+inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs,unsigned int *ipaddr,unsigned short *port)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     ipaugenblick_stats_receive_called++;
@@ -391,7 +395,8 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int
         return -1;
     }
     *buffer = &(mbuf->pkt.data);
-    *len = mbuf->pkt.data_len;
+    *len = mbuf->pkt.pkt_len;
+    *nb_segs = mbuf->pkt.nb_segs;
     char *p_addr = mbuf->pkt.data;
     p_addr -= sizeof(struct sockaddr_in);
     struct sockaddr_in *p_addr_in = (struct sockaddr_in *)p_addr;
@@ -497,4 +502,16 @@ int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port
     cmd->ringset_idx = sock;
     ipaugenblick_enqueue_command_buf(cmd);
     return 0;
+}
+/* receive functions return a chained buffer. this function
+   retrieves a next chunk and its length */
+void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len)
+{
+   struct rte_mbuf *mbuf = RTE_MBUF(buffer);
+   mbuf = mbuf->pkt.next;
+   if(!mbuf) {
+       return NULL;
+   }
+   *len = mbuf->pkt.data_len;
+   return &(mbuf->pkt.data);
 }

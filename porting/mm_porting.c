@@ -276,10 +276,14 @@ int memcpy_toiovec(struct iovec *iov,struct rte_mbuf *mbuf,int offset,int len)
 	if(iov->head == NULL) {
 		iov->head = mbuf;
 		iov->tail = mbuf;
+                iov->head->pkt.pkt_len = iov->head->pkt.data_len;
+                iov->head->pkt.nb_segs = 1;
 	}
 	else if(iov->tail != mbuf) { /* check the case partial data is submitted */
 		iov->tail->pkt.next = mbuf;
 		iov->tail = iov->tail->pkt.next;
+                iov->head->pkt.pkt_len += mbuf->pkt.data_len;
+                iov->head->pkt.nb_segs++;
 	}
 	iov->len += len;
 	return 0;

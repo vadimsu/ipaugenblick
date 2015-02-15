@@ -20,7 +20,9 @@ int main(int argc,char **argv)
     int sockets_connected = 0;
     int selector;
     int ready_socket;
-    int i,tx_space;
+    int i,tx_space,nb_segs;
+    int max_nb_segs = 0;
+    int max_total_length = 0;
     unsigned short mask;
     unsigned long received_count = 0;
 
@@ -58,10 +60,14 @@ int main(int argc,char **argv)
         }
 #if 1
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
-            while(ipaugenblick_receive(ready_socket,&rxbuff,&len) == 0) {
+            while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&nb_segs) == 0) {
                 received_count++;
+                if(nb_segs > max_nb_segs) 
+                    max_nb_segs = nb_segs;
+                if(len > max_total_length)
+                    max_total_length = len;
                 if(!(received_count%100000)) {
-                    printf("received %u\n",received_count);
+                    printf("received %u max_nb_segs %u max_total_len %u\n",received_count,max_nb_segs,max_total_length);
                 }
                 ipaugenblick_release_rx_buffer(rxbuff);
             }
