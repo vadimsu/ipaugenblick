@@ -14,10 +14,10 @@
 
 int main(int argc,char **argv)
 {
-    void **buff;
+    void *buff,*buff_seg;
     int sock,selector,len,ready_socket,i,tx_space;
     char *p;
-    int size = 0,ringset_idx,nb_segs,max_nb_segs = 0,max_total_len = 0;
+    int size = 0,ringset_idx,nb_segs,max_nb_segs = 0,max_total_len = 0,seg_idx;
     unsigned int from_ip;
     unsigned short from_port,mask;
     unsigned long received_packets = 0;
@@ -58,6 +58,15 @@ int main(int argc,char **argv)
                     max_nb_segs = nb_segs;
                 if(len > max_total_len)
                     max_total_len = len;
+                buff_seg = buff;
+                for(seg_idx = 0;seg_idx < nb_segs;seg_idx++) {
+
+                    buff_seg = ipaugenblick_get_next_buffer_segment(buff_seg,&len);
+                    if((buff_seg)&&(len > 0)) {
+                        /* do something */
+                        /* don't release buf, release rxbuff */
+                    }
+                }
                 if(!(received_packets%1000000)) {
                     printf("received %u max_nb_segs %u max_total_len %u\n",received_packets,max_nb_segs,max_total_len);
                 }
