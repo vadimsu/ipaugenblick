@@ -2851,7 +2851,7 @@ void igb_set_ethtool_ops(struct net_device *netdev)
 void igb_set_ethtool_ops(struct net_device *netdev)
 {
 	/* have to "undeclare" const on this struct to remove warnings */
-	SET_ETHTOOL_OPS(netdev, (struct ethtool_ops *)&igb_ethtool_ops);
+//	SET_ETHTOOL_OPS(netdev, (struct ethtool_ops *)&igb_ethtool_ops);
 }
 #endif /* HAVE_RHEL6_ETHTOOL_OPS_EXT_STRUCT */
 #endif	/* SIOCETHTOOL */

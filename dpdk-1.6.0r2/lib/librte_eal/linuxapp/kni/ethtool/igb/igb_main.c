@@ -2278,7 +2278,7 @@ static const struct net_device_ops igb_netdev_ops = {
 #ifdef IFLA_VF_MAX
 	.ndo_set_vf_mac		= igb_ndo_set_vf_mac,
 	.ndo_set_vf_vlan	= igb_ndo_set_vf_vlan,
-	.ndo_set_vf_tx_rate	= igb_ndo_set_vf_bw,
+	//.ndo_set_vf_tx_rate	= igb_ndo_set_vf_bw,
 	.ndo_get_vf_config	= igb_ndo_get_vf_config,
 #ifdef HAVE_VF_SPOOFCHK_CONFIGURE
 	.ndo_set_vf_spoofchk	= igb_ndo_set_vf_spoofchk,
@@ -9419,7 +9419,7 @@ static int igb_ndo_get_vf_config(struct net_device *netdev,
 		return -EINVAL;
 	ivi->vf = vf;
 	memcpy(&ivi->mac, adapter->vf_data[vf].vf_mac_addresses, ETH_ALEN);
-	ivi->tx_rate = adapter->vf_data[vf].tx_rate;
+//	ivi->tx_rate = adapter->vf_data[vf].tx_rate;
 	ivi->vlan = adapter->vf_data[vf].pf_vlan;
 	ivi->qos = adapter->vf_data[vf].pf_qos;
 #ifdef HAVE_VF_SPOOFCHK_CONFIGURE

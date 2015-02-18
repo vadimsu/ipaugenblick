@@ -1,0 +1,118 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/errno.h>
+#include "../ipaugenblick_app_api/ipaugenblick_api.h"
+#include <string.h>
+
+#define USE_TX 1
+#define USE_CONNECTED 1
+
+int main(int argc,char **argv)
+{
+    void *buff,*rxbuff;
+    int sock,newsock,len,listener_sock;
+    char *p;
+    int size = 0,ringset_idx;
+    int sockets_connected = 0;
+    int selector;
+    int ready_socket;
+    int i,tx_space,nb_segs,seg_idx;
+    int max_nb_segs = 0;
+    int max_total_length = 0;
+    unsigned short mask,from_port;
+    unsigned int from_ip;
+    unsigned long received_count = 0;
+
+    if(ipaugenblick_app_init(argc,argv) != 0) {
+        printf("cannot initialize memory\n");
+        return 0;
+    } 
+    printf("memory initialized\n");
+    if((listener_sock = ipaugenblick_open_tcp_server(inet_addr("192.168.150.63"),7777)) < 0) {
+        printf("cannot open tcp client socket\n");
+        return 0;
+    }
+    printf("listener socket opened\n");
+    selector = ipaugenblick_open_select();
+    if(selector != -1) {
+        printf("selector opened\n");
+    }
+    ipaugenblick_set_socket_select(listener_sock,selector);
+    for(i = 0;i < 10;i++) {
+        if((sock = ipaugenblick_open_udp(inet_addr("192.168.150.63"),7777+i)) < 0) {
+            printf("cannot open UDP socket\n");
+            return 0;
+        }
+        ipaugenblick_set_socket_select(sock,selector);
+        from_ip = inet_addr("192.168.150.62");
+        from_port = htons(7777);
+        printf("waiting for creation feedback %d\n",sock);
+        sleep(1);
+#if USE_CONNECTED
+        printf("connecting %d\n",sock);
+        ipaugenblick_socket_connect(sock,from_ip,from_port);
+#endif
+    }
+
+    while(1) {  
+        ready_socket = ipaugenblick_select(selector,&mask);
+        if(ready_socket == -1) {
+            continue;
+        }
+        if(ready_socket == listener_sock) {
+            newsock = ipaugenblick_accept(listener_sock);
+            if(newsock != -1) {
+                printf("socket accepted %d %d\n",newsock,selector);
+                ipaugenblick_set_socket_select(newsock,selector);
+                sockets_connected++;
+            }
+            continue;
+        }
+        if(sockets_connected == 0) {
+            continue;
+        }
+        if(mask & /*SOCKET_READABLE_BIT*/0x1) {
+            while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&nb_segs) == 0) {
+                received_count++;
+                if(nb_segs > max_nb_segs) 
+                    max_nb_segs = nb_segs;
+                if(len > max_total_length)
+                    max_total_length = len;
+                buff = rxbuff;
+                for(seg_idx = 0;seg_idx < nb_segs;seg_idx++) {
+                    
+                    buff = ipaugenblick_get_next_buffer_segment(buff,&len);
+                    if((buff)&&(len > 0)) {
+                        /* do something */
+                        /* don't release buf, release rxbuff */
+                    }
+                }
+                if(!(received_count%100000)) {
+                    printf("received %u max_nb_segs %u max_total_len %u\n",received_count,max_nb_segs,max_total_length);
+                }
+                ipaugenblick_release_rx_buffer(rxbuff);
+            }
+        }
+#if USE_TX
+        if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
+            tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
+            for(i = 0;i < tx_space;i++) {
+                buff = ipaugenblick_get_buffer(1448);
+                if(!buff)
+                    break;
+                if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
+                    ipaugenblick_release_tx_buffer(buff);
+                    break;
+                }
+            } 
+        } 
+        ipaugenblick_socket_kick(ready_socket);
+#endif
+    }
+    return 0;
+}

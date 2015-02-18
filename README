@@ -1,4 +1,12 @@
 News
+18, Febrary 2015: IPAugenblick service is present in master branch. To run ipaugenblick as service, one needs:
+- To reserve huge pages, bind NIC to UIO driver
+- Run sudo ./ipaugenblick_srv -c <core mask> -n <channels number> -- -p <port mask> (ipaugenblick_srv is built under ./service/build/)
+- Select one of applications under ./service/test_client, run corresponding build script (found at the same path), then run:
+   - sudo ./<executable name> -c <core mask> -n <channels mask> --proc-type secondary
+   Note that the configuration file containing port addresses must be present under service directory. In test executables, the addresses are currently harcoded, customize as you need
+   - test applications can be executed number of times w/o restarting the service
+
 27, January 2015: IPAugenblick as Linux service is going to be released shortly. It will run as user space daemon while providing an API (as static library) to interfact the service from different applications running in other processes. At the same time it is going to upgrade the DPDK version from 1.6 to 1.8
 Intro
 
