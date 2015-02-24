@@ -472,11 +472,12 @@ printf("%s %d %p %d %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_so
 int ipaugenblick_select(int selector,unsigned short *mask)
 {
     uint32_t ringset_idx_and_ready_mask;
+    uint32_t i;
     ipaugenblick_stats_select_called++;
 restart_waiting:
     
     if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) { 
-       usleep(1);
+       for(i = 0;i < 10000;i++);
        goto restart_waiting;
     }
     ipaugenblick_stats_select_returned++;
