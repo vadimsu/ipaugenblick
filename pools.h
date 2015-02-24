@@ -10,12 +10,12 @@
 #ifndef __POOLS_H_
 #define __POOLS_H_
 
-#define MEMORY_FACTOR 1 /* 4*/
+#define MEMORY_FACTOR /*1 */ 16
 
 
-#define NUMBER_OF_HEAD_SKBS 8192*MEMORY_FACTOR
+#define NUMBER_OF_HEAD_SKBS 32768*MEMORY_FACTOR
 
-#define NUMBER_OF_FCLONE_SKBS 8192*MEMORY_FACTOR
+#define NUMBER_OF_FCLONE_SKBS 32768*MEMORY_FACTOR
 
 /* On the transmit path, the headers are placed in HEADERS,
  * on the receive path, both data and headers are placed in HEADERS
