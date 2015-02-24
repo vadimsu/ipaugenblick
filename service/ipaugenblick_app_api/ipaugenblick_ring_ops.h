@@ -70,8 +70,18 @@ static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
         if(dequeued > 0) {
             ipaugenblick_stats_rx_dequeued++;
             send_kick = 1;
-            rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
-                                      (void **)mbufs,dequeued);
+            if(rte_ring_count(local_socket_descriptors[ringset_idx].local_cache) > 0) {
+                rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
+                                          (void **)mbufs,dequeued);
+            }
+            else {
+                mbuf = mbufs[0];
+                if(dequeued > 1) {
+                    rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
+                                          (void **)&mbufs[1],dequeued - 1);
+                }
+                goto skip_local;
+            }
         }
     } 
     if(rte_ring_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf)) {
@@ -80,6 +90,7 @@ static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
     else {
         ipaugenblick_stats_rx_dequeued_local++;
     }
+skip_local:
     if(send_kick) {
         cmd = ipaugenblick_get_free_command_buf();
         if(cmd) {
