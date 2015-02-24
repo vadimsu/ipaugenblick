@@ -68,7 +68,7 @@ extern unsigned long long jiffies;
 #define __init
 #define __initdata
 #define __setup(a,b)
-#define __always_inline
+#define __always_inline inline __attribute__((always_inline))
 //#define __releases
 //#define ARCH_KMALLOC_MINALIGN 64
 #define ____cacheline_aligned_in_smp
@@ -379,7 +379,7 @@ unsigned int jiffies_to_msecs(const unsigned long j);
 #define sock_intr_errno(timeo) 0
 #define __packed __attribute__ ((__packed__))
 #define cond_resched()
-#define prefetch(a)
+#define prefetch(a) rte_prefetch0(a)
 #define panic(a) { printf("PANIC %s\n",a); while(1); }
 #define __attribute_const__
 #define noinline_for_stack

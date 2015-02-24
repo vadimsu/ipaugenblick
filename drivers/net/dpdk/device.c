@@ -62,6 +62,9 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
 	if(unlikely(ret <= 0)) {
 		return;
 	}
+        for(i = 0;i < ret;i++) {
+            rte_prefetch0(rte_pktmbuf_mtod(mbufs[i],void *));
+        }
 	for(i = 0;i < ret;i++) {
 		skb = build_skb(mbufs[i],mbufs[i]->pkt.data_len);
 		if(unlikely(skb == NULL)) {

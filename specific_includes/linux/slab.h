@@ -571,23 +571,22 @@ static inline int kmem_cache_get_free(void *cache)
 {
 	return rte_mempool_count(cache);
 }
-static inline void *kmem_cache_alloc(struct kmem_cache *cache, gfp_t flags)
+static inline __attribute__((always_inline)) void *kmem_cache_alloc(struct kmem_cache *cache, gfp_t flags)
 {
     void *obj;
-    if(rte_mempool_get(cache,&obj))
-    {
+    if(rte_mempool_get(cache,&obj)) {
         return NULL;
     }
     return obj;
 }
-static inline void kmem_cache_free(struct kmem_cache *cache, void *mem)
+static inline __attribute__((always_inline)) void kmem_cache_free(struct kmem_cache *cache, void *mem)
 {
 	rte_mempool_put(cache,mem);
 }
 /*
  * Shortcuts
  */
-static inline void *kmem_cache_zalloc(struct kmem_cache *k, gfp_t flags)
+static inline __attribute__((always_inline)) void *kmem_cache_zalloc(struct kmem_cache *k, gfp_t flags)
 {
 	return kmem_cache_alloc(k, flags | __GFP_ZERO);
 }
