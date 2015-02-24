@@ -26,6 +26,7 @@ extern socket_satelite_data_t socket_satelite_data[IPAUGENBLICK_CONNECTION_POOL_
 extern ipaugenblick_socket_t *g_ipaugenblick_sockets;
 extern ipaugenblick_selector_t *g_ipaugenblick_selectors;
 extern uint64_t user_kick_select_tx;
+extern uint64_t user_kick_select_rx;
 
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 
@@ -112,12 +113,14 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
             printf("cannot create ring %s %d\n",__FILE__,__LINE__);
             exit(0);
         }
+        rte_ring_set_water_mark(socket_satelite_data[ringset_idx].tx_ring,/*tx_bufs_count/10*/1);
         sprintf(ringname,RX_RING_NAME_BASE"%d",ringset_idx);
         socket_satelite_data[ringset_idx].rx_ring = rte_ring_create(ringname, rx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
         if(!socket_satelite_data[ringset_idx].rx_ring) {
             printf("cannot create ring %s %d\n",__FILE__,__LINE__);
             exit(0);
         }
+        rte_ring_set_water_mark(socket_satelite_data[ringset_idx].rx_ring,/*rx_bufs_count/10*/1);
         socket_satelite_data[ringset_idx].ringset_idx = -1;
         socket_satelite_data[ringset_idx].parent_idx = -1;
         socket_satelite_data[ringset_idx].socket = NULL;
@@ -193,8 +196,14 @@ static inline void ipaugenblick_mark_readable(void *descriptor)
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
     if(socket_satelite_data->parent_idx == -1)
         return;
+    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready)) {
+//        if(app_pid)
+//           kill(app_pid,/*SIGUSR1*/10);
+        return;
+    }
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
     rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
+    user_kick_select_rx++; 
 }
 
 static inline void ipaugenblick_post_accepted(ipaugenblick_cmd_t *cmd,void *parent_descriptor)
@@ -244,13 +253,9 @@ static inline int ipaugenblick_submit_rx_buf(struct rte_mbuf *mbuf,void *descrip
     int rc;
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
     rc = rte_ring_sp_enqueue_bulk(socket_satelite_data->rx_ring,(void *)&mbuf,1);
-    
-    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready)) {
-//        if(app_pid)
-//           kill(app_pid,/*SIGUSR1*/10);
-        return (rc == -ENOBUFS);
-    }
-//    ipaugenblick_kick_socket(descriptor);
+     
+    if(rc != 0)
+        ipaugenblick_mark_readable(descriptor);
     
     return (rc == -ENOBUFS);
 }
@@ -262,8 +267,9 @@ static inline void ipaugenblick_mark_writable(void *descriptor)
     if(socket_satelite_data->parent_idx == -1) {
         return;
     }
-    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready))
+/*    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready)) {
         return;
+    }*/
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
     rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
     user_kick_select_tx++;
