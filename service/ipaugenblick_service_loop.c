@@ -195,12 +195,12 @@ void ipaugenblick_main_loop()
     struct rte_mbuf *mbuf;
     uint8_t ports_to_poll[1] = { 0 };
     int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
-    app_glue_init_poll_intervals(drv_poll_interval/(2*MAX_PKT_BURST),
+    app_glue_init_poll_intervals(/*drv_poll_interval/(2*MAX_PKT_BURST)*/1,
                                  1000 /*timer_poll_interval*/,
-                                 drv_poll_interval/(10*MAX_PKT_BURST),
-                                drv_poll_interval/(60*MAX_PKT_BURST));
+                                 /*drv_poll_interval/(10*MAX_PKT_BURST)*/1,
+                                /*drv_poll_interval/(60*MAX_PKT_BURST)*/1);
     
-    ipaugenblick_service_api_init(128,1024,1024);
+    ipaugenblick_service_api_init(128,4096,4096);
     printf("IPAugenblick service initialized\n");
     while(1) {
         process_commands();
