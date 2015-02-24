@@ -75,7 +75,7 @@ int main(int argc,char **argv)
         }
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
-            for(i = 0;i < tx_space;i++) {
+            for(i = 0;i < tx_space/3;i++) {
                 buff = ipaugenblick_get_buffer(DATAGRAM_SIZE);
                 if(buff) {
 #if USE_CONNECTED
@@ -88,9 +88,9 @@ int main(int argc,char **argv)
                     } 
 #endif
                 } 
-            } 
-        }
-        ipaugenblick_socket_kick(sock);
+            }  
+            ipaugenblick_socket_kick(sock);
+        } 
    }
     return 0;
 }

@@ -110,8 +110,8 @@ int main(int argc,char **argv)
                     break;
                 }
             } 
-        } 
-        ipaugenblick_socket_kick(ready_socket);
+            ipaugenblick_socket_kick(ready_socket);
+        }  
 #endif
     }
     return 0;

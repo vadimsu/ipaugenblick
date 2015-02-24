@@ -40,7 +40,7 @@ int main(int argc,char **argv)
         if(socket_connected == -1) {
             continue;
         }
-        if(ipaugenblick_receive(socket_connected,&rxbuff,&len) == 0) {
+        if(ipaugenblick_receive(socket_connected,&rxbuff,&len,&nb_segs) == 0) {
             ipaugenblick_release_rx_buffer(rxbuff);
 #if USE_TX
             buff = ipaugenblick_get_buffer(1448);

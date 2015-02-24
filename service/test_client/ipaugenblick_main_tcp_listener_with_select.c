@@ -22,7 +22,7 @@ int main(int argc,char **argv)
     int ready_socket;
     int i,tx_space,nb_segs,seg_idx;
     int max_nb_segs = 0;
-    int max_total_length = 0;
+    int max_total_length = 0,skip_select = 0;
     unsigned short mask;
     unsigned long received_count = 0;
 
@@ -42,7 +42,8 @@ int main(int argc,char **argv)
     }
     ipaugenblick_set_socket_select(sock,selector);
     while(1) {  
-        ready_socket = ipaugenblick_select(selector,&mask);
+        if(!skip_select)
+            ready_socket = ipaugenblick_select(selector,&mask);
         if(ready_socket == -1) {
             continue;
         }
@@ -66,6 +67,7 @@ int main(int argc,char **argv)
                 if(len > max_total_length)
                     max_total_length = len;
                 buff = rxbuff;
+#if 0
                 for(seg_idx = 0;seg_idx < nb_segs;seg_idx++) {
                     
                     buff = ipaugenblick_get_next_buffer_segment(buff,&len);
@@ -74,7 +76,8 @@ int main(int argc,char **argv)
                         /* don't release buf, release rxbuff */
                     }
                 }
-                if(!(received_count%100000)) {
+#endif
+                if(!(received_count%10000000)) {
                     printf("received %u max_nb_segs %u max_total_len %u\n",received_count,max_nb_segs,max_total_length);
                 }
                 ipaugenblick_release_rx_buffer(rxbuff);
@@ -85,14 +88,19 @@ int main(int argc,char **argv)
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
             for(i = 0;i < tx_space;i++) {
                 buff = ipaugenblick_get_buffer(1448);
-                if(!buff)
-                    break;
-                if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
-                    ipaugenblick_release_tx_buffer(buff);
+                if(!buff) {
+                    skip_select = 1;
                     break;
                 }
+                if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
+                    ipaugenblick_release_tx_buffer(buff);
+                    skip_select = 1;
+                    break;
+                }
+                skip_select = 0;
             } 
-        } 
+//            ipaugenblick_socket_kick(ready_socket);
+        }  
         ipaugenblick_socket_kick(ready_socket);
 #endif
     }
