@@ -116,10 +116,12 @@ struct socket {
 	TAILQ_ENTRY(socket) write_queue_entry;
 	TAILQ_ENTRY(socket) accept_queue_entry;
 	TAILQ_ENTRY(socket) closed_queue_entry;
+        TAILQ_ENTRY(socket) buffers_available_notification_queue_entry;
 	int read_queue_present;
 	int write_queue_present;
 	int accept_queue_present;
 	int closed_queue_present;
+        int buffers_available_notification_queue_present;
 	struct sock		*sk;
 	const struct proto_ops	*ops;
 }__attribute__ ((aligned (CACHE_LINE_SIZE)));

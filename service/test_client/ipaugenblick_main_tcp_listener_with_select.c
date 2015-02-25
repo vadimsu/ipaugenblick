@@ -22,7 +22,7 @@ int main(int argc,char **argv)
     int ready_socket;
     int i,tx_space,nb_segs,seg_idx;
     int max_nb_segs = 0;
-    int max_total_length = 0,skip_select = 0;
+    int max_total_length = 0;
     unsigned short mask;
     unsigned long received_count = 0;
 
@@ -42,8 +42,7 @@ int main(int argc,char **argv)
     }
     ipaugenblick_set_socket_select(sock,selector);
     while(1) {  
-        if(!skip_select)
-            ready_socket = ipaugenblick_select(selector,&mask);
+        ready_socket = ipaugenblick_select(selector,&mask);
         if(ready_socket == -1) {
             continue;
         }
@@ -87,21 +86,18 @@ int main(int argc,char **argv)
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
             for(i = 0;i < tx_space;i++) {
-                buff = ipaugenblick_get_buffer(1448);
+                buff = ipaugenblick_get_buffer(1448,ready_socket);
                 if(!buff) {
-                    skip_select = 1;
                     break;
                 }
                 if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
                     ipaugenblick_release_tx_buffer(buff);
-                    skip_select = 1;
                     break;
                 }
-                skip_select = 0;
             } 
-//            ipaugenblick_socket_kick(ready_socket);
+            ipaugenblick_socket_kick(ready_socket);
         }  
-        ipaugenblick_socket_kick(ready_socket);
+//        ipaugenblick_socket_kick(ready_socket);
 #endif
     }
     return 0;

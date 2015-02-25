@@ -30,13 +30,13 @@ static inline int ipaugenblick_enqueue_command_buf(ipaugenblick_cmd_t *cmd)
     return (rte_ring_enqueue(command_ring,(void *)cmd) == -ENOBUFS);
 }
 
-static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
+/*static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
 {
     ipaugenblick_cmd_t *cmd;
     if(rte_mempool_get(free_command_pool,(void **)&cmd))
         return NULL;
     return cmd;
-}
+}*/
 
 static inline int ipaugenblick_enqueue_tx_buf(int ringset_idx,struct rte_mbuf *mbuf)
 {

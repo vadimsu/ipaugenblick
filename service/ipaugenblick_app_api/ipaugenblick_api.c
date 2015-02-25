@@ -1,7 +1,6 @@
 #include <sys/errno.h>
 #include <stdlib.h>
 #include <rte_atomic.h>
-#include "../ipaugenblick_common/ipaugenblick_common.h"
 #include <rte_config.h>
 #include <rte_common.h>
 #include <rte_memcpy.h>
@@ -11,6 +10,7 @@
 #include <rte_ring.h>
 #include <rte_mbuf.h>
 #include <rte_byteorder.h>
+#include "../ipaugenblick_common/ipaugenblick_common.h"
 #include "ipaugenblick_ring_ops.h"
 #include "ipaugenblick_api.h"
 #include <netinet/in.h> 
@@ -176,6 +176,7 @@ int ipaugenblick_app_init(int argc,char **argv)
             exit(0);
         } 
     }
+    
     //pthread_mutex_init(&selectors_mutex, NULL);
     //pthread_mutex_lock (&selectors_mutex);
     signal(SIGHUP, sig_handler);
@@ -406,12 +407,19 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs
 }
 
 /* Allocate buffer to use later in *send* APIs */
-inline void *ipaugenblick_get_buffer(int length)
+inline void *ipaugenblick_get_buffer(int length,int owner_sock)
 {
     struct rte_mbuf *mbuf;
     mbuf = rte_pktmbuf_alloc(tx_bufs_pool);
     if(!mbuf) {
-        ipaugenblick_stats_tx_buf_allocation_failure++;
+        ipaugenblick_cmd_t *cmd;
+        cmd = ipaugenblick_get_free_command_buf();
+        if(cmd) {
+            cmd->cmd = IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND;
+            cmd->ringset_idx = owner_sock;
+            ipaugenblick_enqueue_command_buf(cmd);
+        }
+        ipaugenblick_stats_tx_buf_allocation_failure++; 
         return NULL;
     }
     return &(mbuf->pkt.data);
@@ -428,7 +436,25 @@ void ipaugenblick_release_tx_buffer(void *buffer)
 inline void ipaugenblick_release_rx_buffer(void *buffer)
 {
     struct rte_mbuf *mbuf = RTE_MBUF(buffer); 
+#if 1 /* this will work if only all mbufs are guaranteed from the same mempool */
+    struct rte_mbuf *next;
+    void *mbufs[MAX_PKT_BURST];
+    int count;
+    while(mbuf) {
+        for(count = 0;(count < MAX_PKT_BURST)&&(mbuf);) {
+            next = mbuf->pkt.next;
+            if(likely(__rte_pktmbuf_prefree_seg(mbuf))) {
+                mbufs[count++] = mbuf; 
+                mbuf->pkt.next = NULL; 
+            }
+            mbuf = next;
+        }
+        if(count > 0)
+            rte_mempool_put_bulk(((struct rte_mbuf *)mbufs[0])->pool,mbufs,count);
+    }
+#else
     rte_pktmbuf_free(mbuf); 
+#endif
 }
 
 void ipaugenblick_socket_kick(int sock)
@@ -469,15 +495,22 @@ printf("%s %d %p %d %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_so
     return ipaugenblick_socket->connection_idx;
 }
 
+static inline void ipaugenblick_free_common_notification_buf(ipaugenblick_cmd_t *cmd)
+{
+    rte_mempool_put(free_command_pool,(void *)cmd);
+}
+
 int ipaugenblick_select(int selector,unsigned short *mask)
 {
     uint32_t ringset_idx_and_ready_mask;
     uint32_t i;
+    ipaugenblick_cmd_t *cmd;
+    uint32_t iterations_to_wait;
     ipaugenblick_stats_select_called++;
 restart_waiting:
     
     if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) { 
-       for(i = 0;i < 10000;i++);
+      for(i = 0;i < 10000;i++);
        goto restart_waiting;
     }
     ipaugenblick_stats_select_returned++;

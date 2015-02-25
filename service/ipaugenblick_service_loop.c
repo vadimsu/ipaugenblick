@@ -67,6 +67,8 @@ ipaugenblick_socket_t *g_ipaugenblick_sockets = NULL;
 ipaugenblick_selector_t *g_ipaugenblick_selectors = NULL;
 //unsigned long app_pid = 0;
 
+TAILQ_HEAD(buffers_available_notification_socket_list_head, socket) buffers_available_notification_socket_list_head;
+
 static inline void process_commands()
 {
     int ringset_idx;
@@ -183,6 +185,14 @@ static inline void process_commands()
                printf("%s %d\n",__FILE__,__LINE__);
            }
            break;
+        case IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND:
+           if(socket_satelite_data[cmd->ringset_idx].socket) {
+               if(!socket_satelite_data[cmd->ringset_idx].socket->buffers_available_notification_queue_present) {
+                   TAILQ_INSERT_TAIL(&buffers_available_notification_socket_list_head,socket_satelite_data[cmd->ringset_idx].socket,buffers_available_notification_queue_entry);
+                   socket_satelite_data[cmd->ringset_idx].socket->buffers_available_notification_queue_present = 1;
+               }
+           }
+           break;
         default:
            printf("unknown cmd %d\n",cmd->cmd);
            break;
@@ -201,10 +211,27 @@ void ipaugenblick_main_loop()
                                 /*drv_poll_interval/(60*MAX_PKT_BURST)*/1);
     
     ipaugenblick_service_api_init(128,4096,4096);
+    TAILQ_INIT(&buffers_available_notification_socket_list_head);
     printf("IPAugenblick service initialized\n");
     while(1) {
         process_commands();
-	app_glue_periodic(1,ports_to_poll,1);	
+	app_glue_periodic(1,ports_to_poll,1);
+        while(!TAILQ_EMPTY(&buffers_available_notification_socket_list_head)) {
+            if(get_buffer_count() > 0) {
+                struct socket *sock = TAILQ_FIRST(&buffers_available_notification_socket_list_head);
+                socket_satelite_data_t *socket_data = get_user_data(sock);
+                if(!ipaugenblick_mark_writable(socket_data)) { 
+                    sock->buffers_available_notification_queue_present = 0;
+                    TAILQ_REMOVE(&buffers_available_notification_socket_list_head,sock,buffers_available_notification_queue_entry); 
+                }
+                else {
+                    break;
+                }
+            }
+            else {
+                break;
+            }
+        }
     }
 }
 /*this is called in non-data-path thread */

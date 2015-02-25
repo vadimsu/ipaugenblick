@@ -35,7 +35,7 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs);
 int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs,unsigned int *ipaddr,unsigned short *port);
 
 /* Allocate buffer to use later in *send* APIs */
-void *ipaugenblick_get_buffer(int length);
+void *ipaugenblick_get_buffer(int length,int owner_sock);
 
 /* release buffer when either send is complete or receive has done with the buffer */
 void ipaugenblick_release_tx_buffer(void *buffer);
