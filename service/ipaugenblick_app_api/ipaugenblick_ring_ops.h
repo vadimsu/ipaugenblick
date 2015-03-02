@@ -30,17 +30,14 @@ static inline int ipaugenblick_enqueue_command_buf(ipaugenblick_cmd_t *cmd)
     return (rte_ring_enqueue(command_ring,(void *)cmd) == -ENOBUFS);
 }
 
-/*static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
-{
-    ipaugenblick_cmd_t *cmd;
-    if(rte_mempool_get(free_command_pool,(void **)&cmd))
-        return NULL;
-    return cmd;
-}*/
-
 static inline int ipaugenblick_enqueue_tx_buf(int ringset_idx,struct rte_mbuf *mbuf)
 {
-    return (rte_ring_sp_enqueue_bulk(local_socket_descriptors[ringset_idx].tx_ring,(void *)&mbuf,1) == -ENOBUFS);
+    return (rte_ring_sp_enqueue_bulk(local_socket_descriptors[ringset_idx].tx_ring,(void **)&mbuf,1) == -ENOBUFS);
+}
+
+static inline int ipaugenblick_enqueue_tx_bufs_bulk(int ringset_idx,struct rte_mbuf **mbufs,int buffer_count)
+{
+    return (rte_ring_sp_enqueue_bulk(local_socket_descriptors[ringset_idx].tx_ring,(void **)mbufs,buffer_count) == -ENOBUFS);
 }
 
 static inline int ipaugenblick_socket_tx_space(int ringset_idx)

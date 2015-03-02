@@ -75,19 +75,37 @@ int main(int argc,char **argv)
         }
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
-            for(i = 0;i < tx_space;i++) {
-                buff = ipaugenblick_get_buffer(DATAGRAM_SIZE,ready_socket);
-                if(buff) {
+            if(tx_space > 0) {
+                void *bufs[tx_space];
+                int offsets[tx_space];
+                int lengths[tx_space];
+                if(!ipaugenblick_get_buffers_bulk(DATAGRAM_SIZE,ready_socket,tx_space,bufs)) { 
 #if USE_CONNECTED
-                    if(ipaugenblick_send(ready_socket,buff,0,DATAGRAM_SIZE)) { 
-                        ipaugenblick_release_tx_buffer(buff);
+                    for(i = 0;i < tx_space;i++) {
+                        offsets[i] = 0;
+                        lengths[i] = DATAGRAM_SIZE;
+                    }
+                    if(ipaugenblick_send_bulk(ready_socket,bufs,offsets,lengths,tx_space)) { 
+//                        ipaugenblick_release_tx_buffer(buff);
+                        printf("%s %d\n",__FILE__,__LINE__);
+                    }
+                    else {
+//                        printf("%s %d %d\n",__FILE__,__LINE__,tx_space);
                     }
 #else
-                    if(ipaugenblick_sendto(ready_socket,buff,0,DATAGRAM_SIZE,inet_addr("192.168.150.62"),7777)) { 
-                        ipaugenblick_release_tx_buffer(buff);
+                    unsigned short ports[tx_space];
+                    unsigned int ipaddresses[tx_space];
+                    for(i = 0;i < tx_space;i++) {
+                        offsets[i] = 0;
+                        lengths[i] = DATAGRAM_SIZE;
+                        ipaddresses[i] = inet_addr("192.168.150.62");
+                        ports[i] = 7777;
+                    }
+                    if(ipaugenblick_sendto_bulk(ready_socket,buff,offsets,lengths,ipaddresses,ports,tx_space)) { 
+//                        ipaugenblick_release_tx_buffer(buff);
                     } 
 #endif
-                } 
+                }
             }  
             ipaugenblick_socket_kick(sock);
         } 

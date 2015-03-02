@@ -262,9 +262,9 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
     if(socket_satelite_data->parent_idx == -1) {
         return 1;
     }
-    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready)) {
+/*    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready)) {
         return;
-    }
+    }*/
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
     rc = rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
     user_kick_select_tx++;

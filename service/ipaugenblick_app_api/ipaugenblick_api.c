@@ -57,6 +57,8 @@ uint64_t ipaugenblick_stats_select_returned = 0;
 uint64_t ipaugenblick_stats_tx_buf_allocation_failure = 0;
 uint64_t ipaugenblick_stats_send_failure = 0;
 uint64_t ipaugenblick_stats_recv_failure = 0;
+uint64_t ipaugenblick_stats_buffers_sent = 0;
+uint64_t ipaugenblick_stats_buffers_allocated = 0;
 pthread_t stats_thread;
 uint8_t g_print_stats_loop = 1;
 
@@ -67,11 +69,13 @@ void print_stats()
                 ipaugenblick_stats_rx_kicks_sent %lu ipaugenblick_stats_tx_kicks_sent %lu \n\t\
                 ipaugenblick_stats_rx_full %lu ipaugenblick_stats_rx_dequeued %lu ipaugenblick_stats_rx_dequeued_local %lu \n\t\
                 ipaugenblick_stats_select_called %lu ipaugenblick_stats_select_returned %lu ipaugenblick_stats_tx_buf_allocation_failure %lu \n\t\
-                ipaugenblick_stats_send_failure %lu ipaugenblick_stats_recv_failure %lu\n",
+                ipaugenblick_stats_send_failure %lu ipaugenblick_stats_recv_failure %lu ipaugenblick_stats_buffers_sent %lu ipaugenblick_stats_buffers_allocated %lu\n",
                 ipaugenblick_stats_receive_called,ipaugenblick_stats_send_called,ipaugenblick_stats_rx_kicks_sent,
                 ipaugenblick_stats_tx_kicks_sent,ipaugenblick_stats_rx_full,ipaugenblick_stats_rx_dequeued,
                 ipaugenblick_stats_rx_dequeued_local,ipaugenblick_stats_select_called,ipaugenblick_stats_select_returned,ipaugenblick_stats_tx_buf_allocation_failure,
-                ipaugenblick_stats_send_failure,ipaugenblick_stats_recv_failure);
+                ipaugenblick_stats_send_failure,ipaugenblick_stats_recv_failure,
+                ipaugenblick_stats_buffers_sent,
+                ipaugenblick_stats_buffers_allocated);
         sleep(1);
     }
 }
@@ -333,7 +337,10 @@ void ipaugenblick_close(int sock)
 
 int ipaugenblick_get_socket_tx_space(int sock)
 {
-    return ipaugenblick_socket_tx_space(sock);
+    int ring_space = ipaugenblick_socket_tx_space(sock);
+    int free_bufs_count = rte_mempool_count(tx_bufs_pool);
+    //free_bufs_count -= 100;
+    return (ring_space > free_bufs_count) ? (free_bufs_count > 0 ? free_bufs_count : 0)  : ring_space;
 }
 
 /* TCP or connected UDP */
@@ -345,6 +352,24 @@ inline int ipaugenblick_send(int sock,void *buffer,int offset,int length)
     mbuf->pkt.data_len = length;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
+    ipaugenblick_stats_send_failure += (rc != 0);
+    return rc;
+}
+
+inline int ipaugenblick_send_bulk(int sock,void **buffers,int *offsets,int *lengths,int buffer_count)
+{
+    int rc,idx;
+    struct rte_mbuf *mbufs[buffer_count];
+
+    for(idx = 0;idx < buffer_count;idx++) {
+        /* TODO: set offsets */
+        mbufs[idx] = RTE_MBUF(buffers[idx]);
+        mbufs[idx]->pkt.data_len = lengths[idx];
+    }
+    ipaugenblick_stats_send_called++;
+    ipaugenblick_stats_buffers_sent += buffer_count;
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
+    rc = ipaugenblick_enqueue_tx_bufs_bulk(sock,mbufs,buffer_count);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -365,6 +390,34 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
     p_addr_in->sin_addr.s_addr = ipaddr;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
+    ipaugenblick_stats_send_failure += (rc != 0);
+    return rc;
+}
+
+inline int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count)
+{
+    int rc,idx;
+    struct rte_mbuf *mbufs[buffer_count];
+
+    for(idx = 0;idx < buffer_count;idx++) {
+        char *p_addr;
+        struct sockaddr_in *p_addr_in;
+        /* TODO: set offsets */
+        mbufs[idx] = RTE_MBUF(buffers[idx]);
+        mbufs[idx]->pkt.data_len = lengths[idx];
+        p_addr = mbufs[idx]->pkt.data;
+        
+        mbufs[idx]->pkt.data_len = lengths[idx];
+        p_addr -= sizeof(struct sockaddr_in);
+        p_addr_in = (struct sockaddr_in *)p_addr;
+        p_addr_in->sin_family = AF_INET;
+        p_addr_in->sin_port = htons(ports[idx]);
+        p_addr_in->sin_addr.s_addr = ipaddrs[idx];
+    }
+    ipaugenblick_stats_send_called++;
+    ipaugenblick_stats_buffers_sent += buffer_count;
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
+    rc = ipaugenblick_enqueue_tx_bufs_bulk(sock,mbufs,buffer_count);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -422,7 +475,32 @@ inline void *ipaugenblick_get_buffer(int length,int owner_sock)
         ipaugenblick_stats_tx_buf_allocation_failure++; 
         return NULL;
     }
+    ipaugenblick_stats_buffers_allocated++;
     return &(mbuf->pkt.data);
+}
+
+int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,void **bufs)
+{
+    struct rte_mbuf *mbufs[count];
+    int idx;
+    if(rte_mempool_get_bulk(tx_bufs_pool,mbufs,count)) {
+        ipaugenblick_cmd_t *cmd;
+        cmd = ipaugenblick_get_free_command_buf();
+        if(cmd) {
+            cmd->cmd = IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND;
+            cmd->ringset_idx = owner_sock;
+            ipaugenblick_enqueue_command_buf(cmd);
+        }
+        ipaugenblick_stats_tx_buf_allocation_failure++; 
+        return 1;
+    }
+    for(idx = 0;idx < count;idx++) {
+        rte_pktmbuf_reset(mbufs[idx]);
+        rte_pktmbuf_refcnt_update(mbufs[idx],1);
+        bufs[idx] = &(mbufs[idx]->pkt.data);
+    } 
+    ipaugenblick_stats_buffers_allocated += count;
+    return 0;
 }
 
 /* release buffer when either send is complete or receive has done with the buffer */

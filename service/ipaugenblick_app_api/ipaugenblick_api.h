@@ -25,8 +25,11 @@ int ipaugenblick_get_socket_tx_space(int sock);
 /* TCP or connected UDP */
 int ipaugenblick_send(int sock,void *buffer,int offset,int length);
 
+inline int ipaugenblick_send_bulk(int sock,void **buffers,int *offsets,int *lengths,int buffer_count);
+
 /* UDP or RAW */
 int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port);
+inline int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count);
 
 /* TCP */
 int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs);
@@ -36,6 +39,8 @@ int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs,unsign
 
 /* Allocate buffer to use later in *send* APIs */
 void *ipaugenblick_get_buffer(int length,int owner_sock);
+
+int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,void **bufs);
 
 /* release buffer when either send is complete or receive has done with the buffer */
 void ipaugenblick_release_tx_buffer(void *buffer);

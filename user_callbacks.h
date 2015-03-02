@@ -48,7 +48,7 @@ static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
 static inline __attribute__ ((always_inline)) void user_on_transmission_opportunity(struct socket *sock)
 {
         struct page page;
-        int i = 0,sent = 0;
+        int i = 0;
         uint32_t to_send_this_time;
         void *socket_satelite_data;
         uint64_t ring_entries;
@@ -77,21 +77,19 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
             do {
                 i = kernel_sendpage(sock, &page, 0/*offset*/,ring_entries<<10, 0 /*flags*/);
                 ring_entries = ipaugenblick_tx_buf_count(socket_satelite_data);
-                sent += (i>0);
             }while((i > 0)&&(ring_entries > 0));
             if(ring_entries == 0) {
                 ipaugenblick_mark_writable(socket_satelite_data);
             }
             else {
-                user_on_tx_opportunity_socket_full += !sent;
+                user_on_tx_opportunity_socket_full += (i<=0);
             }
         }
         else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             struct msghdr msghdr;
-            struct iovec iov;
-            struct rte_mbuf *mbuf[MAX_PKT_BURST];
+            struct iovec iov; 
             struct sock *sk = sock->sk;
-            int dequeued,rc = 0,loop = 0;
+            int dequeued,rc = 0,exhausted = 0;
 
             msghdr.msg_namelen = sizeof(struct sockaddr_in);
             msghdr.msg_iov = &iov;
@@ -102,35 +100,41 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
 
           do {
                 ring_entries = ipaugenblick_tx_buf_count(socket_satelite_data);
-                if((ring_entries < MAX_PKT_BURST)&&((rte_rdtsc() - g_last_time_transmitted) < 30000)) {
-                    if(!ring_entries)
-                        ipaugenblick_mark_writable(socket_satelite_data);
-                    break;
-                }
-                dequeued = ipaugenblick_dequeue_tx_buf_burst(socket_satelite_data,mbuf,MAX_PKT_BURST);
-                for(i = 0;(i < dequeued)&&(rc >= 0);i++) {
-                    char *p_addr;
-                    if((sock->sk)&&(sock->sk->sk_state != TCP_ESTABLISHED)) {
-                        p_addr = (char *)mbuf[i]->pkt.data;
-                        p_addr -= sizeof(struct sockaddr_in);
-                        msghdr.msg_name = p_addr;
-                    }
-                    else
-                       msghdr.msg_name = NULL;
+                dequeued = 0;
+               
+                if(ring_entries > 0) {
+                    struct rte_mbuf *mbuf[ring_entries];
+                    int established = (sock->sk) ? (sock->sk->sk_state != TCP_ESTABLISHED) : 0;
+                    dequeued = ipaugenblick_dequeue_tx_buf_burst(socket_satelite_data,mbuf,ring_entries);
+                    for(i = 0;i < dequeued;i++) {
+                        char *p_addr;
+                        if(established) {
+                            p_addr = (char *)mbuf[i]->pkt.data;
+                            p_addr -= sizeof(struct sockaddr_in);
+                            msghdr.msg_name = p_addr;
+                        }
+                        else
+                           msghdr.msg_name = NULL;
 
-                    iov.head = mbuf[i]; 
-                //    sent = 1;
-                    rc = udp_sendmsg(NULL, sk, &msghdr, mbuf[i]->pkt.data_len);
-                    sent = (rc > 0);
-                    if(sent > 0)
-                        g_last_time_transmitted = rte_rdtsc();
+                        iov.head = mbuf[i]; 
+                
+                        rc = udp_sendmsg(NULL, sk, &msghdr, mbuf[i]->pkt.data_len);
+                        exhausted |= !(rc > 0);
+                        if(exhausted) {
+                            user_on_tx_opportunity_api_failed += dequeued - i;
+                            for(;i < dequeued;i++) {
+                                rte_pktmbuf_free(mbuf[i]);
+                            }
+                            break;
+                        }
+                    }
+//                    printf("ring entries %d dequeued %d\n",ring_entries,dequeued);
                 }
-                user_on_tx_opportunity_api_failed += dequeued - i;
-                for(;i < dequeued;i++) {
-                    rte_pktmbuf_free(mbuf[i]);
+                else {
+                    user_on_tx_opportunity_api_nothing_to_tx++;
                 }
-            }while((dequeued > 0) && (sent > 0));
-            if(sent > 0)//may write more
+            }while((dequeued > 0) && (!exhausted));
+            if(!exhausted)//may write more
                 ipaugenblick_mark_writable(socket_satelite_data);
         }
 }
