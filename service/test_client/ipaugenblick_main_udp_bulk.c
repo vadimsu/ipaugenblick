@@ -47,7 +47,7 @@ int main(int argc,char **argv)
 #endif
     }
     while(1) {
-        ready_socket = ipaugenblick_select(selector,&mask);
+        ready_socket = ipaugenblick_select(selector,&mask,-1);
         if(ready_socket == -1) {
             continue;
         }

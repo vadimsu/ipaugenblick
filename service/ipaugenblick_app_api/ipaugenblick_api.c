@@ -578,7 +578,7 @@ static inline void ipaugenblick_free_common_notification_buf(ipaugenblick_cmd_t 
     rte_mempool_put(free_command_pool,(void *)cmd);
 }
 
-int ipaugenblick_select(int selector,unsigned short *mask)
+int ipaugenblick_select(int selector,unsigned short *mask,int timeout)
 {
     uint32_t ringset_idx_and_ready_mask;
     uint32_t i;
@@ -588,8 +588,15 @@ int ipaugenblick_select(int selector,unsigned short *mask)
 restart_waiting:
     
     if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) { 
-      for(i = 0;i < 10000;i++);
-       goto restart_waiting;
+        if(timeout > 0) {
+            for(i = 0;i < timeout;i++) rte_pause();
+        }
+        else if(timeout == 0) {
+            return;
+        }
+        else 
+            usleep(1);
+        goto restart_waiting;
     }
     ipaugenblick_stats_select_returned++;
     *mask = ringset_idx_and_ready_mask >> SOCKET_READY_SHIFT;
