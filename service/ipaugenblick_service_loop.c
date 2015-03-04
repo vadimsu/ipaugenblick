@@ -154,10 +154,12 @@ static inline void process_commands()
            user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
-       //    app_pid = cmd->u.set_socket_select.pid;
+           printf("setting selector %d for socket %d\n",cmd->ringset_idx,cmd->u.set_socket_select.socket_select);
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select; 
+           ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
            break;
         case IPAUGENBLICK_SOCKET_CONNECT_COMMAND:
+           printf("Socket connect %x %x %p\n",cmd->u.socket_connect.ipaddr,cmd->u.socket_connect.port,socket_satelite_data[cmd->ringset_idx].socket);
            if(socket_satelite_data[cmd->ringset_idx].socket) {
                struct sockaddr_in addr;
                addr.sin_family = AF_INET;
@@ -210,7 +212,7 @@ void ipaugenblick_main_loop()
                                  /*drv_poll_interval/(10*MAX_PKT_BURST)*/1,
                                 /*drv_poll_interval/(60*MAX_PKT_BURST)*/1);
     
-    ipaugenblick_service_api_init(128,4096,4096);
+    ipaugenblick_service_api_init(COMMAND_POOL_SIZE,DATA_RINGS_SIZE,DATA_RINGS_SIZE);
     TAILQ_INIT(&buffers_available_notification_socket_list_head);
     printf("IPAugenblick service initialized\n");
     while(1) {

@@ -47,7 +47,7 @@ void ipaugenblick_release_tx_buffer(void *buffer);
 
 void ipaugenblick_release_rx_buffer(void *buffer);
 
-void ipaugenblick_socket_kick(int sock);
+int ipaugenblick_socket_kick(int sock);
 
 int ipaugenblick_accept(int sock);
 

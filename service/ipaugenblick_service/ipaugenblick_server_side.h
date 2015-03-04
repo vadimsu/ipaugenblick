@@ -59,7 +59,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
     printf("RX RING CREATED\n");
     sprintf(ringname,FREE_COMMAND_POOL_NAME);
 
-    free_command_pool = rte_mempool_create(ringname, COMMAND_POOL_SIZE,
+    free_command_pool = rte_mempool_create(ringname, command_bufs_count,
 	    			           sizeof(ipaugenblick_cmd_t), 0,
 				           0,
 				           NULL, NULL,
@@ -270,7 +270,7 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
     user_kick_select_tx++;
 //    if(app_pid)
 //        kill(app_pid,/*SIGUSR1*/10);
-    return rc;
+    return (rc == -ENOBUFS);
 }
 
 static inline void ipaugenblick_free_socket(int connidx)

@@ -23,29 +23,32 @@ int main(int argc,char **argv)
     unsigned long received_packets = 0;
     unsigned long  sent_packets = 0;
 
+    srand (time(NULL));
+
     if(ipaugenblick_app_init(argc,argv) != 0) {
         printf("cannot initialize memory\n");
         return 0;
     } 
     selector = ipaugenblick_open_select();
     if(selector != -1) {
-        printf("selector opened\n");
+        printf("selector opened %d\n",selector);
     }
-    for(i = 0;i < 10;i++) {
+    for(i = 0;i < 1;i++) {
         if((sock = ipaugenblick_open_udp(inet_addr("192.168.150.63"),rand())) < 0) {
-            printf("cannot open UDP socket\n");
+            printf("cannot open UDP socket %d\n",sock);
             return 0;
         }
         ipaugenblick_set_socket_select(sock,selector);
         from_ip = inet_addr("192.168.150.62");
         from_port = htons(7777);
         printf("waiting for creation feedback %d\n",sock);
-        sleep(1);
+        sleep(10);
 #if USE_CONNECTED
         printf("connecting %d\n",sock);
         ipaugenblick_socket_connect(sock,from_ip,from_port);
 #endif
     }
+    printf("entering main loop\n");
     while(1) {
         ready_socket = ipaugenblick_select(selector,&mask,-1);
         if(ready_socket == -1) {
