@@ -387,7 +387,7 @@ inline int ipaugenblick_send(int sock,void *buffer,int offset,int length)
     struct rte_mbuf *mbuf = RTE_MBUF(buffer);
     ipaugenblick_stats_send_called++;
     mbuf->pkt.data_len = length;
-    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
@@ -405,7 +405,7 @@ inline int ipaugenblick_send_bulk(int sock,void **buffers,int *offsets,int *leng
     }
     ipaugenblick_stats_send_called++;
     ipaugenblick_stats_buffers_sent += buffer_count;
-    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
     rc = ipaugenblick_enqueue_tx_bufs_bulk(sock,mbufs,buffer_count);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
@@ -425,7 +425,7 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
     p_addr_in->sin_family = AF_INET;
     p_addr_in->sin_port = htons(port);
     p_addr_in->sin_addr.s_addr = ipaddr;
-    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
@@ -453,7 +453,7 @@ inline int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *le
     }
     ipaugenblick_stats_send_called++;
     ipaugenblick_stats_buffers_sent += buffer_count;
-    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready),0);
+    rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
     rc = ipaugenblick_enqueue_tx_bufs_bulk(sock,mbufs,buffer_count);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
@@ -563,6 +563,9 @@ inline void ipaugenblick_release_rx_buffer(void *buffer)
 int ipaugenblick_socket_kick(int sock)
 {
     ipaugenblick_cmd_t *cmd;
+    if(!rte_atomic16_test_and_set(&(local_socket_descriptors[sock].socket->write_done_from_app)) > 0) {
+        return 0;
+    }
     cmd = ipaugenblick_get_free_command_buf();
     if(!cmd) {
         ipaugenblick_stats_cannot_allocate_cmd++;

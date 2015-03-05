@@ -107,6 +107,9 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
                     int established = (sock->sk) ? (sock->sk->sk_state != TCP_ESTABLISHED) : 0;
                     dequeued = ipaugenblick_dequeue_tx_buf_burst(socket_satelite_data,mbuf,ring_entries);
                     for(i = 0;i < dequeued;i++) {
+                        rte_prefetch0(rte_pktmbuf_mtod(mbuf[i],void *));
+                    }
+                    for(i = 0;i < dequeued;i++) {
                         char *p_addr;
                         if(established) {
                             p_addr = (char *)mbuf[i]->pkt.data;

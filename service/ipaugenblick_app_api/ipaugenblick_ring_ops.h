@@ -55,7 +55,7 @@ static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
         send_kick = 1;
         ipaugenblick_stats_rx_full++;
     }
-    rte_atomic16_set(&(local_socket_descriptors[ringset_idx & SOCKET_READY_MASK].socket->read_ready),0);
+    rte_atomic16_set(&(local_socket_descriptors[ringset_idx & SOCKET_READY_MASK].socket->read_ready_to_app),0);
     if(rte_ring_count(local_socket_descriptors[ringset_idx].rx_ring) > 0) {
         dequeued = rte_ring_free_count(local_socket_descriptors[ringset_idx].local_cache) > MAX_PKT_BURST ? MAX_PKT_BURST : 
                      rte_ring_free_count(local_socket_descriptors[ringset_idx].local_cache);

@@ -15,13 +15,15 @@
 int main(int argc,char **argv)
 {
     void *buff,*buff_seg;
-    int sock,selector,len,ready_socket,i,tx_space;
+    int sock,selector,len,ready_socket,i,tx_space,sent;
     char *p;
     int size = 0,ringset_idx,nb_segs,max_nb_segs = 0,max_total_len = 0,seg_idx;
     unsigned int from_ip;
     unsigned short from_port,mask;
     unsigned long received_packets = 0;
     unsigned long  sent_packets = 0;
+    int select_timeout = atoi(argv[7]) - 1;
+    printf("select_timeout = %d\n",select_timeout);
 
     srand (time(NULL));
 
@@ -50,7 +52,7 @@ int main(int argc,char **argv)
     }
     printf("entering main loop\n");
     while(1) {
-        ready_socket = ipaugenblick_select(selector,&mask,-1);
+        ready_socket = ipaugenblick_select(selector,&mask,select_timeout);
         if(ready_socket == -1) {
             continue;
         }
@@ -77,6 +79,7 @@ int main(int argc,char **argv)
            }
         }
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
+            sent = 0;
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
             if(tx_space > 0) {
                 void *bufs[tx_space];
@@ -94,6 +97,7 @@ int main(int argc,char **argv)
                     }
                     else {
 //                        printf("%s %d %d\n",__FILE__,__LINE__,tx_space);
+                        sent = 1;
                     }
 #else
                     unsigned short ports[tx_space];
@@ -110,7 +114,10 @@ int main(int argc,char **argv)
 #endif
                 }
             }  
-            ipaugenblick_socket_kick(sock);
+            i = ipaugenblick_socket_kick(sock);
+            while(i != 0) {
+                i = ipaugenblick_socket_kick(sock);
+            }
         } 
    }
     return 0;

@@ -104,8 +104,8 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
           
         memset(ipaugenblick_socket,0,sizeof(ipaugenblick_socket_t));
         ipaugenblick_socket->connection_idx = ringset_idx;
-        rte_atomic16_init(&ipaugenblick_socket->read_ready);
-        rte_atomic16_init(&ipaugenblick_socket->write_ready);
+        rte_atomic16_init(&ipaugenblick_socket->read_ready_to_app);
+        rte_atomic16_init(&ipaugenblick_socket->write_ready_to_app);
         rte_ring_enqueue(free_connections_ring,(void*)ipaugenblick_socket);
         sprintf(ringname,TX_RING_NAME_BASE"%d",ringset_idx);
         socket_satelite_data[ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
@@ -189,7 +189,7 @@ static inline void ipaugenblick_mark_readable(void *descriptor)
     if(socket_satelite_data->parent_idx == -1)
         return;
 #if 1
-    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready)) {
+    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready_to_app)) {
 //        if(app_pid)
 //           kill(app_pid,/*SIGUSR1*/10);
         return;
@@ -225,13 +225,14 @@ static inline struct rte_mbuf *ipaugenblick_dequeue_tx_buf(void *descriptor)
 
 static inline int ipaugenblick_dequeue_tx_buf_burst(void *descriptor,struct rte_mbuf **mbufs,int max_count)
 {
-    socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
+    socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor; 
     return rte_ring_sc_dequeue_burst(socket_satelite_data->tx_ring,(void **)mbufs,max_count);
 }
 
 static inline int ipaugenblick_tx_buf_count(void *descriptor)
 {
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
+    rte_atomic16_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_done_from_app,0);
     return rte_ring_count(socket_satelite_data->tx_ring);
 }
 
@@ -262,9 +263,9 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
     if(socket_satelite_data->parent_idx == -1) {
         return 1;
     }
-/*    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready)) {
+    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready_to_app)) {
         return;
-    }*/
+    }
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
     rc = rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
     user_kick_select_tx++;
