@@ -154,7 +154,7 @@ static inline void process_commands()
            user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
-           printf("setting selector %d for socket %d\n",cmd->ringset_idx,cmd->u.set_socket_select.socket_select);
+           printf("setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select; 
            ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
            break;

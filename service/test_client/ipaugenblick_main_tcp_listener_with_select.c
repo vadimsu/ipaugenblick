@@ -47,8 +47,7 @@ int main(int argc,char **argv)
             continue;
         }
         if(ready_socket == sock) {
-            newsock = ipaugenblick_accept(sock);
-            if(newsock != -1) {
+            while((newsock = ipaugenblick_accept(sock)) != -1) {
                 printf("socket accepted %d %d\n",newsock,selector);
                 ipaugenblick_set_socket_select(newsock,selector);
                 sockets_connected++;

@@ -587,12 +587,14 @@ int ipaugenblick_accept(int sock)
     ipaugenblick_socket_t *ipaugenblick_socket;
     unsigned long accepted_socket;
 
+    rte_atomic16_set(&(local_socket_descriptors[sock].socket->read_ready_to_app),0);
     if(rte_ring_dequeue(local_socket_descriptors[sock].rx_ring,(void **)&cmd)) {
         return -1;
     }
     
     if(rte_ring_dequeue(free_connections_ring,(void **)&ipaugenblick_socket)) {
         ipaugenblick_free_command_buf(cmd);
+	printf("NO FREE CONNECTIONS\n");
         return -1;
     } 
     accepted_socket = cmd->u.accepted_socket.socket_descr;
@@ -604,6 +606,7 @@ printf("%s %d %p %d %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_so
     cmd->u.set_socket_ring.socket_descr = accepted_socket;
     if(ipaugenblick_enqueue_command_buf(cmd)) {
         ipaugenblick_free_command_buf(cmd);
+        printf("CANNOT ENQUEUE SET_RING_COMMAND\n");
         return -2;
     }
     return ipaugenblick_socket->connection_idx;
