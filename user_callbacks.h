@@ -213,6 +213,9 @@ static inline __attribute__ ((always_inline)) void user_on_socket_fatal(struct s
 {
         user_data_available_cbk(sock);/* flush data */
 }
+void app_glue_sock_readable(struct sock *sk, int len);
+void app_glue_sock_write_space(struct sock *sk);
+void app_glue_sock_error_report(struct sock *sk);
 static inline __attribute__ ((always_inline)) int user_on_accept(struct socket *sock)
 {
         struct socket *newsock = NULL;
@@ -230,6 +233,10 @@ static inline __attribute__ ((always_inline)) int user_on_accept(struct socket *
                     printf("%s %d %p\n",__FILE__,__LINE__,newsock);
                     ipaugenblick_post_accepted(cmd,parent_descriptor);
                 }
+		sock_reset_flag(newsock->sk,SOCK_USE_WRITE_QUEUE);
+	        newsock->sk->sk_data_ready = app_glue_sock_readable;
+        	newsock->sk->sk_write_space = app_glue_sock_write_space;
+	        newsock->sk->sk_error_report = app_glue_sock_error_report;
         }
 }
 

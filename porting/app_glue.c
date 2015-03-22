@@ -57,7 +57,6 @@ uint64_t working_cycles_stat = 0;
 uint64_t total_cycles_stat = 0;
 uint64_t work_prev = 0;
 uint64_t total_prev = 0;
-
 /*
  * This callback function is invoked when data arrives to socket.
  * It inserts the socket into a list of readable sockets
@@ -66,10 +65,9 @@ uint64_t total_prev = 0;
  * Returns: void
  *
  */
-static void app_glue_sock_readable(struct sock *sk, int len)
+void app_glue_sock_readable(struct sock *sk, int len)
 {
 	const struct tcp_sock *tp = tcp_sk(sk);
-	int target = sock_rcvlowat(sk, 0, INT_MAX);
 
 	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
@@ -78,6 +76,10 @@ static void app_glue_sock_readable(struct sock *sk, int len)
 		return;
 	}
 	if(sk->sk_socket->read_queue_present) {
+		if(read_sockets_queue_len == 0) {
+			printf("%s %d\n",__FILE__,__LINE__);
+			exit(0);
+		}
 		return;
 	}
 	sk->sk_socket->read_queue_present = 1;
@@ -92,7 +94,7 @@ static void app_glue_sock_readable(struct sock *sk, int len)
  * Returns: void
  *
  */
-static void app_glue_sock_write_space(struct sock *sk)
+void app_glue_sock_write_space(struct sock *sk)
 {
 	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
@@ -115,7 +117,7 @@ static void app_glue_sock_write_space(struct sock *sk)
  * Returns: void
  *
  */
-static void app_glue_sock_error_report(struct sock *sk)
+void app_glue_sock_error_report(struct sock *sk)
 {
 	if(sk->sk_socket) {
 		if(sk->sk_socket->closed_queue_present) {
