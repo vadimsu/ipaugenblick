@@ -375,6 +375,7 @@ int ipaugenblick_get_socket_tx_space(int sock)
     int free_bufs_count = rte_mempool_count(tx_bufs_pool);
     int rc = (ring_space > free_bufs_count) ? (free_bufs_count > 0 ? free_bufs_count : 0)  : ring_space;
     if(!rc) {
+	rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
         ipaugenblick_notify_empty_tx_buffers(sock);
     }
     return rc;
