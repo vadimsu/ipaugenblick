@@ -116,8 +116,8 @@ typedef struct
     struct rte_ring  *ready_connections;
 }__attribute__((packed))ipaugenblick_selector_t;
 
-#define COMMAND_POOL_SIZE 8192
-#define DATA_RINGS_SIZE 16384
+#define COMMAND_POOL_SIZE 16384
+#define DATA_RINGS_SIZE 1024
 #define FREE_CONNECTIONS_POOL_NAME "free_connections_pool"
 #define FREE_CONNECTIONS_RING "free_connections_ring"
 #define COMMAND_RING_NAME "command_ring"
@@ -128,7 +128,7 @@ typedef struct
 #define FREE_ACCEPTED_POOL_NAME "free_accepted_pool"
 #define SELECTOR_POOL_NAME "selector_pool"
 #define SELECTOR_RING_NAME "selector_ring"
-#define IPAUGENBLICK_CONNECTION_POOL_SIZE 64
+#define IPAUGENBLICK_CONNECTION_POOL_SIZE 512
 #define IPAUGENBLICK_SELECTOR_POOL_SIZE 64
 #define COMMON_NOTIFICATIONS_POOL_NAME "common_notifications_pool_name"
 #define COMMON_NOTIFICATIONS_RING_NAME "common_notifications_ring_name"
