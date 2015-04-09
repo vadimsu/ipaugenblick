@@ -22,6 +22,7 @@
 #include <specific_includes/net/ip.h>
 #include <specific_includes/linux/ipv6.h>
 #include <specific_includes/linux/in.h>
+#include <specific_includes/net/netlink.h>
 #include <string.h>
 #include <rte_config.h>
 #include <rte_common.h>
@@ -76,6 +77,9 @@ static inline void process_commands()
     struct rte_mbuf *mbuf;
     struct socket *sock;
     char *p;
+    struct sockaddr_in addr;
+    struct sockaddr_in *p_sockaddr;
+    struct rtentry rtentry;
 
     cmd = ipaugenblick_dequeue_command_buf();
     if(!cmd)
@@ -160,8 +164,7 @@ static inline void process_commands()
            break;
         case IPAUGENBLICK_SOCKET_CONNECT_COMMAND:
            printf("Socket connect %x %x %p\n",cmd->u.socket_connect.ipaddr,cmd->u.socket_connect.port,socket_satelite_data[cmd->ringset_idx].socket);
-           if(socket_satelite_data[cmd->ringset_idx].socket) {
-               struct sockaddr_in addr;
+           if(socket_satelite_data[cmd->ringset_idx].socket) { 
                addr.sin_family = AF_INET;
                addr.sin_addr.s_addr = cmd->u.socket_connect.ipaddr;
                addr.sin_port = cmd->u.socket_connect.port;
@@ -195,6 +198,56 @@ static inline void process_commands()
                }
            }
            break;
+	case IPAUGENBLICK_ROUTE_ADD_COMMAND:
+   	   memset((void *)&rtentry,0,sizeof(rtentry));
+	   rtentry.rt_metric = 1;
+	   rtentry.rt_flags = RTF_UP|RTF_GATEWAY;
+	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_dst;
+	   p_sockaddr->sin_family = AF_INET;
+           p_sockaddr->sin_addr.s_addr = cmd->u.route.dest_ipaddr;
+	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_gateway;
+	   p_sockaddr->sin_family = AF_INET;
+           p_sockaddr->sin_addr.s_addr = cmd->u.route.next_hop;
+	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_genmask;
+	   p_sockaddr->sin_family = AF_INET;
+           p_sockaddr->sin_addr.s_addr = cmd->u.route.dest_mask;
+	   if(ip_rt_ioctl(&init_net,SIOCADDRT,&rtentry)) {
+		printf("CANNOT ADD ROUTE ENTRY %x %x %x\n",
+			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
+			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
+			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
+	   }
+	   else {
+		printf("ROUTE ENTRY %x %x %x is added\n",
+			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
+			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
+			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
+	   }
+	   break;
+    	case IPAUGENBLICK_ROUTE_DEL_COMMAND:
+	   memset((void *)&rtentry,0,sizeof(rtentry));
+	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_dst;
+	   p_sockaddr->sin_family = AF_INET;
+           p_sockaddr->sin_addr.s_addr = cmd->u.route.dest_ipaddr;
+	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_gateway;
+	   p_sockaddr->sin_family = AF_INET;
+           p_sockaddr->sin_addr.s_addr = cmd->u.route.next_hop;
+	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_genmask;
+	   p_sockaddr->sin_family = AF_INET;
+           p_sockaddr->sin_addr.s_addr = cmd->u.route.dest_mask;
+	   if(ip_rt_ioctl(&init_net,SIOCDELRT,&rtentry)) {
+		printf("CANNOT DELETE ROUTE ENTRY %x %x %x\n",
+			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
+			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
+			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
+	   }
+	   else {
+		printf("ROUTE ENTRY %x %x %x is deleted\n",
+			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
+			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
+			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
+	   }
+	   break;
         default:
            printf("unknown cmd %d\n",cmd->cmd);
            break;

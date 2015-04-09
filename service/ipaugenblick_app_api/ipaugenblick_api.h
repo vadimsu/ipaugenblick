@@ -63,4 +63,7 @@ int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port
    retrieves a next chunk and its length */
 void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len);
 
+int ipaugenblick_add_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop);
+int ipaugenblick_del_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop);
+
 #endif

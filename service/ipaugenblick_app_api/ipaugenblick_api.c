@@ -678,3 +678,32 @@ void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len)
    *len = mbuf->pkt.data_len;
    return &(mbuf->pkt.data);
 }
+
+static inline int ipaugenblick_route_command(int opcode,unsigned int ipaddr,unsigned int mask,unsigned int nexthop)
+{
+    ipaugenblick_cmd_t *cmd;
+    cmd = ipaugenblick_get_free_command_buf();
+    if(!cmd) {
+        ipaugenblick_stats_cannot_allocate_cmd++;
+        return -1;
+    } 
+    cmd->cmd = opcode;
+    cmd->u.route.dest_ipaddr = ipaddr;
+    cmd->u.route.dest_mask = mask;
+    cmd->u.route.next_hop = nexthop;
+    if(ipaugenblick_enqueue_command_buf(cmd)) {
+        ipaugenblick_free_command_buf(cmd);
+        return -2;
+    }
+    return 0;
+}
+
+int ipaugenblick_add_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop)
+{
+    return ipaugenblick_route_command(IPAUGENBLICK_ROUTE_ADD_COMMAND,ipaddr,mask,nexthop);
+}
+
+int ipaugenblick_del_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop)
+{
+    return ipaugenblick_route_command(IPAUGENBLICK_ROUTE_DEL_COMMAND,ipaddr,mask,nexthop);	
+}

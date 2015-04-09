@@ -18,7 +18,9 @@ enum
     IPAUGENBLICK_SOCKET_READY_FEEDBACK,
     IPAUGENBLICK_SOCKET_CONNECT_COMMAND,
     IPAUGENBLICK_SOCKET_CLOSE_COMMAND,
-    IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND
+    IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND,
+    IPAUGENBLICK_ROUTE_ADD_COMMAND,
+    IPAUGENBLICK_ROUTE_DEL_COMMAND
 };
 
 typedef struct
@@ -74,6 +76,13 @@ typedef struct
     unsigned short port;
 }__attribute__((packed))ipaugenblick_socket_connect_cmd_t;
 
+typedef struct
+{
+    unsigned int dest_ipaddr;
+    unsigned int dest_mask;
+    unsigned int next_hop;
+}__attribute__((packed))ipaugenblick_route_cmd_t;
+
 #define SOCKET_READABLE_BIT 1
 #define SOCKET_WRITABLE_BIT 2
 #define SOCKET_READY_SHIFT 16
@@ -100,6 +109,7 @@ typedef struct
         ipaugenblick_set_socket_select_cmd_t set_socket_select;
         ipaugenblick_socket_ready_feedback_t socket_ready_feedback;
         ipaugenblick_socket_connect_cmd_t socket_connect;
+	ipaugenblick_route_cmd_t route;
     }u;
 }__attribute__((packed))ipaugenblick_cmd_t;
 

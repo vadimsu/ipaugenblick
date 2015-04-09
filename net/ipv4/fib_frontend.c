@@ -558,8 +558,8 @@ static int rtm_to_fib_config(struct net *net, struct sk_buff *skb,
 	cfg->fc_type = rtm->rtm_type;
 	cfg->fc_flags = rtm->rtm_flags;
 	cfg->fc_nlflags = nlh->nlmsg_flags;
-
-	cfg->fc_nlinfo.portid = NETLINK_CB(skb).portid;
+/* VADIM - next line is changed because currently no netlink emulation, portid is always 0 */
+	cfg->fc_nlinfo.portid = /*NETLINK_CB(skb).portid*/0;
 	cfg->fc_nlinfo.nlh = nlh;
 	cfg->fc_nlinfo.nl_net = net;
 
@@ -629,9 +629,9 @@ errout:
 	return err;
 }
 
-static int inet_rtm_newroute(struct sk_buff *skb, struct nlmsghdr *nlh)
+int inet_rtm_newroute(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
-	struct net *net = sock_net(skb->sk);
+	struct net *net = /*sock_net(skb->sk)*/&init_net; /* VADIM - no multiple nets yet*/
 	struct fib_config cfg;
 	struct fib_table *tb;
 	int err;
