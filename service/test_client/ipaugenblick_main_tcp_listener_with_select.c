@@ -66,7 +66,8 @@ int main(int argc,char **argv)
             continue;
         }
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
-            while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&nb_segs) == 0) {
+	    int first_seg_len = 0;
+            while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&nb_segs,&first_seg_len) == 0) {
                 received_count++;
                 if(nb_segs > max_nb_segs) 
                     max_nb_segs = nb_segs;

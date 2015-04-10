@@ -435,7 +435,7 @@ inline int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *le
 }
 
 /* TCP */
-inline int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs)
+inline int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *nb_segs,int *first_segment_len)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     ipaugenblick_stats_receive_called++;
@@ -445,6 +445,7 @@ inline int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs)
         return -1;
     }
     *pbuffer = &(mbuf->pkt.data);
+    *first_segment_len = mbuf->pkt.data_len;
     *len = mbuf->pkt.pkt_len;
     *nb_segs = mbuf->pkt.nb_segs;
     return 0;

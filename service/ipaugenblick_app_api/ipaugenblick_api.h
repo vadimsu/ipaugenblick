@@ -29,7 +29,7 @@ int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int
 inline int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count);
 
 /* TCP */
-int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs);
+int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs,int *first_segment_len);
 
 /* UDP or RAW */
 int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs,unsigned int *ipaddr,unsigned short *port);
