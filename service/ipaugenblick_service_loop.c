@@ -85,11 +85,9 @@ static inline void process_commands()
     if(!cmd)
         return;
     switch(cmd->cmd) {
-        case IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND:
-           printf("open_client_sock %x %x %x %x\n",cmd->u.open_client_sock.my_ipaddress,cmd->u.open_client_sock.my_port,
-                                             cmd->u.open_client_sock.peer_ipaddress,cmd->u.open_client_sock.peer_port);
-           sock = create_client_socket2(cmd->u.open_client_sock.my_ipaddress,cmd->u.open_client_sock.my_port,
-                                        cmd->u.open_client_sock.peer_ipaddress,cmd->u.open_client_sock.peer_port);
+        case IPAUGENBLICK_OPEN_SOCKET_COMMAND:
+           printf("open_sock %x %x %x %x\n",cmd->u.open_sock.family,cmd->u.open_sock.type);
+           sock = app_glue_create_socket(cmd->u.open_sock.family,cmd->u.open_sock.type);
            if(sock) {
                printf("setting user data %p\n",sock);
                socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
@@ -99,41 +97,55 @@ static inline void process_commands()
            }
            printf("Done\n");
            break;
-        case IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND:
-           printf("open_listening_sock %x %x\n",
-                  cmd->u.open_listening_sock.ipaddress,cmd->u.open_listening_sock.port);
-           sock = create_server_socket2(cmd->u.open_listening_sock.ipaddress,cmd->u.open_listening_sock.port);
-           if(sock) {
-               printf("setting user data %p %p %d\n",sock,&socket_satelite_data[cmd->ringset_idx],cmd->ringset_idx);
-               socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
-               socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
-               app_glue_set_user_data(sock,(void *)&socket_satelite_data[cmd->ringset_idx]);
-               socket_satelite_data[cmd->ringset_idx].socket = sock;
+	case IPAUGENBLICK_SOCKET_CONNECT_BIND_COMMAND:
+           if(socket_satelite_data[cmd->ringset_idx].socket) { 
+               if(cmd->u.socket_connect_bind.is_connect) {
+			printf("connect %x\n",cmd->ringset_idx);
+		       if(app_glue_v4_bind(socket_satelite_data[cmd->ringset_idx].socket,
+						cmd->u.socket_connect_bind.ipaddr,
+						cmd->u.socket_connect_bind.port)) {
+				printf("cannot bind\n");
+		       }
+	       }
+	       else {
+			printf("bind %x\n",cmd->ringset_idx);
+		       if(app_glue_v4_bind(socket_satelite_data[cmd->ringset_idx].socket,
+		   		     cmd->u.socket_connect_bind.ipaddr,
+				     cmd->u.socket_connect_bind.port)) {
+				printf("cannot connect\n");
+			}
+	       }
+               if(kernel_connect((struct socket *)socket_satelite_data[cmd->ringset_idx].socket,(struct sockaddr *)&addr,sizeof(addr),0)) {
+                   printf("failed to connect socket\n");
+               }
+               else {
+                   printf("socket connected\n");
+               }
+           }
+           else {
+              printf("no socket to invoke command!!!\n");
            }
            break;
-        case IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND:
-           printf("open_udp_sock %x %x\n",cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
-           sock = create_udp_socket2(cmd->u.open_udp_sock.ipaddress,cmd->u.open_udp_sock.port);
-           if(sock) {
-               printf("setting user data %d %p\n",cmd->ringset_idx,sock->sk);
-               socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
-               socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
-               app_glue_set_user_data(sock,(void *)&socket_satelite_data[cmd->ringset_idx]);
-               socket_satelite_data[cmd->ringset_idx].socket = sock;
-               ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]); 
+	case IPAUGENBLICK_LISTEN_SOCKET_COMMAND:
+           printf("listen %x\n",cmd->ringset_idx);
+           if(app_glue_v4_listen(socket_satelite_data[cmd->ringset_idx].socket)) {
+               printf("failed\n"); 
            }
            break;
-        case IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND:
-           printf("open_raw_sock %x %x\n",cmd->u.open_raw_sock.ipaddress,cmd->u.open_raw_sock.protocol);
-           sock = create_raw_socket2(cmd->u.open_raw_sock.ipaddress,cmd->u.open_raw_sock.protocol);
-           if(sock) {
-               printf("setting user data\n");
-               socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
-               socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
-               app_glue_set_user_data(sock,(void *)&socket_satelite_data[cmd->ringset_idx]);
-               socket_satelite_data[cmd->ringset_idx].socket = sock;
+
+        case IPAUGENBLICK_SOCKET_CLOSE_COMMAND:
+           if(socket_satelite_data[cmd->ringset_idx].socket) {
+               printf("closing socket %d %p\n",cmd->ringset_idx,socket_satelite_data[cmd->ringset_idx].socket);
+               app_glue_close_socket((struct socket *)socket_satelite_data[cmd->ringset_idx].socket);
+               socket_satelite_data[cmd->ringset_idx].socket = NULL;
+               socket_satelite_data[cmd->ringset_idx].ringset_idx = -1;
+               socket_satelite_data[cmd->ringset_idx].parent_idx = -1;
+               ipaugenblick_free_socket(cmd->ringset_idx);
+               printf("%s %d\n",__FILE__,__LINE__);
            }
            break;
+	case IPAUGENBLICK_SETSOCKOPT_COMMAND:
+	   break;
         case IPAUGENBLICK_SOCKET_TX_KICK_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
                user_kick_tx++;
@@ -161,34 +173,6 @@ static inline void process_commands()
            printf("setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select; 
            ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
-           break;
-        case IPAUGENBLICK_SOCKET_CONNECT_COMMAND:
-           printf("Socket connect %x %x %p\n",cmd->u.socket_connect.ipaddr,cmd->u.socket_connect.port,socket_satelite_data[cmd->ringset_idx].socket);
-           if(socket_satelite_data[cmd->ringset_idx].socket) { 
-               addr.sin_family = AF_INET;
-               addr.sin_addr.s_addr = cmd->u.socket_connect.ipaddr;
-               addr.sin_port = cmd->u.socket_connect.port;
-               if(kernel_connect((struct socket *)socket_satelite_data[cmd->ringset_idx].socket,(struct sockaddr *)&addr,sizeof(addr),0)) {
-                   printf("failed to connect socket\n");
-               }
-               else {
-                   printf("socket connected\n");
-               }
-           }
-           else {
-              printf("no socket to invoke command!!!\n");
-           }
-           break;
-       case IPAUGENBLICK_SOCKET_CLOSE_COMMAND:
-           if(socket_satelite_data[cmd->ringset_idx].socket) {
-               printf("closing socket %d %p\n",cmd->ringset_idx,socket_satelite_data[cmd->ringset_idx].socket);
-               app_glue_close_socket((struct socket *)socket_satelite_data[cmd->ringset_idx].socket);
-               socket_satelite_data[cmd->ringset_idx].socket = NULL;
-               socket_satelite_data[cmd->ringset_idx].ringset_idx = -1;
-               socket_satelite_data[cmd->ringset_idx].parent_idx = -1;
-               ipaugenblick_free_socket(cmd->ringset_idx);
-               printf("%s %d\n",__FILE__,__LINE__);
-           }
            break;
         case IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {

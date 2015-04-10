@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/errno.h>
+#include <sys/types.h>          /* See NOTES */
+#include <sys/socket.h>
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
@@ -31,24 +33,30 @@ int main(int argc,char **argv)
         return 0;
     } 
     printf("memory initialized\n");
-    if((sock = ipaugenblick_open_tcp_server(inet_addr("192.168.150.63"),7777)) < 0) {
-        printf("cannot open tcp client socket\n");
-        return 0;
-    }
-    printf("listener socket opened\n");
     selector = ipaugenblick_open_select();
     if(selector != -1) {
         printf("selector opened\n");
     }
-    ipaugenblick_set_socket_select(sock,selector);
+
+    if((sock = ipaugenblick_open_socket(AF_INET,SOCK_STREAM,selector)) < 0) {
+        printf("cannot open tcp client socket\n");
+        return 0;
+    }
+    ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),7777,0);
+
+    ipaugenblick_listen_socket(sock);
+    printf("listener socket opened\n");
+    //    ipaugenblick_set_socket_select(sock,selector);
     while(1) {  
         ready_socket = ipaugenblick_select(selector,&mask,10000);
         if(ready_socket == -1) {
             continue;
         }
         if(ready_socket == sock) {
-            while((newsock = ipaugenblick_accept(sock)) != -1) {
-                printf("socket accepted %d %d\n",newsock,selector);
+	    unsigned int ipaddr;
+	    unsigned short port;
+            while((newsock = ipaugenblick_accept(sock,&ipaddr,&port)) != -1) {
+                printf("socket accepted %d %d %x %d\n",newsock,selector,ipaddr,port);
                 ipaugenblick_set_socket_select(newsock,selector);
                 sockets_connected++;
             }

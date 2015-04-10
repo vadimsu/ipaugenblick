@@ -234,13 +234,68 @@ void *create_udp_socket(const char *ip_addr,unsigned short port)
 {
     return create_udp_socket2(inet_addr(ip_addr),port);
 }
-/*
- * This is a wrapper function for TCP connecting socket creation.
- * Paramters: IP address & port to bind, IP address & port to connect
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
+
+void *app_glue_create_socket(int family,int type)
+{
+	struct timeval tv;
+	struct socket *sock = NULL;
+	if(sock_create_kern(family,type,0,&sock)) {
+		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
+		return NULL;
+	}
+	tv.tv_sec = -1;
+	tv.tv_usec = 0;
+	if(sock_setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,(char *)&tv,sizeof(tv))) {
+		printf("%s %d cannot set notimeout option\n",__FILE__,__LINE__);
+	}
+	tv.tv_sec = -1;
+	tv.tv_usec = 0;
+	if(sock_setsockopt(sock,SOL_SOCKET,SO_SNDTIMEO,(char *)&tv,sizeof(tv))) {
+		printf("%s %d cannot set notimeout option\n",__FILE__,__LINE__);
+	}
+	return sock;
+}
+
+int app_glue_v4_bind(struct socket *sock,unsigned int ipaddr, unsigned short port)
+{
+	struct sockaddr_in sin;
+
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = ipaddr;
+	sin.sin_port = htons(port);
+
+	return kernel_bind(sock,(struct sockaddr *)&sin,sizeof(sin));
+}
+
+int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short port)
+{
+	struct sockaddr_in sin;
+
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = ipaddr;
+	sin.sin_port = htons(port);
+	if(sock->sk) {
+		sock->sk->sk_state_change = app_glue_sock_wakeup;
+	}
+	kernel_connect(sock, (struct sockaddr *)&sin,sizeof(sin), 0);
+	return 0;
+}
+
+int app_glue_v4_listen(struct socket *sock)
+{
+	if(sock->sk) {
+		sock->sk->sk_state_change = app_glue_sock_wakeup;
+	}
+	else {
+		printf("FATAL %s %d\n",__FILE__,__LINE__);exit(0);
+	}
+	if(kernel_listen(sock,32000)) {
+		printf("cannot listen %s %d\n",__FILE__,__LINE__);
+		return -1;
+	}
+	return 0;
+}
+
 void *create_client_socket2(unsigned int my_ip_addr,unsigned short my_port,
 		            unsigned int peer_ip_addr,unsigned short port)
 {

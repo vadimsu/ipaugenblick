@@ -5,10 +5,10 @@
 enum
 {
     IPAUGENBLICK_DUMMY_COMMAND = 0,
-    IPAUGENBLICK_OPEN_CLIENT_SOCKET_COMMAND,
-    IPAUGENBLICK_OPEN_LISTENING_SOCKET_COMMAND,
-    IPAUGENBLICK_OPEN_UDP_SOCKET_COMMAND,
-    IPAUGENBLICK_OPEN_RAW_SOCKET_COMMAND,
+    IPAUGENBLICK_OPEN_SOCKET_COMMAND,
+    IPAUGENBLICK_SOCKET_CONNECT_BIND_COMMAND,
+    IPAUGENBLICK_LISTEN_SOCKET_COMMAND,
+    IPAUGENBLICK_SETSOCKOPT_COMMAND,
     IPAUGENBLICK_OPEN_SOCKET_FEEDBACK,
     IPAUGENBLICK_SOCKET_TX_KICK_COMMAND,
     IPAUGENBLICK_SOCKET_RX_KICK_COMMAND,
@@ -16,7 +16,6 @@ enum
     IPAUGENBLICK_SET_SOCKET_RING_COMMAND,
     IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND,
     IPAUGENBLICK_SOCKET_READY_FEEDBACK,
-    IPAUGENBLICK_SOCKET_CONNECT_COMMAND,
     IPAUGENBLICK_SOCKET_CLOSE_COMMAND,
     IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND,
     IPAUGENBLICK_ROUTE_ADD_COMMAND,
@@ -25,33 +24,15 @@ enum
 
 typedef struct
 {
-    unsigned int my_ipaddress;
-    unsigned int my_port;
-    unsigned int peer_ipaddress;
-    unsigned int peer_port;
-}__attribute__((packed))ipaugenblick_open_client_sock_cmd_t;
-
-typedef struct
-{
-    unsigned int ipaddress;
-    unsigned int port;
-}__attribute__((packed))ipaugenblick_open_listening_sock_cmd_t;
-
-typedef struct
-{
-    unsigned int ipaddress;
-    unsigned int port;
-}__attribute__((packed))ipaugenblick_open_udp_sock_cmd_t;
-
-typedef struct
-{
-    unsigned int ipaddress;
-    unsigned int protocol;
-}__attribute__((packed))ipaugenblick_open_raw_sock_cmd_t;
+    int family;
+    int type;
+}__attribute__((packed))ipaugenblick_open_sock_cmd_t;
 
 typedef struct
 {
     unsigned long socket_descr;
+    unsigned int ipaddr;
+    unsigned short port;
 }__attribute__((packed))ipaugenblick_open_accepted_socket_t;
 
 typedef struct
@@ -74,7 +55,8 @@ typedef struct
 {
     unsigned int ipaddr;
     unsigned short port;
-}__attribute__((packed))ipaugenblick_socket_connect_cmd_t;
+    unsigned short is_connect;
+}__attribute__((packed))ipaugenblick_socket_connect_bind_cmd_t;
 
 typedef struct
 {
@@ -99,16 +81,13 @@ typedef struct
     unsigned int ringset_idx;
     int          parent_idx;
     union {
-        ipaugenblick_open_client_sock_cmd_t open_client_sock;
-        ipaugenblick_open_listening_sock_cmd_t open_listening_sock;
-        ipaugenblick_open_udp_sock_cmd_t open_udp_sock;
-        ipaugenblick_open_raw_sock_cmd_t open_raw_sock;
+        ipaugenblick_open_sock_cmd_t open_sock;
         ipaugenblick_socket_kick_cmd_t socket_kick_cmd;
         ipaugenblick_open_accepted_socket_t accepted_socket;
         ipaugenblick_set_socket_ring_cmd_t set_socket_ring;
         ipaugenblick_set_socket_select_cmd_t set_socket_select;
         ipaugenblick_socket_ready_feedback_t socket_ready_feedback;
-        ipaugenblick_socket_connect_cmd_t socket_connect;
+        ipaugenblick_socket_connect_bind_cmd_t socket_connect_bind;
 	ipaugenblick_route_cmd_t route;
     }u;
 }__attribute__((packed))ipaugenblick_cmd_t;

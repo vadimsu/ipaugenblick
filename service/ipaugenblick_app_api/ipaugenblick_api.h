@@ -7,14 +7,11 @@
 /* must be called per process */
 extern int ipaugenblick_app_init(int argc, char **argv);
 
-/* open asynchronous TCP client socket */
-int ipaugenblick_open_tcp_client(unsigned int ipaddr,unsigned short port,unsigned int myipaddr,unsigned short myport);
+int ipaugenblick_open_socket(int family,int type,int parent);
 
-/* open listener */
-int ipaugenblick_open_tcp_server(unsigned int ipaddr,unsigned short port);
+int ipaugenblick_v4_connect_bind_socket(int sock,unsigned int ipaddr,unsigned short port,int is_connect);
 
-/* open UDP socket */
-int ipaugenblick_open_udp(unsigned int ipaddr,unsigned short port);
+int ipaugenblick_listen_socket(int sock);
 
 /* close any socket */
 void ipaugenblick_close(int sock);
@@ -49,7 +46,7 @@ void ipaugenblick_release_rx_buffer(void *buffer);
 
 int ipaugenblick_socket_kick(int sock);
 
-int ipaugenblick_accept(int sock);
+int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port);
 
 int ipaugenblick_open_select(void);
 

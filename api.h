@@ -9,6 +9,15 @@
 
 #ifndef __API_H_
 #define __API_H_
+
+void *app_glue_create_socket(int family,int type);
+
+int app_glue_v4_bind(struct socket *sock,unsigned int ipaddr, unsigned short port);
+
+int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short port);
+
+int app_glue_v4_listen(struct socket *sock);
+
 /*
  * This is a wrapper function for RAW socket creation.
  * Paramters: IP address & port (protocol number) to bind
