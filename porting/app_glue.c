@@ -290,7 +290,7 @@ int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short p
 #endif
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = ipaddr;
-	sin.sin_port = htons(port);
+	sin.sin_port = port;
 	if(sock->sk) {
 		sock->sk->sk_state_change = app_glue_sock_wakeup;
 	}
