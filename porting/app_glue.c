@@ -159,8 +159,9 @@ static void app_glue_sock_wakeup(struct sock *sk)
         else {
               struct tcp_sock *tp;
               tp = tcp_sk(sk);
+	      app_glue_sock_write_space(sk);
               printf("%s %d %x %d %x %d %d \n",__FILE__,__LINE__,sk->sk_daddr,sk->sk_dport,sk->sk_rcv_saddr,sk->sk_num,tp->inet_conn.icsk_inet.inet_sport);
-              return;
+              //return;
         }
 	sock_reset_flag(sk,SOCK_USE_WRITE_QUEUE);
 	sk->sk_data_ready = app_glue_sock_readable;
@@ -271,6 +272,22 @@ int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short p
 {
 	struct sockaddr_in sin;
 
+	if(!sock->sk)
+		return -1;
+#if 0
+	inet_autobind(sock->sk);
+#else
+	while(1) {
+		sin.sin_family = AF_INET;
+		sin.sin_addr.s_addr = /*my_ip_addr*/0;
+		sin.sin_port = htons(rand() & 0xffff);
+		if(kernel_bind(sock,(struct sockaddr *)&sin,sizeof(sin))) {
+			printf("cannot bind %s %d\n",__FILE__,__LINE__);
+			continue;
+		}
+		break;
+	}
+#endif
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = ipaddr;
 	sin.sin_port = htons(port);

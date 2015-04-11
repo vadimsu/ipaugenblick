@@ -101,26 +101,23 @@ static inline void process_commands()
            if(socket_satelite_data[cmd->ringset_idx].socket) { 
                if(cmd->u.socket_connect_bind.is_connect) {
 			printf("connect %x\n",cmd->ringset_idx);
-		       if(app_glue_v4_bind(socket_satelite_data[cmd->ringset_idx].socket,
-						cmd->u.socket_connect_bind.ipaddr,
-						cmd->u.socket_connect_bind.port)) {
-				printf("cannot bind\n");
-		       }
+		       if(app_glue_v4_connect(socket_satelite_data[cmd->ringset_idx].socket,
+		   		     cmd->u.socket_connect_bind.ipaddr,
+				     cmd->u.socket_connect_bind.port)) {
+	                   printf("failed to connect socket\n");
+        	       }
+               	       else {
+                   	   printf("socket connected\n");
+               	       } 
 	       }
 	       else {
 			printf("bind %x\n",cmd->ringset_idx);
 		       if(app_glue_v4_bind(socket_satelite_data[cmd->ringset_idx].socket,
 		   		     cmd->u.socket_connect_bind.ipaddr,
 				     cmd->u.socket_connect_bind.port)) {
-				printf("cannot connect\n");
+				printf("cannot bind %x %x\n",cmd->u.socket_connect_bind.ipaddr,cmd->u.socket_connect_bind.port);
 			}
-	       }
-               if(kernel_connect((struct socket *)socket_satelite_data[cmd->ringset_idx].socket,(struct sockaddr *)&addr,sizeof(addr),0)) {
-                   printf("failed to connect socket\n");
-               }
-               else {
-                   printf("socket connected\n");
-               }
+	       } 
            }
            else {
               printf("no socket to invoke command!!!\n");
