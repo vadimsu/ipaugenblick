@@ -97,7 +97,7 @@ typedef struct
     unsigned long connection_idx; /* to be aligned */
     rte_atomic16_t  read_ready_to_app;
     rte_atomic16_t  write_ready_to_app;
-    rte_atomic16_t  write_done_from_app
+    rte_atomic16_t  write_done_from_app;
 }__attribute__((packed))ipaugenblick_socket_t;
 
 typedef struct

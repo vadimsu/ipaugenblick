@@ -446,7 +446,7 @@ inline int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *nb_s
     }
     *pbuffer = &(mbuf->pkt.data);
     *first_segment_len = mbuf->pkt.data_len;
-    *len = mbuf->pkt.pkt_len;
+    *total_len = mbuf->pkt.pkt_len;
     *nb_segs = mbuf->pkt.nb_segs;
     return 0;
 }
