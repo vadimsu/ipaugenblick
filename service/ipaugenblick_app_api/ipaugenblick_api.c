@@ -66,6 +66,7 @@ uint8_t g_print_stats_loop = 1;
 void print_stats()
 {
     while(g_print_stats_loop) {
+#if 0
         printf("ipaugenblick_stats_receive_called %lu ipaugenblick_stats_send_called %lu \n\t\
                 ipaugenblick_stats_rx_kicks_sent %lu ipaugenblick_stats_tx_kicks_sent %lu ipaugenblick_stats_cannot_allocate_cmd %lu  \n\t\
                 ipaugenblick_stats_rx_full %lu ipaugenblick_stats_rx_dequeued %lu ipaugenblick_stats_rx_dequeued_local %lu \n\t\
@@ -77,6 +78,7 @@ void print_stats()
                 ipaugenblick_stats_send_failure,ipaugenblick_stats_recv_failure,
                 ipaugenblick_stats_buffers_sent,
                 ipaugenblick_stats_buffers_allocated);
+#endif
         sleep(1);
     }
 }
@@ -609,7 +611,7 @@ restart_waiting:
             for(i = 0;i < timeout;i++) rte_pause();
         }
         else if(timeout == 0) {
-            return;
+            return -1;
         }
         else 
             usleep(1);
