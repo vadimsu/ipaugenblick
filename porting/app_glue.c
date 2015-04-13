@@ -254,6 +254,14 @@ void *app_glue_create_socket(int family,int type)
 	if(sock_setsockopt(sock,SOL_SOCKET,SO_SNDTIMEO,(char *)&tv,sizeof(tv))) {
 		printf("%s %d cannot set notimeout option\n",__FILE__,__LINE__);
 	}
+	if(type != SOCK_STREAM) {
+		if(sock->sk) {
+            		sock_reset_flag(sock->sk,SOCK_USE_WRITE_QUEUE);
+            		sock->sk->sk_data_ready = app_glue_sock_readable;
+            		sock->sk->sk_write_space = app_glue_sock_write_space;
+            		app_glue_sock_write_space(sock->sk);
+		}
+	}
 	return sock;
 }
 

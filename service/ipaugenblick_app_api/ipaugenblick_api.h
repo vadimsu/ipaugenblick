@@ -32,7 +32,7 @@ extern int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *le
 extern int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *first_segment_len);
 
 /* UDP or RAW */
-extern int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs,unsigned int *ipaddr,unsigned short *port);
+extern int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port);
 
 /* Allocate buffer to use later in *send* APIs */
 extern void *ipaugenblick_get_buffer(int length,int owner_sock);
