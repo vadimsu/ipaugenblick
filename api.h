@@ -97,7 +97,7 @@ extern void app_glue_set_user_data(void *socket,void *data);
  * Returns: pointer to data to be attached to the socket
  *
  */
-//extern void *app_glue_get_user_data(void *socket);
+extern void *app_glue_get_user_data(void *socket);
 /*
  * This function may be called to get next closable socket .
  * Paramters: None

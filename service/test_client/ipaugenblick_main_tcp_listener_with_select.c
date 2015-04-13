@@ -67,15 +67,14 @@ int main(int argc,char **argv)
         }
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
 	    int first_seg_len = 0;
-            while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&nb_segs,&first_seg_len) == 0) {
+	    len = /*1024*/0;
+            while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len) == 0) {
                 received_count++;
-                if(nb_segs > max_nb_segs) 
-                    max_nb_segs = nb_segs;
                 if(len > max_total_length)
                     max_total_length = len;
                 buff = rxbuff;
 #if 0
-                for(seg_idx = 0;seg_idx < nb_segs;seg_idx++) {
+                while(buff) {
                     
                     buff = ipaugenblick_get_next_buffer_segment(buff,&len);
                     if((buff)&&(len > 0)) {
@@ -85,9 +84,9 @@ int main(int argc,char **argv)
                 }
 #endif
                 if(!(received_count%10000000)) {
-                    printf("received %u max_nb_segs %u max_total_len %u\n",received_count,max_nb_segs,max_total_length);
+                    printf("received %u max_total_len %u\n",received_count,max_total_length);
                 }
-                ipaugenblick_release_rx_buffer(rxbuff);
+                ipaugenblick_release_rx_buffer(rxbuff,ready_socket);
             }
         }
 #if USE_TX

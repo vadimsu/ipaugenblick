@@ -12,6 +12,11 @@ typedef struct
     ipaugenblick_socket_t *socket;
     int select;
     struct rte_ring *local_cache;
+    int any_event_received;
+    struct rte_mbuf *shadow;
+    struct rte_mbuf *shadow_next;
+    int shadow_len_remainder;
+    int shadow_len_delievered;
 }local_socket_descriptor_t;
 
 extern struct rte_ring *free_connections_ring;

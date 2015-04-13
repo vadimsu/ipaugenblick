@@ -29,7 +29,7 @@ extern int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
 extern int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count);
 
 /* TCP */
-extern int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *nb_segs,int *first_segment_len);
+extern int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *first_segment_len);
 
 /* UDP or RAW */
 extern int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs,unsigned int *ipaddr,unsigned short *port);
@@ -42,7 +42,7 @@ extern int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,voi
 /* release buffer when either send is complete or receive has done with the buffer */
 extern void ipaugenblick_release_tx_buffer(void *buffer);
 
-extern void ipaugenblick_release_rx_buffer(void *buffer);
+extern void ipaugenblick_release_rx_buffer(void *buffer,int sock);
 
 extern int ipaugenblick_socket_kick(int sock);
 
@@ -51,6 +51,8 @@ extern int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *por
 extern int ipaugenblick_open_select(void);
 
 extern int ipaugenblick_set_socket_select(int sock,int select);
+
+extern int ipaugenblick_is_connected(int sock);
 
 extern int ipaugenblick_select(int selector,unsigned short *mask,int timeout);
 
