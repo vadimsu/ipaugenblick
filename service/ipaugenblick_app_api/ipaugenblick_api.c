@@ -478,21 +478,17 @@ static inline struct rte_mbuf *ipaugenblick_try_read_exact_amount(struct rte_mbu
 		tmp = tmp->pkt.next;
 	}
 	if(tmp) {
-		printf("%s %d %p %d\n",__FILE__,__LINE__,tmp,curr_len);
 		local_socket_descriptors[sock].shadow = tmp;
 		local_socket_descriptors[sock].shadow_next = tmp->pkt.next;
 		local_socket_descriptors[sock].shadow_len_remainder = (curr_len + tmp->pkt.data_len) - *total_len;
 		local_socket_descriptors[sock].shadow_len_delievered = tmp->pkt.data_len - local_socket_descriptors[sock].shadow_len_remainder;
 		tmp->pkt.next = NULL;
 		if(curr_len == *total_len) {
-			printf("%s %d\n",__FILE__,__LINE__);
 			if(prev)
 				prev->pkt.next = NULL;
 		}
 		else {
-			printf("%s %d %d\n",__FILE__,__LINE__,local_socket_descriptors[sock].shadow_len_delievered);
 			if(tmp == mbuf) {
-				printf("%s %d\n",__FILE__,__LINE__);
 				*first_segment_len = local_socket_descriptors[sock].shadow_len_delievered;
 				*pbuffer = &(mbuf->pkt.data);
 				*total_len = *first_segment_len;
@@ -520,22 +516,18 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
     /* first try to look shadow. shadow pointer saved when last mbuf delievered partially */
     mbuf = ipaugenblick_get_from_shadow(sock);
     if((mbuf)&&(*total_len > 0)) { /* total_len > 0 means user restricts total read count */
-	printf("%s %d %p %d\n",__FILE__,__LINE__,mbuf,*total_len);
 	int total_len2 = *total_len;
 	/* now find mbuf (if any) to be delievered partially and save it to shadown */
 	mbuf = ipaugenblick_try_read_exact_amount(mbuf,sock,pbuffer,&total_len2,first_segment_len);
 	if(total_len2 < *total_len) { /* read less than user requested, try ring */
-		printf("%s %d %d\n",__FILE__,__LINE__,total_len2);
 		struct rte_mbuf *mbuf2 = ipaugenblick_dequeue_rx_buf(sock);
 		if(!mbuf2) { /* ring is empty */
 			*total_len = total_len2;
-			printf("%s %d\n",__FILE__,__LINE__);
 		}
 		else { /* now try to find an mbuf to be delievered partially in the chain */
 			int total_len3 = *total_len - total_len2;
 			void *pbufferdummy;
 			int first_segment_len_dummy;
-			printf("%s %d\n",__FILE__,__LINE__);
 			mbuf2 = ipaugenblick_try_read_exact_amount(mbuf2,sock,&pbufferdummy,&total_len3,&first_segment_len_dummy);
 			struct rte_mbuf *last_mbuf = rte_pktmbuf_lastseg(mbuf);
 			last_mbuf->pkt.next = mbuf2;
@@ -543,7 +535,6 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 		}
 	}
 	if(local_socket_descriptors[sock].shadow) {
-		printf("%s %d\n",__FILE__,__LINE__);
 		uint32_t ringidx_ready_mask = sock|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
 		rte_ring_enqueue(selectors[local_socket_descriptors[sock].select].ready_connections,(void *)ringidx_ready_mask);	
 	}
@@ -565,18 +556,14 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
     if(mbuf) {
 	if(*total_len > 0) { /* read exact */
 		int total_len2 = *total_len;
-		printf("%s %d %d\n",__FILE__,__LINE__,total_len2);
 		mbuf = ipaugenblick_try_read_exact_amount(mbuf,sock,pbuffer,&total_len2,first_segment_len);
-		printf("%s %d %p %d\n",__FILE__,__LINE__,mbuf,total_len2);
 		*total_len = total_len2;
 		if(local_socket_descriptors[sock].shadow) {
 			uint32_t ringidx_ready_mask = sock|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
-			printf("%s %d %d\n",__FILE__,__LINE__,local_socket_descriptors[sock].select);
 			rte_ring_enqueue(selectors[local_socket_descriptors[sock].select].ready_connections,(void *)ringidx_ready_mask);	
 		}
 	}
 	else {
-		printf("%s %d %d %d %p\n",__FILE__,__LINE__,mbuf->pkt.pkt_len,mbuf->pkt.data_len,mbuf);
 		*total_len = mbuf->pkt.pkt_len;
 		*first_segment_len = mbuf->pkt.data_len;
     		*pbuffer = &(mbuf->pkt.data);
