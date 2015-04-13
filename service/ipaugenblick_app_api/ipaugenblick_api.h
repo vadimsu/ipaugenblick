@@ -65,4 +65,6 @@ extern void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len);
 extern int ipaugenblick_add_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop);
 extern int ipaugenblick_del_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop);
 
+extern void ipaugenblick_getsockname(int sock, int is_local,unsigned int *ipaddr,unsigned short *port);
+
 #endif

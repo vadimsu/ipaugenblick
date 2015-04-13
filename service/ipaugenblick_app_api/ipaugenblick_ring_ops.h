@@ -17,6 +17,10 @@ typedef struct
     struct rte_mbuf *shadow_next;
     int shadow_len_remainder;
     int shadow_len_delievered;
+    unsigned int local_ipaddr;
+    unsigned int local_port;
+    unsigned int remote_ipaddr;
+    unsigned int remote_port;
 }local_socket_descriptor_t;
 
 extern struct rte_ring *free_connections_ring;

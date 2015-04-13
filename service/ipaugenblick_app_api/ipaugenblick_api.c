@@ -293,6 +293,14 @@ int ipaugenblick_v4_connect_bind_socket(int sock,unsigned int ipaddr,unsigned sh
        		ipaugenblick_free_command_buf(cmd);
 		return -2;
     	}
+	if(is_connect) {
+		local_socket_descriptors[sock].remote_ipaddr = ipaddr;
+		local_socket_descriptors[sock].remote_port = port;
+	}
+	else {
+		local_socket_descriptors[sock].local_ipaddr = ipaddr;
+		local_socket_descriptors[sock].local_port = port;
+	}
 	return 0;
 }
 
@@ -568,6 +576,7 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 		}
 	}
 	else {
+		printf("%s %d %d %d %p\n",__FILE__,__LINE__,mbuf->pkt.pkt_len,mbuf->pkt.data_len,mbuf);
 		*total_len = mbuf->pkt.pkt_len;
 		*first_segment_len = mbuf->pkt.data_len;
     		*pbuffer = &(mbuf->pkt.data);
@@ -707,6 +716,8 @@ int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port)
     accepted_socket = cmd->u.accepted_socket.socket_descr;
     *ipaddr = cmd->u.accepted_socket.ipaddr;
     *port = cmd->u.accepted_socket.port;
+    local_socket_descriptors[sock].remote_ipaddr = *ipaddr;
+    local_socket_descriptors[sock].remote_port = *port;
 printf("%s %d %p %d %d %x %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_socket->connection_idx,*ipaddr,*port);
     local_socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
     cmd->cmd = IPAUGENBLICK_SET_SOCKET_RING_COMMAND;
@@ -719,6 +730,18 @@ printf("%s %d %p %d %d %x %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenbl
         return -2;
     }
     return ipaugenblick_socket->connection_idx;
+}
+
+void ipaugenblick_getsockname(int sock,int is_local,unsigned int *ipaddr,unsigned short *port)
+{
+	if(is_local) {
+		*ipaddr = local_socket_descriptors[sock].local_ipaddr;
+		*port = local_socket_descriptors[sock].local_port;
+	}
+	else {
+		*ipaddr = local_socket_descriptors[sock].remote_ipaddr;
+		*port = local_socket_descriptors[sock].remote_port;
+	}
 }
 
 static inline void ipaugenblick_free_common_notification_buf(ipaugenblick_cmd_t *cmd)
@@ -767,7 +790,7 @@ restart_waiting:
 void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len)
 {
    struct rte_mbuf *mbuf = RTE_MBUF(buffer);
-   printf("%s %d %p %p\n",__FILE__,__LINE__,mbuf,buffer);
+   
    mbuf = mbuf->pkt.next;
    if(!mbuf) {
        return NULL;
