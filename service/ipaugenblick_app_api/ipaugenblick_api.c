@@ -575,7 +575,7 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 }
 
 /* UDP or RAW */
-inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs,unsigned int *ipaddr,unsigned short *port)
+inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     ipaugenblick_stats_receive_called++;
@@ -586,7 +586,6 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,int *nb_segs
     }
     *buffer = &(mbuf->pkt.data);
     *len = mbuf->pkt.pkt_len;
-    *nb_segs = mbuf->pkt.nb_segs;
     char *p_addr = mbuf->pkt.data;
     p_addr -= sizeof(struct sockaddr_in);
     struct sockaddr_in *p_addr_in = (struct sockaddr_in *)p_addr;
