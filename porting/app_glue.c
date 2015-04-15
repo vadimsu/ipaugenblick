@@ -82,6 +82,7 @@ void app_glue_sock_readable(struct sock *sk, int len)
 		}
 		return;
 	}
+	sock_hold(sk);
 	sk->sk_socket->read_queue_present = 1;
 	TAILQ_INSERT_TAIL(&read_ready_socket_list_head,sk->sk_socket,read_queue_entry);
         read_sockets_queue_len++;
@@ -96,7 +97,7 @@ void app_glue_sock_readable(struct sock *sk, int len)
  */
 void app_glue_sock_write_space(struct sock *sk)
 {
-	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket->type == SOCK_STREAM)) {
+	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
 	}
 	if (sk_stream_is_writeable(sk) && sk->sk_socket) {
@@ -104,6 +105,7 @@ void app_glue_sock_write_space(struct sock *sk)
 		if(sk->sk_socket->write_queue_present) {
 			return;
 		}
+		sock_hold(sk);
 		sk->sk_socket->write_queue_present = 1;
 		TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sk->sk_socket,write_queue_entry);
                 write_sockets_queue_len++;
@@ -123,6 +125,7 @@ void app_glue_sock_error_report(struct sock *sk)
 		if(sk->sk_socket->closed_queue_present) {
 			return;
 		}
+		sock_hold(sk);
 		sk->sk_socket->closed_queue_present = 1;
 		TAILQ_INSERT_TAIL(&closed_socket_list_head,sk->sk_socket,closed_queue_entry);
 	}
@@ -153,6 +156,7 @@ static void app_glue_sock_wakeup(struct sock *sk)
 		if(sock->sk_socket->accept_queue_present) {
 			return;
 		}
+		sock_hold(sock);
 		sock->sk_socket->accept_queue_present = 1;
 		TAILQ_INSERT_TAIL(&accept_ready_socket_list_head,sock->sk_socket,accept_queue_entry);
 	}
@@ -490,6 +494,7 @@ static inline void process_rx_ready_sockets()
 		user_on_socket_fatal(sock);
 		sock->closed_queue_present = 0;
 		TAILQ_REMOVE(&closed_socket_list_head,sock,closed_queue_entry);
+		sock_put(sock->sk);
 		kernel_close(sock);
 	}
 	while(!TAILQ_EMPTY(&accept_ready_socket_list_head)) {
@@ -498,6 +503,7 @@ static inline void process_rx_ready_sockets()
 		user_on_accept(sock);
 		sock->accept_queue_present = 0;
 		TAILQ_REMOVE(&accept_ready_socket_list_head,sock,accept_queue_entry);
+		sock_put(sock->sk);
 	}
         idx = 0;
         limit = read_sockets_queue_len;
@@ -506,6 +512,7 @@ static inline void process_rx_ready_sockets()
                 sock->read_queue_present = 0;
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
                 user_data_available_cbk(sock);
+		sock_put(sock->sk);
                 read_sockets_queue_len--;
                 idx++;	
 	}
@@ -530,6 +537,7 @@ static inline void process_tx_ready_sockets()
                 sock->write_queue_present = 0;
 		user_on_transmission_opportunity(sock);
                 set_bit(SOCK_NOSPACE, &sock->flags);
+		sock_put(sock->sk);
                 write_sockets_queue_len--;
 	        idx++;
 	}
