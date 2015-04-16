@@ -5,7 +5,11 @@
 #define IPAUGENBLICK_MAX_SOCKETS 1000
 
 /* must be called per process */
-extern int ipaugenblick_app_init(int argc, char **argv);
+/* it is a responsibility of the caller to provide app_unique_id */
+/* note that if an application may close and restart, it is highly desirable
+   to provide the same unique id (process id is not good for this purpose since
+   each time it will create a different set of rings so the memory will leak) */
+extern int ipaugenblick_app_init(int argc, char **argv,char *app_unique_id);
 
 extern int ipaugenblick_open_socket(int family,int type,int parent);
 

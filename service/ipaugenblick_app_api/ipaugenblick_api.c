@@ -105,7 +105,7 @@ void sig_handler(int signum)
 }
 
 /* must be called per process */
-int ipaugenblick_app_init(int argc,char **argv)
+int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
 {
     int i;
     char ringname[1024];
@@ -145,12 +145,16 @@ int ipaugenblick_app_init(int argc,char **argv)
         }
         local_socket_descriptors[i].select = -1;
         local_socket_descriptors[i].socket = NULL;
-        sprintf(ringname,"local_rx_cache%d_%d",getpid(),i);
+        sprintf(ringname,"lrxcache%s_%d",app_unique_id,i);
         printf("local cache name %s\n",ringname);
         local_socket_descriptors[i].local_cache = rte_ring_create(ringname, 16384,rte_socket_id(), RING_F_SC_DEQ|RING_F_SP_ENQ);
         if(!local_socket_descriptors[i].local_cache) {
            printf("cannot create local cache\n");
-           exit(0);
+	   local_socket_descriptors[i].local_cache = rte_ring_lookup(ringname);
+	   if(!local_socket_descriptors[i].local_cache) {
+		printf("and cannot find\n");
+		exit(0);
+	   } 
         }
 	local_socket_descriptors[i].any_event_received = 0;
     }

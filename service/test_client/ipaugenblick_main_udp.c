@@ -23,7 +23,7 @@ int main(int argc,char **argv)
     unsigned long received_packets = 0;
     unsigned long  sent_packets = 0;
 
-    if(ipaugenblick_app_init(argc,argv) != 0) {
+    if(ipaugenblick_app_init(argc,argv,"udp") != 0) {
         printf("cannot initialize memory\n");
         return 0;
     } 

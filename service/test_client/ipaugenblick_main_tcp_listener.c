@@ -21,7 +21,7 @@ int main(int argc,char **argv)
     unsigned int iterations = 0,iterations2 = 0;
     int i;
 
-    if(ipaugenblick_app_init(argc,argv) != 0) {
+    if(ipaugenblick_app_init(argc,argv,"tcp_listener") != 0) {
         printf("cannot initialize memory\n");
         return 0;
     } 

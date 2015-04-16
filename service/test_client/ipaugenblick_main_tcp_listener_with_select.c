@@ -28,7 +28,7 @@ int main(int argc,char **argv)
     unsigned short mask;
     unsigned long received_count = 0;
 
-    if(ipaugenblick_app_init(argc,argv) != 0) {
+    if(ipaugenblick_app_init(argc,argv,"tcp_listener_with_select") != 0) {
         printf("cannot initialize memory\n");
         return 0;
     } 
