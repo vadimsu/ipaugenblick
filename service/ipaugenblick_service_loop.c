@@ -80,6 +80,7 @@ static inline void process_commands()
     struct sockaddr_in addr;
     struct sockaddr_in *p_sockaddr;
     struct rtentry rtentry;
+    int len;
 
     cmd = ipaugenblick_dequeue_command_buf();
     if(!cmd)
@@ -108,6 +109,10 @@ static inline void process_commands()
         	       }
                	       else {
                    	   printf("socket connected\n");
+			   len = sizeof(addr);
+			   inet_getname(socket_satelite_data[cmd->ringset_idx].socket,&addr,&len,0);
+			   g_ipaugenblick_sockets[cmd->ringset_idx].local_ipaddr = addr.sin_addr.s_addr;
+			   g_ipaugenblick_sockets[cmd->ringset_idx].local_port = addr.sin_port;
                	       } 
 	       }
 	       else {
@@ -241,10 +246,10 @@ void ipaugenblick_main_loop()
     struct rte_mbuf *mbuf;
     uint8_t ports_to_poll[1] = { 0 };
     int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
-    app_glue_init_poll_intervals(/*drv_poll_interval/(2*MAX_PKT_BURST)*/1,
+    app_glue_init_poll_intervals(drv_poll_interval/(2*MAX_PKT_BURST),
                                  1000 /*timer_poll_interval*/,
-                                 /*drv_poll_interval/(10*MAX_PKT_BURST)*/1,
-                                /*drv_poll_interval/(60*MAX_PKT_BURST)*/1);
+                                 drv_poll_interval/(10*MAX_PKT_BURST),
+                                drv_poll_interval/(60*MAX_PKT_BURST));
     
     ipaugenblick_service_api_init(COMMAND_POOL_SIZE,DATA_RINGS_SIZE,DATA_RINGS_SIZE);
     TAILQ_INIT(&buffers_available_notification_socket_list_head);

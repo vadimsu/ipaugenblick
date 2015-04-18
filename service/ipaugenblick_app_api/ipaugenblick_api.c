@@ -726,8 +726,12 @@ int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port)
     accepted_socket = cmd->u.accepted_socket.socket_descr;
     *ipaddr = cmd->u.accepted_socket.ipaddr;
     *port = cmd->u.accepted_socket.port;
-    local_socket_descriptors[sock].remote_ipaddr = *ipaddr;
-    local_socket_descriptors[sock].remote_port = *port;
+    local_socket_descriptors[ipaugenblick_socket->connection_idx].remote_ipaddr = *ipaddr;
+    local_socket_descriptors[ipaugenblick_socket->connection_idx].remote_port = *port;
+    local_socket_descriptors[ipaugenblick_socket->connection_idx].local_ipaddr = 
+	local_socket_descriptors[sock].local_ipaddr;
+    local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port = 
+	local_socket_descriptors[sock].local_port;
 printf("%s %d %p %d %d %x %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_socket->connection_idx,*ipaddr,*port);
     local_socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
     cmd->cmd = IPAUGENBLICK_SET_SOCKET_RING_COMMAND;
@@ -745,8 +749,10 @@ printf("%s %d %p %d %d %x %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenbl
 void ipaugenblick_getsockname(int sock,int is_local,unsigned int *ipaddr,unsigned short *port)
 {
 	if(is_local) {
-		*ipaddr = local_socket_descriptors[sock].local_ipaddr;
-		*port = local_socket_descriptors[sock].local_port;
+		*ipaddr = local_socket_descriptors[sock].socket->local_ipaddr;
+		*port = local_socket_descriptors[sock].socket->local_port;
+		//*ipaddr = local_socket_descriptors[sock].local_ipaddr;
+		//*port = local_socket_descriptors[sock].local_port;
 	}
 	else {
 		*ipaddr = local_socket_descriptors[sock].remote_ipaddr;
