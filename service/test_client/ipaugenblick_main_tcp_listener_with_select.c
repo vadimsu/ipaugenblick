@@ -12,23 +12,35 @@
 #include <string.h>
 
 #define USE_TX 1
+#define LISTENERS_COUNT 2
+#define LISTENERS_BASE 7777
+
+static inline int is_listener(int sock, int *listeners)
+{
+    int i;
+
+    for(i = 0;i < LISTENERS_COUNT;i++)
+        if(listeners[i] == sock)
+	    return 1;
+    return 0;
+}
 
 int main(int argc,char **argv)
 {
     void *buff,*rxbuff;
-    int sock,newsock,len;
+    int sock,newsock,len,listeners[LISTENERS_COUNT];
     char *p;
     int size = 0,ringset_idx;
     int sockets_connected = 0;
     int selector;
     int ready_socket;
-    int i,tx_space,nb_segs,seg_idx;
+    int i,tx_space,listeners_idx;
     int max_nb_segs = 0;
     int max_total_length = 0;
     unsigned short mask;
     unsigned long received_count = 0;
 
-    if(ipaugenblick_app_init(argc,argv,"tcp_listener_with_select") != 0) {
+    if(ipaugenblick_app_init(argc,argv,"tcp_listener") != 0) {
         printf("cannot initialize memory\n");
         return 0;
     } 
@@ -37,25 +49,29 @@ int main(int argc,char **argv)
     if(selector != -1) {
         printf("selector opened\n");
     }
+    for(listeners_idx = 0;listeners_idx < LISTENERS_COUNT;listeners_idx++) {
+	    if((sock = ipaugenblick_open_socket(AF_INET,SOCK_STREAM,selector)) < 0) {
+        	printf("cannot open tcp client socket\n");
+	        return 0;
+    	}
+    	ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),LISTENERS_BASE + listeners_idx,0);
 
-    if((sock = ipaugenblick_open_socket(AF_INET,SOCK_STREAM,selector)) < 0) {
-        printf("cannot open tcp client socket\n");
-        return 0;
+    	ipaugenblick_listen_socket(sock);
+    	listeners[listeners_idx] = sock;
+
     }
-    ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),7777,0);
-
-    ipaugenblick_listen_socket(sock);
-    printf("listener socket opened\n");
+    
     //    ipaugenblick_set_socket_select(sock,selector);
     while(1) {  
-        ready_socket = ipaugenblick_select(selector,&mask,10000);
+	mask = 0;
+        ready_socket = ipaugenblick_select(selector,&mask,0);
         if(ready_socket == -1) {
             continue;
         }
-        if(ready_socket == sock) {
+        if(is_listener(ready_socket,listeners)) {
 	    unsigned int ipaddr;
 	    unsigned short port;
-            while((newsock = ipaugenblick_accept(sock,&ipaddr,&port)) != -1) {
+            while((newsock = ipaugenblick_accept(ready_socket,&ipaddr,&port)) != -1) {
                 printf("socket accepted %d %d %x %d\n",newsock,selector,ipaddr,port);
                 ipaugenblick_set_socket_select(newsock,selector);
                 sockets_connected++;
@@ -92,6 +108,7 @@ int main(int argc,char **argv)
 #if USE_TX
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
+	    tx_space = tx_space /10;
             for(i = 0;i < tx_space;i++) {
                 buff = ipaugenblick_get_buffer(1448,ready_socket);
                 if(!buff) {
