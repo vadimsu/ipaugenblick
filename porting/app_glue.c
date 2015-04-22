@@ -57,6 +57,8 @@ uint64_t working_cycles_stat = 0;
 uint64_t total_cycles_stat = 0;
 uint64_t work_prev = 0;
 uint64_t total_prev = 0;
+uint64_t app_glue_sock_readable_called = 0;
+uint64_t app_glue_sock_writable_called = 0;
 /*
  * This callback function is invoked when data arrives to socket.
  * It inserts the socket into a list of readable sockets
@@ -68,7 +70,7 @@ uint64_t total_prev = 0;
 void app_glue_sock_readable(struct sock *sk, int len)
 {
 	const struct tcp_sock *tp = tcp_sk(sk);
-
+	
 	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
 	}
@@ -82,6 +84,7 @@ void app_glue_sock_readable(struct sock *sk, int len)
 		}
 		return;
 	}
+	app_glue_sock_readable_called++;
 	sock_hold(sk);
 	sk->sk_socket->read_queue_present = 1;
 	TAILQ_INSERT_TAIL(&read_ready_socket_list_head,sk->sk_socket,read_queue_entry);
@@ -96,7 +99,7 @@ void app_glue_sock_readable(struct sock *sk, int len)
  *
  */
 void app_glue_sock_write_space(struct sock *sk)
-{
+{	
 	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
 	}
@@ -105,6 +108,7 @@ void app_glue_sock_write_space(struct sock *sk)
 		if(sk->sk_socket->write_queue_present) {
 			return;
 		}
+		app_glue_sock_writable_called++;
 		sock_hold(sk);
 		sk->sk_socket->write_queue_present = 1;
 		TAILQ_INSERT_TAIL(&write_ready_socket_list_head,sk->sk_socket,write_queue_entry);
@@ -846,4 +850,5 @@ void app_glue_print_stats()
 	printf("app_glue_periodic_called %"PRIu64"\n",app_glue_periodic_called);
 	printf("app_glue_tx_queues_process %"PRIu64"\n",app_glue_tx_queues_process);
 	printf("app_glue_rx_queues_process %"PRIu64"\n",app_glue_rx_queues_process);
+	printf("app_glue_sock_readable_called %"PRIu64" app_glue_sock_writable_called %"PRIu64"\n",app_glue_sock_readable_called, app_glue_sock_writable_called);
 }

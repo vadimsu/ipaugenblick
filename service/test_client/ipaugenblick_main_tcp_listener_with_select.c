@@ -34,8 +34,7 @@ int main(int argc,char **argv)
     int sockets_connected = 0;
     int selector;
     int ready_socket;
-    int i,tx_space,listeners_idx;
-    int max_nb_segs = 0;
+    int i,tx_space = 0;
     int max_total_length = 0;
     unsigned short mask;
     unsigned long received_count = 0;
@@ -62,9 +61,9 @@ int main(int argc,char **argv)
     }
     
     //    ipaugenblick_set_socket_select(sock,selector);
-    while(1) {  
+    while(1) {
 	mask = 0;
-        ready_socket = ipaugenblick_select(selector,&mask,0);
+        ready_socket = ipaugenblick_select(selector,&mask,50000);
         if(ready_socket == -1) {
             continue;
         }
@@ -81,6 +80,7 @@ int main(int argc,char **argv)
         if(sockets_connected == 0) {
             continue;
         }
+	
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
 	    int first_seg_len = 0;
 	    len = /*1024*/0;
@@ -108,7 +108,7 @@ int main(int argc,char **argv)
 #if USE_TX
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
-	    tx_space = tx_space /10;
+#if 0
             for(i = 0;i < tx_space;i++) {
                 buff = ipaugenblick_get_buffer(1448,ready_socket);
                 if(!buff) {
@@ -118,7 +118,30 @@ int main(int argc,char **argv)
                     ipaugenblick_release_tx_buffer(buff);
                     break;
                 }
-            } 
+            }
+	    if(tx_space == 0)
+		continue;
+#else
+	    if(tx_space == 0)
+		continue;
+	    void *bulk_bufs[tx_space];
+            int offsets[tx_space];
+            int lengths[tx_space];
+	    if(!ipaugenblick_get_buffers_bulk(1448,ready_socket,tx_space,bulk_bufs)) {
+                    for(i = 0;i < tx_space;i++) {
+                        offsets[i] = 0;
+                        lengths[i] = 1448;
+                    }
+                    if(ipaugenblick_send_bulk(ready_socket,bulk_bufs,offsets,lengths,tx_space)) {
+//                        ipaugenblick_release_tx_buffer(buff);
+                        printf("%s %d\n",__FILE__,__LINE__);
+                    }
+                    else {
+//                        printf("%s %d %d\n",__FILE__,__LINE__,tx_space);
+//                        sent = 1;
+                    }
+            }
+#endif
             ipaugenblick_socket_kick(ready_socket);
         }  
 //        ipaugenblick_socket_kick(ready_socket);

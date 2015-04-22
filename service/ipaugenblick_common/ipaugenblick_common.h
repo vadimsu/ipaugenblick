@@ -112,7 +112,7 @@ typedef struct
     struct rte_ring  *ready_connections;
 }__attribute__((packed))ipaugenblick_selector_t;
 
-#define COMMAND_POOL_SIZE 16384
+#define COMMAND_POOL_SIZE 16384*2
 #define DATA_RINGS_SIZE 1024
 #define FREE_CONNECTIONS_POOL_NAME "free_connections_pool"
 #define FREE_CONNECTIONS_RING "free_connections_ring"
