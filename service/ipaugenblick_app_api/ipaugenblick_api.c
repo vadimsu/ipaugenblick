@@ -32,6 +32,8 @@ const typeof(((type*) 0)->member)*__mptr=(ptr); \
 local_socket_descriptor_t local_socket_descriptors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 struct rte_mempool *free_connections_pool = NULL;
 struct rte_ring *free_connections_ring = NULL;
+struct rte_ring *free_clients_ring = NULL;
+struct rte_ring *client_ring = NULL;
 struct rte_mempool *tx_bufs_pool = NULL;
 struct rte_ring *rx_bufs_ring = NULL;
 struct rte_mempool *free_command_pool = NULL;
@@ -62,6 +64,8 @@ uint64_t ipaugenblick_stats_buffers_allocated = 0;
 uint64_t ipaugenblick_stats_cannot_allocate_cmd = 0;
 pthread_t stats_thread;
 uint8_t g_print_stats_loop = 1;
+uint32_t g_client_ringset_idx = IPAUGENBLICK_CONNECTION_POOL_SIZE;
+ipaugenblick_update_cbk_t ipaugenblick_update_cbk = NULL;
 
 void print_stats()
 {
@@ -83,9 +87,15 @@ void print_stats()
     }
 }
 
+static inline void ipaugenblick_free_command_buf(ipaugenblick_cmd_t *cmd)
+{
+    rte_mempool_put(free_command_pool,(void *)cmd);
+}
+
 void sig_handler(int signum)
 {
     uint32_t i;
+    ipaugenblick_cmd_t *cmd;
 
     if(signum == SIGUSR1) {
         /* T.B.D. do something to wake up the thread */
@@ -99,6 +109,16 @@ void sig_handler(int signum)
             ipaugenblick_close(local_socket_descriptors[i].socket->connection_idx);
         }
     }
+    
+    cmd = ipaugenblick_get_free_command_buf();
+    if(cmd) {
+       cmd->cmd = IPAUGENBLICK_DISCONNECT_CLIENT;
+       cmd->ringset_idx = g_client_ringset_idx;
+        if(ipaugenblick_enqueue_command_buf(cmd)) {
+           ipaugenblick_free_command_buf(cmd);
+        }
+    }
+
     signal(signum,SIG_DFL);
     g_print_stats_loop = 0;
     kill(getpid(),signum);
@@ -115,6 +135,13 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
 	return -1;
     }
     printf("EAL initialized\n");
+
+    free_clients_ring = rte_ring_lookup(FREE_CLIENTS_RING);
+    if(!free_clients_ring) {
+        printf("cannot find ring %s %d\n",__FILE__,__LINE__);
+        exit(0);
+    }
+
     free_connections_ring = rte_ring_lookup(FREE_CONNECTIONS_RING);
 
     if(!free_connections_ring) {
@@ -204,9 +231,66 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
     return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
 }
 
-static inline void ipaugenblick_free_command_buf(ipaugenblick_cmd_t *cmd)
+int ipaugenblick_create_client(ipaugenblick_update_cbk_t update_cbk)
 {
-    rte_mempool_put(free_command_pool,(void *)cmd);
+    int ringset_idx;
+    ipaugenblick_cmd_t *cmd;
+    char ringname[1024];
+
+    if(rte_ring_dequeue(free_clients_ring,(void **)&ringset_idx)) {
+        printf("%s %d\n",__FILE__,__LINE__);
+        return -1;
+    }
+    sprintf(ringname,"%s%d",FREE_CLIENTS_RING,ringset_idx);
+    client_ring = rte_ring_lookup(ringname);
+    if(!client_ring) {
+	printf("%s %d\n",__FILE__,__LINE__);
+        return -2;
+    }
+    cmd = ipaugenblick_get_free_command_buf();
+    if(!cmd) {
+       ipaugenblick_stats_cannot_allocate_cmd++;
+       return -3;
+    }
+
+    cmd->cmd = IPAUGENBLICK_CONNECT_CLIENT;
+    cmd->ringset_idx = ringset_idx;
+    if(ipaugenblick_enqueue_command_buf(cmd)) {
+       ipaugenblick_free_command_buf(cmd);
+       return -3;
+    }
+    g_client_ringset_idx = (uint32_t)ringset_idx;
+    ipaugenblick_update_cbk = update_cbk;
+    return 0;
+}
+
+int ipaugenblick_read_updates(void)
+{
+	struct rte_mbuf *mbuf = NULL;
+	unsigned char cmd = 0;
+	
+	if(rte_ring_dequeue(client_ring,(void **)&mbuf)) {
+		printf("%s %d\n",__FILE__,__LINE__);
+		return -1;
+	}
+	unsigned char *p = mbuf->pkt.data;
+	switch(*p) {
+		case IPAUGENBLICK_NEW_IFACES:
+		if(ipaugenblick_update_cbk) {
+			cmd = 1;
+			p++;
+			ipaugenblick_update_cbk(cmd,p,mbuf->pkt.data_len - 1);
+		}
+		break;
+		case IPAUGENBLICK_NEW_ADDRESSES:
+		if(ipaugenblick_update_cbk) {
+			cmd = 3;
+			p++;
+			ipaugenblick_update_cbk(cmd,p,mbuf->pkt.data_len - 1);
+		}
+		break;
+	}
+	return 0;
 }
 
 int ipaugenblick_open_select(void)

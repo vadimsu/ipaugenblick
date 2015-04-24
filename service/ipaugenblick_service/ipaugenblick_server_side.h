@@ -6,6 +6,13 @@
 #define PKTMBUF_HEADROOM 128
 #define IPAUGENBLICK_BUFSIZE (PKTMBUF_HEADROOM+1448)
 
+struct ipaugenblick_clients
+{
+        TAILQ_ENTRY(ipaugenblick_clients) queue_entry;
+        struct rte_ring *client_ring;
+	int is_busy;
+};
+
 typedef struct
 {
     struct socket *socket;
@@ -19,6 +26,8 @@ extern struct rte_ring *command_ring;
 extern struct rte_ring *selectors_ring;
 extern struct rte_ring *free_connections_ring;
 extern struct rte_mempool *free_connections_pool;
+extern struct rte_ring *free_clients_ring;
+extern struct ipaugenblick_clients ipaugenblick_clients[IPAUGENBLICK_CLIENTS_POOL_SIZE];
 extern struct rte_mempool *selectors_pool;
 extern struct rte_ring *rx_mbufs_ring;
 extern struct rte_mempool *free_command_pool;
@@ -38,6 +47,26 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
     int ringset_idx,i; 
     ipaugenblick_socket_t *ipaugenblick_socket;
     ipaugenblick_selector_t *ipaugenblick_selector;
+
+    memset(ipaugenblick_clients,0,sizeof(ipaugenblick_clients));
+
+    free_clients_ring = rte_ring_create(FREE_CLIENTS_RING,IPAUGENBLICK_CLIENTS_POOL_SIZE,rte_socket_id(), 0);
+    if(!free_clients_ring) {
+        printf("cannot create ring %s %d\n",__FILE__,__LINE__);
+        exit(0);
+    }
+
+    printf("FREE CLIENTS RING CREATED\n");
+
+    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CLIENTS_POOL_SIZE;ringset_idx++) {
+        rte_ring_enqueue(free_clients_ring,(void*)ringset_idx);
+	sprintf(ringname,"%s%d",FREE_CLIENTS_RING,ringset_idx);
+	ipaugenblick_clients[ringset_idx].client_ring = rte_ring_create(ringname, 64,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
+	if(!ipaugenblick_clients[ringset_idx].client_ring) {
+		printf("cannot create ring %s %d\n",__FILE__,__LINE__);
+        	exit(0);
+	}
+    }
 
     memset(socket_satelite_data,0,sizeof(void *)*IPAUGENBLICK_CONNECTION_POOL_SIZE);
 
@@ -98,7 +127,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         exit(0);
     }
 
-    printf("FREE CONNECTIONS RING CREATED\n");
+    printf("FREE CONNECTIONS RING CREATED\n"); 
 
     for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CONNECTION_POOL_SIZE;ringset_idx++,ipaugenblick_socket++) { 
           

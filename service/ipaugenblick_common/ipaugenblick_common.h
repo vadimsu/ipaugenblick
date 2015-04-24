@@ -19,7 +19,11 @@ enum
     IPAUGENBLICK_SOCKET_CLOSE_COMMAND,
     IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND,
     IPAUGENBLICK_ROUTE_ADD_COMMAND,
-    IPAUGENBLICK_ROUTE_DEL_COMMAND
+    IPAUGENBLICK_ROUTE_DEL_COMMAND,
+    IPAUGENBLICK_CONNECT_CLIENT,
+    IPAUGENBLICK_DISCONNECT_CLIENT,
+    IPAUGENBLICK_NEW_IFACES,
+    IPAUGENBLICK_NEW_ADDRESSES
 };
 
 typedef struct
@@ -111,6 +115,7 @@ typedef struct
 #define DATA_RINGS_SIZE 1024
 #define FREE_CONNECTIONS_POOL_NAME "free_connections_pool"
 #define FREE_CONNECTIONS_RING "free_connections_ring"
+#define FREE_CLIENTS_RING "free_clients_ring"
 #define COMMAND_RING_NAME "command_ring"
 #define FREE_COMMAND_POOL_NAME "free_command_pool"
 #define RX_RING_NAME_BASE "rx_ring"
@@ -120,6 +125,7 @@ typedef struct
 #define SELECTOR_POOL_NAME "selector_pool"
 #define SELECTOR_RING_NAME "selector_ring"
 #define IPAUGENBLICK_CONNECTION_POOL_SIZE 512
+#define IPAUGENBLICK_CLIENTS_POOL_SIZE 64
 #define IPAUGENBLICK_SELECTOR_POOL_SIZE 64
 #define COMMON_NOTIFICATIONS_POOL_NAME "common_notifications_pool_name"
 #define COMMON_NOTIFICATIONS_RING_NAME "common_notifications_ring_name"

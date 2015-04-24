@@ -60,6 +60,7 @@ struct rte_ring *command_ring = NULL;
 struct rte_ring *selectors_ring = NULL;
 struct rte_mempool *free_connections_pool = NULL;
 struct rte_ring *free_connections_ring = NULL;
+struct rte_ring *free_clients_ring = NULL;
 struct rte_mempool *selectors_pool = NULL;
 struct rte_ring *rx_mbufs_ring = NULL;
 struct rte_mempool *free_command_pool = NULL;
@@ -69,6 +70,43 @@ ipaugenblick_selector_t *g_ipaugenblick_selectors = NULL;
 //unsigned long app_pid = 0;
 
 TAILQ_HEAD(buffers_available_notification_socket_list_head, socket) buffers_available_notification_socket_list_head;
+
+struct ipaugenblick_clients ipaugenblick_clients[IPAUGENBLICK_CLIENTS_POOL_SIZE];
+TAILQ_HEAD(ipaugenblick_clients_list_head, ipaugenblick_clients) ipaugenblick_clients_list_head;
+
+int get_all_devices(unsigned char *buf);
+
+int get_all_addresses(unsigned char *buf);
+
+void on_iface_up(char *name)
+{
+}
+
+void on_new_addr(char *iface_name,unsigned int ipaddr,unsigned int mask)
+{
+}
+
+static void on_client_connect(int client_idx)
+{
+	struct rte_mbuf *buffer = get_buffer();
+	if(!buffer) {
+		return;
+	}
+	unsigned char *data = buffer->pkt.data;
+	*data = IPAUGENBLICK_NEW_IFACES;
+	data++;
+	buffer->pkt.data_len = get_all_devices(data) + 1;
+	rte_ring_enqueue(ipaugenblick_clients[client_idx].client_ring,(void *)buffer);
+	buffer = get_buffer();
+	if(!buffer) {
+		return;
+	}
+	data = buffer->pkt.data;
+	*data = IPAUGENBLICK_NEW_ADDRESSES;
+	data++;
+	buffer->pkt.data_len = get_all_addresses(data) + 1;
+	rte_ring_enqueue(ipaugenblick_clients[client_idx].client_ring,(void *)buffer);
+}
 
 static inline void process_commands()
 {
@@ -234,6 +272,25 @@ static inline void process_commands()
 			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
 	   }
 	   break;
+	case IPAUGENBLICK_CONNECT_CLIENT:
+	   if(cmd->ringset_idx >= IPAUGENBLICK_CLIENTS_POOL_SIZE) {
+		break;
+	   }
+	   if(!ipaugenblick_clients[cmd->ringset_idx].is_busy) {
+	   	TAILQ_INSERT_TAIL(&ipaugenblick_clients_list_head,&ipaugenblick_clients[cmd->ringset_idx],queue_entry);
+		ipaugenblick_clients[cmd->ringset_idx].is_busy = 1;
+		on_client_connect(cmd->ringset_idx);
+	   }
+	   break;
+	case IPAUGENBLICK_DISCONNECT_CLIENT:
+	   if(cmd->ringset_idx >= IPAUGENBLICK_CLIENTS_POOL_SIZE) {
+		break;
+	   }
+	   if(ipaugenblick_clients[cmd->ringset_idx].is_busy) {
+	   	TAILQ_REMOVE(&ipaugenblick_clients_list_head,&ipaugenblick_clients[cmd->ringset_idx],queue_entry);
+		ipaugenblick_clients[cmd->ringset_idx].is_busy = 0;
+	   }
+	   break;
         default:
            printf("unknown cmd %d\n",cmd->cmd);
            break;
@@ -253,6 +310,7 @@ void ipaugenblick_main_loop()
     
     ipaugenblick_service_api_init(COMMAND_POOL_SIZE,DATA_RINGS_SIZE,DATA_RINGS_SIZE);
     TAILQ_INIT(&buffers_available_notification_socket_list_head);
+    TAILQ_INIT(&ipaugenblick_clients_list_head);
     printf("IPAugenblick service initialized\n");
     while(1) {
         process_commands();

@@ -4,12 +4,18 @@
 
 #define IPAUGENBLICK_MAX_SOCKETS 1000
 
+typedef void (*ipaugenblick_update_cbk_t)(unsigned char command,unsigned char *buffer,int len);
+
 /* must be called per process */
 /* it is a responsibility of the caller to provide app_unique_id */
 /* note that if an application may close and restart, it is highly desirable
    to provide the same unique id (process id is not good for this purpose since
    each time it will create a different set of rings so the memory will leak) */
 extern int ipaugenblick_app_init(int argc, char **argv,char *app_unique_id);
+
+extern int ipaugenblick_create_client(ipaugenblick_update_cbk_t update_cbk);
+
+extern int ipaugenblick_read_updates(void);
 
 extern int ipaugenblick_open_socket(int family,int type,int parent);
 

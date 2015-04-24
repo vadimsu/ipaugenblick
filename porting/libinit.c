@@ -10,6 +10,7 @@
 #include <sys/param.h>
 #include <rte_config.h>
 #include <rte_ethdev.h>
+#include <rte_memcpy.h>
 #include <getopt.h>
 #include <specific_includes/dpdk_drv_iface.h>
 #include <pools.h>
@@ -328,6 +329,71 @@ void *get_dpdk_dev_by_port_num(int port_num)
 		return NULL;
 	}
 	return dpdk_devices[port_num];
+}
+
+extern char *get_dev_name(void *netdev);
+#define IFACE_NAME_SIZE 20
+
+int get_all_addresses(unsigned char *buf)
+{
+    uint32_t dev_idx,offset = 0,prefix;
+    uint8_t flags = (1<<0)|(1<<1)|(1<<6),family = 2 /*AF_INET*/, prefix_len = 32;
+
+    for(dev_idx = 0;dev_idx < RTE_MAX_ETHPORTS;dev_idx++) {
+	if((dpdk_devices[dev_idx])&&(dpdk_dev_config[dev_idx].port_number != -1)) {
+		rte_memcpy(&buf[offset],&dev_idx,sizeof(dev_idx));
+		offset += sizeof(dev_idx);
+		rte_memcpy(&buf[offset],&flags,sizeof(flags));
+		offset += sizeof(flags);
+		rte_memcpy(&buf[offset],&family,sizeof(family));
+		offset += sizeof(family);
+		prefix = inet_addr(dpdk_dev_config[dev_idx].ip_addr_str);
+		rte_memcpy(&buf[offset],&prefix,sizeof(prefix));
+		offset += sizeof(prefix);
+		rte_memcpy(&buf[offset],&prefix_len,sizeof(prefix_len));
+		offset += sizeof(prefix_len);
+		prefix = 0;
+		rte_memcpy(&buf[offset],&prefix,sizeof(prefix));
+		offset += sizeof(prefix);
+		rte_memcpy(&buf[offset],&prefix_len,sizeof(prefix_len));
+		offset += sizeof(prefix_len);
+	}
+    }
+    return offset;
+}
+
+int get_all_devices(unsigned char *buf)
+{
+    uint32_t dev_idx,offset = 0,metric = 1,mtu = 1500,mtu6 = 1500,bandwidth = 0,hw_addr_len = 6;
+    uint64_t flags = (1<<0)|(1<<1)|(1<<6);
+    uint8_t status = 0,sockaddr_dl[6];
+
+    for(dev_idx = 0;dev_idx < RTE_MAX_ETHPORTS;dev_idx++) {
+	if(dpdk_devices[dev_idx]) {		
+		rte_memcpy(&buf[offset],get_dev_name(dpdk_devices[dev_idx]),IFACE_NAME_SIZE);
+		offset += IFACE_NAME_SIZE;
+		rte_memcpy(&buf[offset],&dev_idx,sizeof(dev_idx));
+		offset += sizeof(dev_idx);	
+		rte_memcpy(&buf[offset],&status,sizeof(status));
+		offset += sizeof(status);
+		rte_memcpy(&buf[offset],&flags,sizeof(flags));
+		offset += sizeof(flags);
+		rte_memcpy(&buf[offset],&metric,sizeof(metric));
+		offset += sizeof(metric);
+		rte_memcpy(&buf[offset],&mtu,sizeof(mtu));
+		offset += sizeof(mtu);
+		rte_memcpy(&buf[offset],&mtu6,sizeof(mtu6));
+		offset += sizeof(mtu6);
+		rte_memcpy(&buf[offset],&bandwidth,sizeof(bandwidth));
+		offset += sizeof(bandwidth);
+		hw_addr_len = htonl(hw_addr_len);
+		rte_memcpy(&buf[offset],&hw_addr_len,sizeof(hw_addr_len));
+		offset += sizeof(hw_addr_len);
+		rte_memcpy(&buf[offset],sockaddr_dl,sizeof(sockaddr_dl));
+		offset += sizeof(sockaddr_dl);
+	}
+    }
+    return offset;
 }
 /* Helper function to read configuration file */
 static int get_dpdk_ip_stack_config()

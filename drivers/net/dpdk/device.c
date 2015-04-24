@@ -285,6 +285,11 @@ void user_transmitted_callback(struct rte_mbuf *mbuf)
 {
 	rte_pktmbuf_free_seg(mbuf);
 }
+char *get_dev_name(void *netdev)
+{
+	struct net_device *dev = (struct net_device *)netdev;
+	return dev->name;
+}
 void add_dev_addr(void *netdev,int instance,char *ip_addr,char *ip_mask)
 {
 	struct socket *sock;
