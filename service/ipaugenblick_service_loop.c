@@ -224,7 +224,7 @@ static inline void process_commands()
            break;
 	case IPAUGENBLICK_ROUTE_ADD_COMMAND:
    	   memset((void *)&rtentry,0,sizeof(rtentry));
-	   rtentry.rt_metric = 1;
+	   rtentry.rt_metric = cmd->u.route.metric;
 	   rtentry.rt_flags = RTF_UP|RTF_GATEWAY;
 	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_dst;
 	   p_sockaddr->sin_family = AF_INET;

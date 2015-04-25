@@ -67,6 +67,7 @@ typedef struct
     unsigned int dest_ipaddr;
     unsigned int dest_mask;
     unsigned int next_hop;
+    short        metric;
 }__attribute__((packed))ipaugenblick_route_cmd_t;
 
 #define SOCKET_READABLE_BIT 1

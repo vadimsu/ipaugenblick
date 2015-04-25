@@ -899,7 +899,7 @@ void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len)
    return &(mbuf->pkt.data);
 }
 
-static inline int ipaugenblick_route_command(int opcode,unsigned int ipaddr,unsigned int mask,unsigned int nexthop)
+static inline int ipaugenblick_route_command(int opcode,unsigned int ipaddr,unsigned int mask,unsigned int nexthop,short metric)
 {
     ipaugenblick_cmd_t *cmd;
     cmd = ipaugenblick_get_free_command_buf();
@@ -909,6 +909,7 @@ static inline int ipaugenblick_route_command(int opcode,unsigned int ipaddr,unsi
     } 
     cmd->cmd = opcode;
     cmd->u.route.dest_ipaddr = ipaddr;
+    cmd->u.route.metric = metric;
     cmd->u.route.dest_mask = mask;
     cmd->u.route.next_hop = nexthop;
     if(ipaugenblick_enqueue_command_buf(cmd)) {
@@ -918,12 +919,12 @@ static inline int ipaugenblick_route_command(int opcode,unsigned int ipaddr,unsi
     return 0;
 }
 
-int ipaugenblick_add_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop)
+int ipaugenblick_add_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop,short metric)
 {
-    return ipaugenblick_route_command(IPAUGENBLICK_ROUTE_ADD_COMMAND,ipaddr,mask,nexthop);
+    return ipaugenblick_route_command(IPAUGENBLICK_ROUTE_ADD_COMMAND,ipaddr,mask,nexthop,metric);
 }
 
 int ipaugenblick_del_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop)
 {
-    return ipaugenblick_route_command(IPAUGENBLICK_ROUTE_DEL_COMMAND,ipaddr,mask,nexthop);	
+    return ipaugenblick_route_command(IPAUGENBLICK_ROUTE_DEL_COMMAND,ipaddr,mask,nexthop,0);	
 }
