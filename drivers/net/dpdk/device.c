@@ -398,6 +398,7 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 		printf("Cannot get IF addr %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
+	IN_DEV_CONF_SET(in_dev_get(dev), FORWARDING,1);
 leave:
 	kernel_close(sock);
 }
