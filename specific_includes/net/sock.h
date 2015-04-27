@@ -1553,7 +1553,7 @@ static inline void sk_mem_uncharge(struct sock *sk, int size)
 		return;
 	sk->sk_forward_alloc += size;
 }
-void user_transmitted_callback(struct rte_mbuf *mbuf);
+//void user_transmitted_callback(struct rte_mbuf *mbuf,struct socket *socket);
 static inline void sk_wmem_free_skb(struct sock *sk, struct sk_buff *skb)
 {
 	struct rte_mbuf *mbuf;
@@ -1561,7 +1561,7 @@ static inline void sk_wmem_free_skb(struct sock *sk, struct sk_buff *skb)
 
 	for (i = 0; i < (int)skb_shinfo(skb)->nr_frags; i++) {
 		mbuf = skb_shinfo(skb)->frags[i].page.p;
-		user_transmitted_callback(mbuf);
+		user_transmitted_callback(mbuf,sk->sk_socket);
 	}
 	sock_set_flag(sk, SOCK_QUEUE_SHRUNK);
 	sk->sk_wmem_queued -= skb->truesize;

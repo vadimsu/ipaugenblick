@@ -39,6 +39,15 @@ static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
         }
         return sock->sk->sk_user_data;
 }
+
+static inline void user_increment_socket_tx_space(rte_atomic32_t *tx_space,int count)
+{
+	rte_atomic32_add(tx_space,count);
+}
+static inline void user_set_socket_tx_space(rte_atomic32_t *tx_space,int count)
+{
+	rte_atomic32_set(tx_space,count);
+}
 /* once this function is called,
    user application-toward-socket ring is checked.
    If empty, the selector is kicked.
@@ -232,7 +241,7 @@ static inline __attribute__ ((always_inline)) int user_on_accept(struct socket *
 		    cmd->u.accepted_socket.ipaddr = newsock->sk->sk_daddr;
 		    cmd->u.accepted_socket.port = newsock->sk->sk_dport;
                     app_glue_set_user_data(newsock,NULL);
-                    printf("%s %d %p %x %d\n",__FILE__,__LINE__,newsock,newsock->sk->sk_daddr,newsock->sk->sk_dport);
+                    printf("%s %d %p %x %d\n",__FILE__,__LINE__,newsock,newsock->sk->sk_daddr,newsock->sk->sk_dport); 
                     ipaugenblick_post_accepted(cmd,parent_descriptor);
                 }
 		sock_reset_flag(newsock->sk,SOCK_USE_WRITE_QUEUE);

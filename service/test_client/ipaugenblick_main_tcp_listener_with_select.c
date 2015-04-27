@@ -29,6 +29,7 @@ int main(int argc,char **argv)
 {
     void *buff,*rxbuff;
     int sock,newsock,len,listeners[LISTENERS_COUNT];
+    int listeners_idx;
     char *p;
     int size = 0,ringset_idx;
     int sockets_connected = 0;

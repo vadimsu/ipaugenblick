@@ -105,6 +105,7 @@ typedef struct
     rte_atomic16_t  write_done_from_app;
     unsigned int local_ipaddr;
     unsigned short local_port;
+    rte_atomic32_t tx_space;
 }__attribute__((packed))ipaugenblick_socket_t;
 
 typedef struct

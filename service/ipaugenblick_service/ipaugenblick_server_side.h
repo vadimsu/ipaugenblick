@@ -135,6 +135,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         ipaugenblick_socket->connection_idx = ringset_idx;
         rte_atomic16_init(&ipaugenblick_socket->read_ready_to_app);
         rte_atomic16_init(&ipaugenblick_socket->write_ready_to_app);
+	rte_atomic32_init(&ipaugenblick_socket->tx_space);
         rte_ring_enqueue(free_connections_ring,(void*)ipaugenblick_socket);
         sprintf(ringname,TX_RING_NAME_BASE"%d",ringset_idx);
         socket_satelite_data[ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);

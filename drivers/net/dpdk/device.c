@@ -280,11 +280,16 @@ static const struct net_device_ops dpdk_netdev_ops = {
          .ndo_fix_features       = dpdk_fix_features,
          .ndo_set_features       = dpdk_set_features,
 };
-
-void user_transmitted_callback(struct rte_mbuf *mbuf)
+/* void user_transmitted_callback(struct rte_mbuf *mbuf,struct socket *sock)
 {
-	rte_pktmbuf_free_seg(mbuf);
-}
+        if(sock) {
+               socket_satelite_data_t *socket_satelite_data = get_user_data(sock);
+               if(socket_satelite_data) {
+                       rte_atomic32_add(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,mbuf->pkt.data_len);
+               }
+        }
+        rte_pktmbuf_free_seg(mbuf);
+} */
 char *get_dev_name(void *netdev)
 {
 	struct net_device *dev = (struct net_device *)netdev;

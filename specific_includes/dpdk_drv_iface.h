@@ -8,7 +8,7 @@ void add_dev_addr(void *netdev,int instance,char *ip_addr,char *ip_mask);
 
 void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask);
 
-void user_transmitted_callback(struct rte_mbuf *mbuf);
+//void user_transmitted_callback(struct rte_mbuf *mbuf,struct socket *sock);
 
 void run_rx_thread(int portnum);
 void run_tx_thread(int portnum);

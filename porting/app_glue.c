@@ -270,6 +270,15 @@ void *app_glue_create_socket(int family,int type)
             		app_glue_sock_write_space(sock->sk);
 		}
 	}
+#if 0
+	int bufsize = 1024*1024*100;
+	if(sock_setsockopt(sock,SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize))) {
+		printf("%s %d cannot set bufsize\n",__FILE__,__LINE__);
+	}
+	if(sock_setsockopt(sock,SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize))) {
+		printf("%s %d cannot set bufsize\n",__FILE__,__LINE__);
+	}
+#endif
 	return sock;
 }
 

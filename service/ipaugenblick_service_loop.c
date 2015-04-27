@@ -108,6 +108,18 @@ static void on_client_connect(int client_idx)
 	rte_ring_enqueue(ipaugenblick_clients[client_idx].client_ring,(void *)buffer);
 }
 
+void user_transmitted_callback(struct rte_mbuf *mbuf,struct socket *sock)
+{
+	int last = /*(rte_mbuf_refcnt_read(mbuf) == 1)*/1;
+        if((sock)&&(last)) {
+               socket_satelite_data_t *socket_satelite_data = get_user_data(sock);
+               if(socket_satelite_data) {
+                       user_increment_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,mbuf->pkt.data_len);
+               }
+        }
+        rte_pktmbuf_free_seg(mbuf);
+}
+
 static inline void process_commands()
 {
     int ringset_idx;
@@ -133,6 +145,7 @@ static inline void process_commands()
                socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
                app_glue_set_user_data(sock,(void *)&socket_satelite_data[cmd->ringset_idx]);
                socket_satelite_data[cmd->ringset_idx].socket = sock;
+	       user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,sk_stream_wspace(sock->sk));
            }
            printf("Done\n");
            break;
@@ -206,8 +219,11 @@ static inline void process_commands()
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,&socket_satelite_data[cmd->ringset_idx]);
            socket_satelite_data[cmd->ringset_idx].socket = cmd->u.set_socket_ring.socket_descr; 
-           user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
+	   printf("setting tx space: %d connidx %d\n",sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk),g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].connection_idx);
+	   user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].tx_space,sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk));
+//           user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
+	   ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
            printf("setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
