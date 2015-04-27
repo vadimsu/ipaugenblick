@@ -168,7 +168,7 @@ static inline int ip_finish_output2(struct sk_buff *skb)
 		IP_UPD_PO_STATS(dev_net(dev), IPSTATS_MIB_OUTMCAST, skb->len);
 	} else if (rt->rt_type == RTN_BROADCAST)
 		IP_UPD_PO_STATS(dev_net(dev), IPSTATS_MIB_OUTBCAST, skb->len);
-
+#if 0 /* VADIM - this block was executing while forwarding the packet. Actually, no reason. */
 	/* Be paranoid, rather than too clever. */
 	if (unlikely(skb_headroom(skb) < hh_len && dev->header_ops)) {
 		struct sk_buff *skb2;
@@ -183,7 +183,7 @@ static inline int ip_finish_output2(struct sk_buff *skb)
 		consume_skb(skb);
 		skb = skb2;
 	}
-
+#endif
 	rcu_read_lock_bh();
 	nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);
 	neigh = __ipv4_neigh_lookup_noref(dev, nexthop);

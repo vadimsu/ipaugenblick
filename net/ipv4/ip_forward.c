@@ -117,7 +117,6 @@ static int ip_forward_finish(struct sk_buff *skb)
 
 	if (ip_gso_exceeds_dst_mtu(skb))
 		return ip_forward_finish_gso(skb);
-
 	return dst_output(skb);
 }
 
@@ -166,10 +165,11 @@ int ip_forward(struct sk_buff *skb)
 			  htonl(mtu));
 		goto drop;
 	}
-
+#if 0 /* VADIM - we don't copy */
 	/* We are about to mangle packet. Copy it! */
 	if (skb_cow(skb, LL_RESERVED_SPACE(rt->dst.dev)+rt->dst.header_len))
 		goto drop;
+#endif
 	iph = ip_hdr(skb);
 
 	/* Decrease ttl after skb cow done */
