@@ -53,7 +53,7 @@ uint64_t user_kick_select_rx = 0;
 uint64_t user_kick_select_tx = 0;
 uint64_t user_on_tx_opportunity_cannot_send = 0;
 uint64_t user_rx_ring_full = 0;
-
+uint64_t user_on_tx_opportunity_socket_send_error = 0;
 uint64_t g_last_time_transmitted = 0;
 
 struct rte_ring *command_ring = NULL;
@@ -364,6 +364,7 @@ void print_user_stats()
         printf("user_kick_tx %"PRIu64" user_kick_rx %"PRIu64" user_kick_select_tx %"PRIu64" user_kick_select_rx %"PRIu64"\n",
                 user_kick_tx,user_kick_rx,user_kick_select_tx,user_kick_select_rx);
         printf("user_on_tx_opportunity_cannot_send %"PRIu64"\n",user_on_tx_opportunity_cannot_send);
+	printf("user_on_tx_opportunity_socket_send_error %"PRIu64"\n",user_on_tx_opportunity_socket_send_error);
 	printf("user_on_tx_opportunity_cannot_get_buff %"PRIu64"\n",user_on_tx_opportunity_cannot_get_buff);
 	printf("user_on_tx_opportunity_getbuff_called %"PRIu64"\n",user_on_tx_opportunity_getbuff_called);
 	printf("user_on_tx_opportunity_api_failed %"PRIu64"\n",	user_on_tx_opportunity_api_failed);

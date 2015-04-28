@@ -26,6 +26,7 @@ extern uint64_t user_rx_ring_full;
 extern uint64_t user_kick_select_rx;
 extern uint64_t user_kick_select_tx;
 extern uint64_t user_on_tx_opportunity_socket_full;
+extern uint64_t user_on_tx_opportunity_socket_send_error;
 extern uint64_t g_last_time_transmitted;
 
 static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
@@ -83,15 +84,19 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
                 user_on_tx_opportunity_api_nothing_to_tx++;
                 return;
             }
-            do {
-                i = kernel_sendpage(sock, &page, 0/*offset*/,ring_entries<<10, 0 /*flags*/);
-                ring_entries = ipaugenblick_tx_buf_count(socket_satelite_data);
-            }while((i > 0)&&(ring_entries > 0));
+	    
+            while(sk_stream_wspace(sock->sk) > 0)
+                if((i = kernel_sendpage(sock, &page, 0/*offset*/,sk_stream_wspace(sock->sk), 0 /*flags*/)) <= 0)
+			break;
+
+	    user_on_tx_opportunity_socket_full += (sk_stream_wspace(sock->sk) == 0);
+            ring_entries = ipaugenblick_tx_buf_count(socket_satelite_data);
+            
             if(ring_entries == 0) {
                 ipaugenblick_mark_writable(socket_satelite_data);
             }
             else {
-                user_on_tx_opportunity_socket_full += (i<=0);
+                user_on_tx_opportunity_socket_send_error += (i<=0);
             }
         }
         else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
