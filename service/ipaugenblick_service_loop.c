@@ -197,8 +197,6 @@ static inline void process_commands()
                printf("%s %d\n",__FILE__,__LINE__);
            }
            break;
-	case IPAUGENBLICK_SETSOCKOPT_COMMAND:
-	   break;
         case IPAUGENBLICK_SOCKET_TX_KICK_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
                user_kick_tx++;
@@ -305,6 +303,11 @@ static inline void process_commands()
 	   if(ipaugenblick_clients[cmd->ringset_idx].is_busy) {
 	   	TAILQ_REMOVE(&ipaugenblick_clients_list_head,&ipaugenblick_clients[cmd->ringset_idx],queue_entry);
 		ipaugenblick_clients[cmd->ringset_idx].is_busy = 0;
+	   }
+	   break;
+	case IPAUGENBLICK_SETSOCKOPT_COMMAND:
+	   if(socket_satelite_data[cmd->ringset_idx].socket) { 
+	   	sock_setsockopt(socket_satelite_data[cmd->ringset_idx].socket, cmd->u.setsockopt.level, cmd->u.setsockopt.optname, cmd->u.setsockopt.optval, cmd->u.setsockopt.optlen);
 	   }
 	   break;
         default:

@@ -19,45 +19,6 @@ int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short p
 int app_glue_v4_listen(struct socket *sock);
 
 /*
- * This is a wrapper function for RAW socket creation.
- * Paramters: IP address & port (protocol number) to bind
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-extern void *create_raw_socket2(unsigned int ip_addr,unsigned short port);
-extern void *create_raw_socket(const char *ip_addr,unsigned short port);
-/*
- * This is a wrapper function for UDP socket creation.
- * Paramters: IP address & port to bind
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-extern void *create_udp_socket2(unsigned int ip_addr,unsigned short port);
-extern void *create_udp_socket(const char *ip_addr,unsigned short port);
-/*
- * This is a wrapper function for TCP connecting socket creation.
- * Paramters: IP address & port to bind, IP address & port to connect
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-extern void *create_client_socket2(unsigned int my_ip_addr,unsigned short my_port,
-                                   unsigned int peer_ip_addr,unsigned short port);
-
-extern void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
-		                          const char *peer_ip_addr,unsigned short port);
-/*
- * This is a wrapper function for TCP listening socket creation.
- * Paramters: IP address & port to bind
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-extern void *create_server_socket2(unsigned int my_ip_addr,unsigned short port);
-extern void *create_server_socket(const char *my_ip_addr,unsigned short port);
-/*
  * This function must be called by application to initialize.
  * the rate of polling for driver, timer, readable & writable socket lists
  * Paramters: drv_poll_interval,timer_poll_interval,tx_ready_sockets_poll_interval,

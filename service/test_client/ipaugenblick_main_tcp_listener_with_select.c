@@ -58,13 +58,15 @@ int main(int argc,char **argv)
 
     	ipaugenblick_listen_socket(sock);
     	listeners[listeners_idx] = sock;
-
+        int bufsize = 1024*1024*1000;
+	ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
+        ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     }
     
     //    ipaugenblick_set_socket_select(sock,selector);
     while(1) {
 	mask = 0;
-        ready_socket = ipaugenblick_select(selector,&mask,50000);
+        ready_socket = ipaugenblick_select(selector,&mask,1000);
         if(ready_socket == -1) {
             continue;
         }

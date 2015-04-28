@@ -77,4 +77,6 @@ extern int ipaugenblick_del_v4_route(unsigned int ipaddr,unsigned int mask,unsig
 
 extern void ipaugenblick_getsockname(int sock, int is_local,unsigned int *ipaddr,unsigned short *port);
 
+extern int ipaugenblick_setsockopt(int sock, int level, int optname,char *optval, unsigned int optlen);
+
 #endif

@@ -70,6 +70,14 @@ typedef struct
     short        metric;
 }__attribute__((packed))ipaugenblick_route_cmd_t;
 
+typedef struct
+{
+    int level;
+    int optname;
+    int optlen;
+    char optval[128];
+}__attribute__((packed))ipaugenblick_setsockopt_cmd_t;
+
 #define SOCKET_READABLE_BIT 1
 #define SOCKET_WRITABLE_BIT 2
 #define SOCKET_READY_SHIFT 16
@@ -94,6 +102,7 @@ typedef struct
         ipaugenblick_socket_ready_feedback_t socket_ready_feedback;
         ipaugenblick_socket_connect_bind_cmd_t socket_connect_bind;
 	ipaugenblick_route_cmd_t route;
+	ipaugenblick_setsockopt_cmd_t setsockopt;
     }u;
 }__attribute__((packed))ipaugenblick_cmd_t;
 

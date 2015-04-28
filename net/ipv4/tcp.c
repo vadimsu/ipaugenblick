@@ -584,7 +584,7 @@ int tcp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 	default:
 		return /*-ENOIOCTLCMD*/-515;
 	}
-
+	memcpy((int __user *)arg,&answ,sizeof(int));
 	return /*put_user(answ, (int __user *)arg)*/0;
 }
 EXPORT_SYMBOL(tcp_ioctl);
@@ -2672,6 +2672,7 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
 
 //	if (get_user(len, optlen))
 //		return -EFAULT;
+	len = *optlen;
 
 	len = min_t(unsigned int, len, sizeof(int));
 
@@ -2721,12 +2722,14 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
 
 //		if (get_user(len, optlen))
 //			return -EFAULT;
+		len = *optlen;
 
 		tcp_get_info(sk, &info);
 
 		len = min_t(unsigned int, len, sizeof(info));
 //		if (put_user(len, optlen))
 //			return -EFAULT;
+		*optlen = len;
 		if (copy_to_user(optval, &info, len))
 			return -EFAULT;
 		return 0;
@@ -2738,9 +2741,11 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
 	case TCP_CONGESTION:
 //		if (get_user(len, optlen))
 //			return -EFAULT;
+		len = *optlen;
 		len = min_t(unsigned int, len, TCP_CA_NAME_MAX);
 //		if (put_user(len, optlen))
 //			return -EFAULT;
+		*optlen = len;
 		if (copy_to_user(optval, icsk->icsk_ca_ops->name, len))
 			return -EFAULT;
 		return 0;
@@ -2787,6 +2792,7 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
 
 //	if (put_user(len, optlen))
 //		return -EFAULT;
+	*optlen = len;
 	if (copy_to_user(optval, &val, len))
 		return -EFAULT;
 	return 0;

@@ -176,73 +176,6 @@ static void app_glue_sock_wakeup(struct sock *sk)
 	sk->sk_write_space = app_glue_sock_write_space;
 	sk->sk_error_report = app_glue_sock_error_report; 
 }
-/*
- * This is a wrapper function for RAW socket creation.
- * Paramters: IP address & port (protocol number) to bind
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-void *create_raw_socket2(unsigned int ip_addr,unsigned short port)
-{
-	struct sockaddr_in sin;
-	struct timeval tv;
-	struct socket *raw_sock = NULL;
-	if(sock_create_kern(AF_INET,SOCK_RAW,port,&raw_sock)) {
-		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
-		return NULL;
-	}
-
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = ip_addr;
-	sin.sin_port = htons(port);
-	if(kernel_bind(raw_sock,(struct sockaddr *)&sin,sizeof(sin))) {
-		printf("cannot bind %s %d\n",__FILE__,__LINE__);
-		return NULL;
-	}
-	return raw_sock;
-}
-void *create_raw_socket(const char *ip_addr,unsigned short port)
-{
-    return create_raw_socket(inet_addr(ip_addr),port);
-}
-/*
- * This is a wrapper function for UDP socket creation.
- * Paramters: IP address & port to bind
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-void *create_udp_socket2(unsigned int ip_addr,unsigned short port)
-{
-	struct sockaddr_in sin;
-	struct timeval tv;
-	struct socket *udp_sock = NULL;
-	if(sock_create_kern(AF_INET,SOCK_DGRAM,0,&udp_sock)) {
-		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
-		return NULL;
-	}
-
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = ip_addr;
-	sin.sin_port = htons(port);
-	if(kernel_bind(udp_sock,(struct sockaddr *)&sin,sizeof(sin))) {
-		printf("cannot bind %s %d\n",__FILE__,__LINE__);
-		return NULL;
-	}
-	if(udp_sock->sk) {
-            sock_reset_flag(udp_sock->sk,SOCK_USE_WRITE_QUEUE);
-            udp_sock->sk->sk_data_ready = app_glue_sock_readable;
-            udp_sock->sk->sk_write_space = app_glue_sock_write_space;
-            app_glue_sock_write_space(udp_sock->sk);
-	}
-	return udp_sock;
-}
-
-void *create_udp_socket(const char *ip_addr,unsigned short port)
-{
-    return create_udp_socket2(inet_addr(ip_addr),port);
-}
 
 void *app_glue_create_socket(int family,int type)
 {
@@ -270,15 +203,6 @@ void *app_glue_create_socket(int family,int type)
             		app_glue_sock_write_space(sock->sk);
 		}
 	}
-#if 0
-	int bufsize = 1024*1024*100;
-	if(sock_setsockopt(sock,SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize))) {
-		printf("%s %d cannot set bufsize\n",__FILE__,__LINE__);
-	}
-	if(sock_setsockopt(sock,SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize))) {
-		printf("%s %d cannot set bufsize\n",__FILE__,__LINE__);
-	}
-#endif
 	return sock;
 }
 
@@ -299,9 +223,6 @@ int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short p
 
 	if(!sock->sk)
 		return -1;
-#if 0
-	inet_autobind(sock->sk);
-#else
 	while(1) {
 		sin.sin_family = AF_INET;
 		sin.sin_addr.s_addr = /*my_ip_addr*/0;
@@ -312,7 +233,6 @@ int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short p
 		}
 		break;
 	}
-#endif
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = ipaddr;
 	sin.sin_port = port;
@@ -338,127 +258,6 @@ int app_glue_v4_listen(struct socket *sock)
 	return 0;
 }
 
-void *create_client_socket2(unsigned int my_ip_addr,unsigned short my_port,
-		            unsigned int peer_ip_addr,unsigned short port)
-{
-	struct sockaddr_in sin;
-	struct timeval tv;
-	struct socket *client_sock = NULL;
-	if(sock_create_kern(AF_INET,SOCK_STREAM,0,&client_sock)) {
-		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
-		return NULL;
-	}
-	tv.tv_sec = -1;
-	tv.tv_usec = 0;
-	if(sock_setsockopt(client_sock,SOL_SOCKET,SO_RCVTIMEO,(char *)&tv,sizeof(tv))) {
-		printf("%s %d cannot set notimeout option\n",__FILE__,__LINE__);
-	}
-	tv.tv_sec = -1;
-	tv.tv_usec = 0;
-	if(sock_setsockopt(client_sock,SOL_SOCKET,SO_SNDTIMEO,(char *)&tv,sizeof(tv))) {
-		printf("%s %d cannot set notimeout option\n",__FILE__,__LINE__);
-	}
-	while(1) {
-		sin.sin_family = AF_INET;
-		sin.sin_addr.s_addr = my_ip_addr;
-		if(my_port) {
-			sin.sin_port = htons(my_port);
-		}
-		else {
-			sin.sin_port = htons(rand() & 0xffff);
-		}
-		if(kernel_bind(client_sock,(struct sockaddr *)&sin,sizeof(sin))) {
-			printf("cannot bind %s %d\n",__FILE__,__LINE__);
-			if(my_port) {
-				break;
-			}
-			continue;
-		}
-		break;
-	}
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = peer_ip_addr;
-	sin.sin_port = htons(port);
-	if(client_sock->sk) {
-		client_sock->sk->sk_state_change = app_glue_sock_wakeup;
-	}
-	kernel_connect(client_sock, (struct sockaddr *)&sin,sizeof(sin), 0);
-
-	return client_sock;
-}
-/*
- * This is a wrapper function for TCP connecting socket creation.
- * Paramters: IP address & port to bind, IP address & port to connect
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-void *create_client_socket(const char *my_ip_addr,unsigned short my_port,
-		                   const char *peer_ip_addr,unsigned short port)
-{
-    return create_client_socket2(inet_addr(my_ip_addr),my_port,inet_addr(peer_ip_addr),port);
-}
-void *create_server_socket2(unsigned int my_ip_addr,unsigned short port)
-{
-	struct sockaddr_in sin;
-	struct timeval tv;
-	struct socket *server_sock = NULL;
-	uint32_t bufsize;
-
-	if(sock_create_kern(AF_INET,SOCK_STREAM,0,&server_sock)) {
-		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
-		return NULL;
-	}
-	tv.tv_sec = -1;
-	tv.tv_usec = 0;
-	if(sock_setsockopt(server_sock,SOL_SOCKET,SO_RCVTIMEO,(char *)&tv,sizeof(tv))) {
-		printf("%s %d cannot set notimeout option\n",__FILE__,__LINE__);
-	}
-	tv.tv_sec = -1;
-	tv.tv_usec = 0;
-	if(sock_setsockopt(server_sock,SOL_SOCKET,SO_SNDTIMEO,(char *)&tv,sizeof(tv))) {
-		printf("%s %d cannot set notimeout option\n",__FILE__,__LINE__);
-	}
-#if 0
-	bufsize = 0x1000000;
-	if(sock_setsockopt(server_sock,SOL_SOCKET,SO_SNDBUF,(char *)&bufsize,sizeof(bufsize))) {
-		printf("%s %d cannot set bufsize\n",__FILE__,__LINE__);
-	}
-	if(sock_setsockopt(server_sock,SOL_SOCKET,SO_RCVBUF,(char *)&bufsize,sizeof(bufsize))) {
-		printf("%s %d cannot set bufsize\n",__FILE__,__LINE__);
-	}
-#endif
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = my_ip_addr;
-	sin.sin_port = htons(port);
-
-	if(kernel_bind(server_sock,(struct sockaddr *)&sin,sizeof(sin))) {
-		printf("cannot bind %s %d\n",__FILE__,__LINE__);
-		return NULL;
-	}
-	if(server_sock->sk) {
-		server_sock->sk->sk_state_change = app_glue_sock_wakeup;
-	}
-	else {
-		printf("FATAL %s %d\n",__FILE__,__LINE__);exit(0);
-	}
-	if(kernel_listen(server_sock,32000)) {
-		printf("cannot listen %s %d\n",__FILE__,__LINE__);
-		return NULL;
-	}
-	return server_sock;
-}
-/*
- * This is a wrapper function for TCP listening socket creation.
- * Paramters: IP address & port to bind
- * Returns: a pointer to socket structure (handle)
- * or NULL if failed
- *
- */
-void *create_server_socket(const char *my_ip_addr,unsigned short port)
-{
-    return create_server_socket2(inet_addr(my_ip_addr),port);
-}
 /*
  * This function polls the driver for the received packets.Called from app_glue_periodic
  * Paramters: ethernet port number.

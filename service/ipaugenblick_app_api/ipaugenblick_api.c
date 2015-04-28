@@ -942,3 +942,24 @@ int ipaugenblick_del_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int
 {
     return ipaugenblick_route_command(IPAUGENBLICK_ROUTE_DEL_COMMAND,ipaddr,mask,nexthop,0);	
 }
+
+int ipaugenblick_setsockopt(int sock, int level, int optname,char *optval, unsigned int optlen)
+{
+    ipaugenblick_cmd_t *cmd;
+
+    cmd = ipaugenblick_get_free_command_buf();
+    if(!cmd) {
+        ipaugenblick_stats_cannot_allocate_cmd++;
+        return -1;
+    } 
+    cmd->cmd = IPAUGENBLICK_SETSOCKOPT_COMMAND;
+    cmd->u.setsockopt.level = level;
+    cmd->u.setsockopt.optname = optname;
+    cmd->u.setsockopt.optlen = optlen;
+    rte_memcpy(&cmd->u.setsockopt.optval,optval,optlen);
+    if(ipaugenblick_enqueue_command_buf(cmd)) {
+        ipaugenblick_free_command_buf(cmd);
+        return -2;
+    }
+    return 0;
+}

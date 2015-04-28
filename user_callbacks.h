@@ -232,7 +232,7 @@ static inline __attribute__ ((always_inline)) int user_on_accept(struct socket *
         void *parent_descriptor;
 
         while(likely(kernel_accept(sock, &newsock, 0) == 0)) {
-                newsock->sk->sk_route_caps |= NETIF_F_SG |NETIF_F_ALL_CSUM|NETIF_F_GSO;
+//                newsock->sk->sk_route_caps |= NETIF_F_SG |NETIF_F_ALL_CSUM|NETIF_F_GSO;
                 cmd = ipaugenblick_get_free_command_buf();
                 if(cmd) {
                     cmd->cmd = IPAUGENBLICK_SOCKET_ACCEPTED_COMMAND;
@@ -241,7 +241,7 @@ static inline __attribute__ ((always_inline)) int user_on_accept(struct socket *
 		    cmd->u.accepted_socket.ipaddr = newsock->sk->sk_daddr;
 		    cmd->u.accepted_socket.port = newsock->sk->sk_dport;
                     app_glue_set_user_data(newsock,NULL);
-                    printf("%s %d %p %x %d\n",__FILE__,__LINE__,newsock,newsock->sk->sk_daddr,newsock->sk->sk_dport); 
+//                    printf("%s %d %p %x %d\n",__FILE__,__LINE__,newsock,newsock->sk->sk_daddr,newsock->sk->sk_dport); 
                     ipaugenblick_post_accepted(cmd,parent_descriptor);
                 }
 		sock_reset_flag(newsock->sk,SOCK_USE_WRITE_QUEUE);

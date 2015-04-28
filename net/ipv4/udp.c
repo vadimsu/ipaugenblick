@@ -1198,7 +1198,7 @@ int udp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 	{
 		int amount = sk_wmem_alloc_get(sk);
 
-		//return put_user(amount, (int __user *)arg);
+		memcpy((int __user *)arg,&amount,sizeof(int));
 		return 0;
 	}
 
@@ -1214,7 +1214,7 @@ int udp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 			 */
 			amount -= sizeof(struct udphdr);
 
-//		return put_user(amount, (int __user *)arg);
+		memcpy((int __user *)arg,&amount,sizeof(int));
 		return 0;
 	}
 
@@ -2001,6 +2001,7 @@ int udp_lib_setsockopt(struct sock *sk, int level, int optname,
 
 //	if (get_user(val, (int __user *)optval))
 //		return -EFAULT;
+	memcpy(&val,optval,sizeof(int));
 
 	switch (optname) {
 	case UDP_CORK:
@@ -2098,6 +2099,7 @@ int udp_lib_getsockopt(struct sock *sk, int level, int optname,
 
 //	if (get_user(len, optlen))
 //		return -EFAULT;
+	len = *optlen;
 
 	len = min_t(unsigned int, len, sizeof(int));
 
@@ -2129,6 +2131,7 @@ int udp_lib_getsockopt(struct sock *sk, int level, int optname,
 
 //	if (put_user(len, optlen))
 //		return -EFAULT;
+	*optlen = len;
 	if (copy_to_user(optval, &val, len))
 		return -EFAULT;
 	return 0;

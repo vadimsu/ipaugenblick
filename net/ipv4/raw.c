@@ -769,8 +769,8 @@ static int raw_geticmpfilter(struct sock *sk, char __user *optval, int __user *o
 	if (len > sizeof(struct icmp_filter))
 		len = sizeof(struct icmp_filter);
 	ret = -EFAULT;
-	if (put_user(len, optlen) ||
-	    copy_to_user(optval, &raw_sk(sk)->filter, len))
+	*optlen = len;
+	if (copy_to_user(optval, &raw_sk(sk)->filter, len))
 		goto out;
 	ret = 0;
 out:	return ret;
@@ -841,8 +841,8 @@ static int raw_ioctl(struct sock *sk, int cmd, unsigned long arg)
 	switch (cmd) {
 	case SIOCOUTQ: {
 		int amount = sk_wmem_alloc_get(sk);
-
-		return put_user(amount, (int __user *)arg);
+		memcpy((int __user *)arg,&amount,sizeof(int));
+		return 0;
 	}
 	case SIOCINQ: {
 		struct sk_buff *skb;
@@ -853,7 +853,8 @@ static int raw_ioctl(struct sock *sk, int cmd, unsigned long arg)
 		if (skb != NULL)
 			amount = skb->len;
 		spin_unlock_bh(&sk->sk_receive_queue.lock);
-		return put_user(amount, (int __user *)arg);
+		memcpy((int __user *)arg,&amount,sizeof(int));
+		return 0;
 	}
 
 	default:

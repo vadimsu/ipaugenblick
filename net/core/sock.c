@@ -261,7 +261,7 @@ static const char *const af_family_clock_key_strings[AF_MAX+1] = {
  * not depend upon such differences.
  */
 #define _SK_MEM_PACKETS		256
-#define _SK_MEM_OVERHEAD	SKB_TRUESIZE(256)
+#define _SK_MEM_OVERHEAD	SKB_TRUESIZE(/*256*/4096)
 #define SK_WMEM_MAX		(_SK_MEM_OVERHEAD * _SK_MEM_PACKETS)
 #define SK_RMEM_MAX		(_SK_MEM_OVERHEAD * _SK_MEM_PACKETS)
 
@@ -594,6 +594,7 @@ zero:
 	ret = -EFAULT;
 	if (put_user(len, optlen))
 		goto out;
+	*optlen = len;
 
 	ret = 0;
 
@@ -637,6 +638,7 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 
 //	if (get_user(val, (int __user *)optval))
 //		return -EFAULT;
+	memcpy(&val,optval,sizeof(int));
 
 	valbool = val ? 1 : 0;
 
@@ -959,6 +961,7 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 
 //	if (get_user(len, optlen))
 //		return -EFAULT;
+	len = *optlen;
 	if (len < 0)
 		return -EINVAL;
 
@@ -1204,6 +1207,7 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 lenout:
 //	if (put_user(len, optlen))
 //		return -EFAULT;
+	*optlen = len;
 	return 0;
 }
 
