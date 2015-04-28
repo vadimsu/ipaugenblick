@@ -30,6 +30,7 @@ typedef struct
 {
     int family;
     int type;
+    unsigned long pid;
 }__attribute__((packed))ipaugenblick_open_sock_cmd_t;
 
 typedef struct
@@ -47,11 +48,12 @@ typedef struct
 typedef struct
 {
     unsigned long socket_descr;
+    unsigned long pid;
 }__attribute__((packed))ipaugenblick_set_socket_ring_cmd_t;
 
 typedef struct
 {
-    int socket_select;
+    int socket_select; 
     unsigned long pid;
 }__attribute__((packed))ipaugenblick_set_socket_select_cmd_t;
 

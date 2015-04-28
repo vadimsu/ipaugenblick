@@ -66,7 +66,7 @@ int main(int argc,char **argv)
     //    ipaugenblick_set_socket_select(sock,selector);
     while(1) {
 	mask = 0;
-        ready_socket = ipaugenblick_select(selector,&mask,1000);
+        ready_socket = ipaugenblick_select(selector,&mask,/*1000*/-1);
         if(ready_socket == -1) {
             continue;
         }

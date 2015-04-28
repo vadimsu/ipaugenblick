@@ -96,7 +96,7 @@ void sig_handler(int signum)
 {
     uint32_t i;
     ipaugenblick_cmd_t *cmd;
-
+//printf("%s %d %d\n",__FILE__,__LINE__,signum);
     if(signum == SIGUSR1) {
         /* T.B.D. do something to wake up the thread */
         return;
@@ -227,7 +227,7 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
     signal(SIGSEGV, sig_handler);
     signal(SIGTERM, sig_handler);
     signal(SIGUSR1, sig_handler);
-    pthread_create(&stats_thread,NULL,print_stats,NULL);
+//    pthread_create(&stats_thread,NULL,print_stats,NULL);
     return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
 }
 
@@ -349,6 +349,7 @@ int ipaugenblick_open_socket(int family,int type,int parent)
     	cmd->parent_idx = parent;
 	cmd->u.open_sock.family = family;
 	cmd->u.open_sock.type = type;
+	cmd->u.open_sock.pid = getpid();
 	if(ipaugenblick_enqueue_command_buf(cmd)) {
         	ipaugenblick_free_command_buf(cmd);
 	        return -3;
@@ -836,6 +837,7 @@ printf("%s %d %p %d %d %x %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenbl
     cmd->ringset_idx = ipaugenblick_socket->connection_idx;
     cmd->parent_idx = 0;
     cmd->u.set_socket_ring.socket_descr = accepted_socket;
+    cmd->u.set_socket_ring.pid = getpid();
     if(ipaugenblick_enqueue_command_buf(cmd)) {
         ipaugenblick_free_command_buf(cmd);
         printf("CANNOT ENQUEUE SET_RING_COMMAND\n");
@@ -884,8 +886,10 @@ restart_waiting:
         else if(timeout == 0) {
             return -1;
         }
-        else 
-            usleep(1);
+        else {
+//		sigset_t sigmask;
+		pselect(0, NULL, NULL, NULL,NULL, /*&sigmask*/NULL);
+	}
         goto restart_waiting;
     }
     ipaugenblick_stats_select_returned++;

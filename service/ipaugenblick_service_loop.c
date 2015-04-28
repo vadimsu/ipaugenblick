@@ -143,6 +143,7 @@ static inline void process_commands()
                printf("setting user data %p\n",sock);
                socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
                socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
+	       socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.open_sock.pid;
                app_glue_set_user_data(sock,(void *)&socket_satelite_data[cmd->ringset_idx]);
                socket_satelite_data[cmd->ringset_idx].socket = sock;
 	       user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,sk_stream_wspace(sock->sk));
@@ -215,6 +216,7 @@ static inline void process_commands()
            printf("%s %d %d %d %p\n",__FILE__,__LINE__,cmd->ringset_idx,cmd->parent_idx,cmd->u.set_socket_ring.socket_descr);
            socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
+	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_ring.pid;
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,&socket_satelite_data[cmd->ringset_idx]);
            socket_satelite_data[cmd->ringset_idx].socket = cmd->u.set_socket_ring.socket_descr; 
 	   printf("setting tx space: %d connidx %d\n",sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk),g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].connection_idx);
@@ -225,7 +227,8 @@ static inline void process_commands()
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
            printf("setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
-           socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select; 
+           socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select;
+	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_select.pid;
            ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
            break;
         case IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND:
