@@ -64,7 +64,7 @@ extern int ipaugenblick_set_socket_select(int sock,int select);
 
 extern int ipaugenblick_is_connected(int sock);
 
-extern int ipaugenblick_select(int selector,unsigned short *mask,int timeout);
+extern int ipaugenblick_select(int selector,unsigned short *mask,void* timeout);
 
 extern int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port);
 

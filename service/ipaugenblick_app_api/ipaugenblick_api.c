@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
+#include <sys/time.h>
 #if 0
 #define offsetof(TYPE, MEMBER) ((size_t)&((TYPE*)0)->MEMBER)
 #endif
@@ -451,7 +452,7 @@ int ipaugenblick_get_socket_tx_space(int sock)
     int free_bufs_count = rte_mempool_count(tx_bufs_pool);
     int rc = (ring_space > free_bufs_count) ? (free_bufs_count > 0 ? free_bufs_count : 0)  : ring_space;
     int tx_space = rte_atomic32_read(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space))/1448;
-//    printf("ring space %d free bufs %d tx space %d\n",ring_space,free_bufs_count,tx_space);
+    printf("sock %d ring space %d free bufs %d tx space %d\n",sock,ring_space,free_bufs_count,tx_space);
     if(rc > tx_space)
 	rc = tx_space;
     if(!rc) {
@@ -870,25 +871,27 @@ int ipaugenblick_is_connected(int sock)
     return local_socket_descriptors[sock].any_event_received;
 }
 
-int ipaugenblick_select(int selector,unsigned short *mask,int timeout)
+int ipaugenblick_select(int selector,unsigned short *mask,void* timeout)
 {
     uint32_t ringset_idx_and_ready_mask;
-    uint32_t i;
+    uint32_t second_pass = 0;
     ipaugenblick_cmd_t *cmd;
     uint32_t iterations_to_wait;
     ipaugenblick_stats_select_called++;
 restart_waiting:
     
-    if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) { 
-        if(timeout > 0) {
-            for(i = 0;i < timeout;i++) rte_pause();
-        }
-        else if(timeout == 0) {
+    if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) {
+	struct timeval *tv = (struct timeval *)timeout;
+	if(second_pass) {
+		return -1;
+	}
+        if((tv)&&(tv->tv_sec == 0)&&(tv->tv_usec == 0)) {
             return -1;
         }
-        else {
+        else { /* if tv is NULL or non-zero */
 //		sigset_t sigmask;
-		pselect(0, NULL, NULL, NULL,NULL, /*&sigmask*/NULL);
+		pselect(0, NULL, NULL, NULL,tv, /*&sigmask*/NULL);
+		second_pass = 1;
 	}
         goto restart_waiting;
     }

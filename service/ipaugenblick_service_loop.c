@@ -146,7 +146,8 @@ static inline void process_commands()
 	       socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.open_sock.pid;
                app_glue_set_user_data(sock,(void *)&socket_satelite_data[cmd->ringset_idx]);
                socket_satelite_data[cmd->ringset_idx].socket = sock;
-	       user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,sk_stream_wspace(sock->sk));
+	       printf("%d setting tx_space %d\n",__LINE__,sk_stream_wspace(sock->sk));
+	       user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].tx_space,sk_stream_wspace(sock->sk));
            }
            printf("Done\n");
            break;
