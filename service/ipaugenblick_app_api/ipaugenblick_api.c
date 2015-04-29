@@ -17,7 +17,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
-#include <sys/time.h>
 #if 0
 #define offsetof(TYPE, MEMBER) ((size_t)&((TYPE*)0)->MEMBER)
 #endif
@@ -871,7 +870,7 @@ int ipaugenblick_is_connected(int sock)
     return local_socket_descriptors[sock].any_event_received;
 }
 
-int ipaugenblick_select(int selector,unsigned short *mask,void* timeout)
+int ipaugenblick_select(int selector,unsigned short *mask,struct timeval* timeout)
 {
     uint32_t ringset_idx_and_ready_mask;
     uint32_t second_pass = 0;
@@ -881,16 +880,14 @@ int ipaugenblick_select(int selector,unsigned short *mask,void* timeout)
 restart_waiting:
     
     if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) {
-	struct timeval *tv = (struct timeval *)timeout;
 	if(second_pass) {
 		return -1;
 	}
-        if((tv)&&(tv->tv_sec == 0)&&(tv->tv_usec == 0)) {
+        if((timeout)&&(timeout->tv_sec == 0)&&(timeout->tv_usec == 0)) {
             return -1;
         }
-        else { /* if tv is NULL or non-zero */
-//		sigset_t sigmask;
-		pselect(0, NULL, NULL, NULL,tv, /*&sigmask*/NULL);
+        else { /* if timeout is NULL or non-zero */
+		pselect(0, NULL, NULL, NULL, timeout, /*&sigmask*/NULL);
 		second_pass = 1;
 	}
         goto restart_waiting;

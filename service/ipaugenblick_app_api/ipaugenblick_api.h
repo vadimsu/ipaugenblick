@@ -2,6 +2,8 @@
 #ifndef __IPAUGENBLICK_API_H__
 #define __IPAUGENBLICK_API_H__
 
+#include <sys/time.h>
+
 #define IPAUGENBLICK_MAX_SOCKETS 1000
 
 typedef void (*ipaugenblick_update_cbk_t)(unsigned char command,unsigned char *buffer,int len);
@@ -64,7 +66,7 @@ extern int ipaugenblick_set_socket_select(int sock,int select);
 
 extern int ipaugenblick_is_connected(int sock);
 
-extern int ipaugenblick_select(int selector,unsigned short *mask,void* timeout);
+extern int ipaugenblick_select(int selector,unsigned short *mask,struct timeval* timeout);
 
 extern int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned short port);
 
