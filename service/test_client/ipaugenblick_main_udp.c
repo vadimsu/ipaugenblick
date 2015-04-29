@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/errno.h>
+#include <sys/socket.h>
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
@@ -14,10 +15,10 @@
 
 int main(int argc,char **argv)
 {
-    void *buff,*buff_seg;
+    void *txbuff,*rxbuff,*pdesc;
     int sock,selector,len,ready_socket,i,tx_space;
     char *p;
-    int size = 0,ringset_idx,nb_segs,max_nb_segs = 0,max_total_len = 0,seg_idx;
+    int size = 0,ringset_idx,max_total_len = 0,seg_idx;
     unsigned int from_ip;
     unsigned short from_port,mask;
     unsigned long received_packets = 0;
@@ -32,59 +33,52 @@ int main(int argc,char **argv)
         printf("selector opened\n");
     }
     for(i = 0;i < 10;i++) {
-        if((sock = ipaugenblick_open_udp(inet_addr("192.168.150.63"),rand())) < 0) {
+        if((sock = ipaugenblick_open_socket(AF_INET, SOCK_DGRAM, selector)) < 0) {
             printf("cannot open UDP socket\n");
             return 0;
         }
-        ipaugenblick_set_socket_select(sock,selector);
-        from_ip = inet_addr("192.168.150.62");
-        from_port = htons(7777);
-        printf("waiting for creation feedback %d\n",sock);
-        sleep(1);
+        ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),rand(),0);
 #if USE_CONNECTED
+	from_ip = inet_addr("192.168.150.62");
+        from_port = htons(7777);
         printf("connecting %d\n",sock);
-        ipaugenblick_socket_connect(sock,from_ip,from_port);
+        ipaugenblick_v4_connect_bind_socket(sock,from_ip,from_port,1);
 #endif
     }
     while(1) {
-        ready_socket = ipaugenblick_select(selector,&mask,10000);
+        ready_socket = ipaugenblick_select(selector,&mask,NULL);
         if(ready_socket == -1) {
             continue;
         }
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
-            if(ipaugenblick_receivefrom(ready_socket,&buff,&len,&nb_segs,&from_ip,&from_port) == 0) {
+            if(ipaugenblick_receivefrom(ready_socket,&rxbuff,&len,&from_ip,&from_port,&pdesc) == 0) {
                 received_packets++;
-                if(nb_segs > max_nb_segs)
-                    max_nb_segs = nb_segs;
                 if(len > max_total_len)
                     max_total_len = len;
-                buff_seg = buff;
-                for(seg_idx = 0;seg_idx < nb_segs;seg_idx++) {
-
-                    buff_seg = ipaugenblick_get_next_buffer_segment(buff_seg,&len);
-                    if((buff_seg)&&(len > 0)) {
-                        /* do something */
-                        /* don't release buf, release rxbuff */
-                    }
-                }
+                void *porigdesc = pdesc;
+                do { 
+                    /* do something */
+                    /* don't release buf, release rxbuff */
+		    rxbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
+                }while(rxbuff);
                 if(!(received_packets%1000000)) {
-                    printf("received %u max_nb_segs %u max_total_len %u\n",received_packets,max_nb_segs,max_total_len);
+                    printf("received %u max_total_len %u\n",received_packets,max_total_len);
                 }
-                ipaugenblick_release_rx_buffer(buff);
+                ipaugenblick_release_rx_buffer(porigdesc,ready_socket);
            }
         }
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
             for(i = 0;i < tx_space;i++) {
-                buff = ipaugenblick_get_buffer(DATAGRAM_SIZE,ready_socket);
-                if(buff) {
+                txbuff = ipaugenblick_get_buffer(DATAGRAM_SIZE,ready_socket,&pdesc);
+                if(txbuff) {
 #if USE_CONNECTED
-                    if(ipaugenblick_send(ready_socket,buff,0,DATAGRAM_SIZE)) { 
-                        ipaugenblick_release_tx_buffer(buff);
+                    if(ipaugenblick_send(ready_socket,pdesc,0,DATAGRAM_SIZE)) { 
+                        ipaugenblick_release_tx_buffer(pdesc);
                     }
 #else
-                    if(ipaugenblick_sendto(ready_socket,buff,0,DATAGRAM_SIZE,inet_addr("192.168.150.62"),7777)) { 
-                        ipaugenblick_release_tx_buffer(buff);
+                    if(ipaugenblick_sendto(ready_socket,pdesc,0,DATAGRAM_SIZE,inet_addr("192.168.150.62"),7777)) { 
+                        ipaugenblick_release_tx_buffer(pdesc);
                     } 
 #endif
                 } 

@@ -17,17 +17,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
-#if 0
-#define offsetof(TYPE, MEMBER) ((size_t)&((TYPE*)0)->MEMBER)
-#endif
-
-#define container_of(ptr, type, member)({ \
-const typeof(((type*) 0)->member)*__mptr=(ptr); \
-(type*)((char*)__mptr-offsetof(type, member));})
-
-#define PKT(d) container_of(d,struct rte_pktmbuf,data)
-
-#define RTE_MBUF(d) container_of(PKT(d),struct rte_mbuf,pkt)
 
 local_socket_descriptor_t local_socket_descriptors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 struct rte_mempool *free_connections_pool = NULL;
@@ -451,7 +440,7 @@ int ipaugenblick_get_socket_tx_space(int sock)
     int free_bufs_count = rte_mempool_count(tx_bufs_pool);
     int rc = (ring_space > free_bufs_count) ? (free_bufs_count > 0 ? free_bufs_count : 0)  : ring_space;
     int tx_space = rte_atomic32_read(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space))/1448;
-    printf("sock %d ring space %d free bufs %d tx space %d\n",sock,ring_space,free_bufs_count,tx_space);
+//    printf("sock %d ring space %d free bufs %d tx space %d\n",sock,ring_space,free_bufs_count,tx_space);
     if(rc > tx_space)
 	rc = tx_space;
     if(!rc) {
@@ -462,10 +451,10 @@ int ipaugenblick_get_socket_tx_space(int sock)
 }
 
 /* TCP or connected UDP */
-inline int ipaugenblick_send(int sock,void *buffer,int offset,int length)
+inline int ipaugenblick_send(int sock,void *pdesc,int offset,int length)
 {
     int rc;
-    struct rte_mbuf *mbuf = RTE_MBUF(buffer);
+    struct rte_mbuf *mbuf = (struct rte_mbuf *)pdesc;
     ipaugenblick_stats_send_called++;
     mbuf->pkt.data_len = length;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
@@ -476,14 +465,14 @@ inline int ipaugenblick_send(int sock,void *buffer,int offset,int length)
     return rc;
 }
 
-inline int ipaugenblick_send_bulk(int sock,void **buffers,int *offsets,int *lengths,int buffer_count)
+inline int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_desc,int *offsets,int *lengths,int buffer_count)
 {
     int rc,idx,total_length = 0;
     struct rte_mbuf *mbufs[buffer_count];
 
     for(idx = 0;idx < buffer_count;idx++) {
         /* TODO: set offsets */
-        mbufs[idx] = RTE_MBUF(buffers[idx]);
+        mbufs[idx] = (struct rte_mbuf *)bufs_and_desc[idx].pdesc;
         mbufs[idx]->pkt.data_len = lengths[idx];
 	total_length += lengths[idx];
     }
@@ -498,11 +487,11 @@ inline int ipaugenblick_send_bulk(int sock,void **buffers,int *offsets,int *leng
 }
 
 /* UDP or RAW */
-inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port)
+inline int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length,unsigned int ipaddr,unsigned short port)
 {
     int rc;
-    struct rte_mbuf *mbuf = RTE_MBUF(buffer);
-    char *p_addr = mbuf->pkt.data;
+    struct rte_mbuf *mbuf = (struct rte_mbuf *)pdesc;
+    char *p_addr = rte_pktmbuf_mtod(mbuf,char *);
     struct sockaddr_in *p_addr_in;
     ipaugenblick_stats_send_called++;
     mbuf->pkt.data_len = length;
@@ -519,7 +508,7 @@ inline int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsig
     return rc;
 }
 
-inline int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count)
+inline int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_and_desc,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count)
 {
     int rc,idx,total_length = 0;
     struct rte_mbuf *mbufs[buffer_count];
@@ -528,10 +517,10 @@ inline int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *le
         char *p_addr;
         struct sockaddr_in *p_addr_in;
         /* TODO: set offsets */
-        mbufs[idx] = RTE_MBUF(buffers[idx]);
+        mbufs[idx] = (struct rte_mbuf *)bufs_and_desc[idx].pdesc;
         mbufs[idx]->pkt.data_len = lengths[idx];
 	total_length += lengths[idx];
-        p_addr = mbufs[idx]->pkt.data;
+        p_addr = rte_pktmbuf_mtod(mbufs[idx],char *);
         
         mbufs[idx]->pkt.data_len = lengths[idx];
         p_addr -= sizeof(struct sockaddr_in);
@@ -619,7 +608,7 @@ static inline void ipaugenblick_try_read_exact_amount(struct rte_mbuf *mbuf,int 
 }
 
 /* TCP */
-int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segment_len)
+int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segment_len,void **pdesc)
 { 
     struct rte_mbuf *mbuf;
 
@@ -631,7 +620,8 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 	int total_len2 = *total_len;
 	/* now find mbuf (if any) to be delievered partially and save it to shadown */
 	ipaugenblick_try_read_exact_amount(mbuf,sock,&total_len2,first_segment_len);
-	*pbuffer = &(mbuf->pkt.data);
+	*pbuffer = rte_pktmbuf_mtod(mbuf,void *);
+    	*pdesc = mbuf;
 	if((total_len2 > 0)&&(total_len2 < *total_len)) { /* read less than user requested, try ring */
 //		printf("%s %d %d\n",__FILE__,__LINE__,total_len2);
 		struct rte_mbuf *mbuf2 = ipaugenblick_dequeue_rx_buf(sock);
@@ -655,7 +645,8 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 	}
 	if(local_socket_descriptors[sock].shadow) {
 		uint32_t ringidx_ready_mask = sock|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
-		rte_ring_enqueue(selectors[local_socket_descriptors[sock].select].ready_connections,(void *)ringidx_ready_mask);	
+		if(local_socket_descriptors[sock].select != -1)
+			rte_ring_enqueue(selectors[local_socket_descriptors[sock].select].ready_connections,(void *)ringidx_ready_mask);	
 	}
 	return 0;
     }
@@ -667,7 +658,8 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 		    mbuf->pkt.pkt_len += mbuf2->pkt.pkt_len;
 	    *total_len = mbuf->pkt.pkt_len;
 	    *first_segment_len = mbuf->pkt.data_len;
-	    *pbuffer = &(mbuf->pkt.data); 
+	    *pbuffer = rte_pktmbuf_mtod(mbuf,void *);
+    	    *pdesc = mbuf;
 //	    printf("%s %d\n",__FILE__,__LINE__);
 	    return 0;
     }
@@ -682,7 +674,8 @@ read_from_ring:
 		*total_len = total_len2;
 		if(local_socket_descriptors[sock].shadow) {
 			uint32_t ringidx_ready_mask = sock|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
-			rte_ring_enqueue(selectors[local_socket_descriptors[sock].select].ready_connections,(void *)ringidx_ready_mask);	
+			if(local_socket_descriptors[sock].select != -1)
+				rte_ring_enqueue(selectors[local_socket_descriptors[sock].select].ready_connections,(void *)ringidx_ready_mask);	
 		}
 	}
 	else {
@@ -690,7 +683,8 @@ read_from_ring:
 		*total_len = mbuf->pkt.pkt_len;
 		*first_segment_len = mbuf->pkt.data_len;	
 	}
-	*pbuffer = &(mbuf->pkt.data);
+	*pbuffer = rte_pktmbuf_mtod(mbuf,void *);
+    	*pdesc = mbuf;
 	return 0;
     }
     ipaugenblick_stats_recv_failure++;
@@ -698,7 +692,7 @@ read_from_ring:
 }
 
 /* UDP or RAW */
-inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port)
+inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port,void **pdesc)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     ipaugenblick_stats_receive_called++;
@@ -707,7 +701,8 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int
         ipaugenblick_stats_recv_failure++;
         return -1;
     }
-    *buffer = &(mbuf->pkt.data);
+    *buffer = rte_pktmbuf_mtod(mbuf,void *);
+    *pdesc = mbuf;
     *len = mbuf->pkt.pkt_len;
     char *p_addr = mbuf->pkt.data;
     p_addr -= sizeof(struct sockaddr_in);
@@ -718,7 +713,7 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int
 }
 
 /* Allocate buffer to use later in *send* APIs */
-inline void *ipaugenblick_get_buffer(int length,int owner_sock)
+inline void *ipaugenblick_get_buffer(int length,int owner_sock,void **pdesc)
 {
     struct rte_mbuf *mbuf;
     mbuf = rte_pktmbuf_alloc(tx_bufs_pool);
@@ -728,10 +723,11 @@ inline void *ipaugenblick_get_buffer(int length,int owner_sock)
         return NULL;
     }
     ipaugenblick_stats_buffers_allocated++;
-    return &(mbuf->pkt.data);
+    *pdesc = mbuf;
+    return rte_pktmbuf_mtod(mbuf,void *);
 }
 
-int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,void **bufs)
+int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,struct data_and_descriptor *bufs_and_desc)
 {
     struct rte_mbuf *mbufs[count];
     int idx;
@@ -743,23 +739,24 @@ int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,void **buf
     for(idx = 0;idx < count;idx++) {
         rte_pktmbuf_reset(mbufs[idx]);
         rte_pktmbuf_refcnt_update(mbufs[idx],1);
-        bufs[idx] = &(mbufs[idx]->pkt.data);
+        bufs_and_desc[idx].pdata = rte_pktmbuf_mtod(mbufs[idx],void *);
+	bufs_and_desc[idx].pdesc = mbufs[idx];
     } 
     ipaugenblick_stats_buffers_allocated += count;
     return 0;
 }
 
 /* release buffer when either send is complete or receive has done with the buffer */
-void ipaugenblick_release_tx_buffer(void *buffer)
+void ipaugenblick_release_tx_buffer(void *pdesc)
 {
-    struct rte_mbuf *mbuf = RTE_MBUF(buffer);
+    struct rte_mbuf *mbuf = (struct rte_mbuf *)pdesc;
 
     rte_pktmbuf_free_seg(mbuf);
 }
 
-inline void ipaugenblick_release_rx_buffer(void *buffer,int sock)
+inline void ipaugenblick_release_rx_buffer(void *pdesc,int sock)
 {
-    struct rte_mbuf *mbuf = RTE_MBUF(buffer); 
+    struct rte_mbuf *mbuf = (struct rte_mbuf *)pdesc; 
 #if 1 /* this will work if only all mbufs are guaranteed from the same mempool */
     struct rte_mbuf *next;
     void *mbufs[MAX_PKT_BURST];
@@ -905,16 +902,17 @@ restart_waiting:
 
 /* receive functions return a chained buffer. this function
    retrieves a next chunk and its length */
-void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len)
+void *ipaugenblick_get_next_buffer_segment(void **pdesc,int *len)
 {
-   struct rte_mbuf *mbuf = RTE_MBUF(buffer);
+   struct rte_mbuf *mbuf = (struct rte_mbuf *)*pdesc;
    
    mbuf = mbuf->pkt.next;
    if(!mbuf) {
        return NULL;
-   }
+   } 
    *len = mbuf->pkt.data_len;
-   return &(mbuf->pkt.data);
+   *pdesc = mbuf;
+   return mbuf->pkt.data;
 }
 
 static inline int ipaugenblick_route_command(int opcode,unsigned int ipaddr,unsigned int mask,unsigned int nexthop,short metric)

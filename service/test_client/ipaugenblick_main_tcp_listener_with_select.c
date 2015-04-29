@@ -27,7 +27,7 @@ static inline int is_listener(int sock, int *listeners)
 
 int main(int argc,char **argv)
 {
-    void *buff,*rxbuff;
+    void *txbuff,*rxbuff,*pdesc;
     int sock,newsock,len,listeners[LISTENERS_COUNT];
     int listeners_idx;
     char *p;
@@ -66,7 +66,7 @@ int main(int argc,char **argv)
     //    ipaugenblick_set_socket_select(sock,selector);
     while(1) {
 	mask = 0;
-        ready_socket = ipaugenblick_select(selector,&mask,/*1000*/NULL);
+        ready_socket = ipaugenblick_select(selector,&mask, NULL);
         if(ready_socket == -1) {
             continue;
         }
@@ -87,16 +87,16 @@ int main(int argc,char **argv)
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
 	    int first_seg_len = 0;
 	    len = /*1024*/0;
-            while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len) == 0) {
+            while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len,&pdesc) == 0) {
                 received_count++;
                 if(len > max_total_length)
                     max_total_length = len;
-                buff = rxbuff;
+                void *porigdesc = pdesc;
 #if 0
-                while(buff) {
+                while(rxbuff) {
                     
-                    buff = ipaugenblick_get_next_buffer_segment(buff,&len);
-                    if((buff)&&(len > 0)) {
+                    rxbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
+                    if((rxbuff)&&(len > 0)) {
                         /* do something */
                         /* don't release buf, release rxbuff */
                     }
@@ -105,7 +105,7 @@ int main(int argc,char **argv)
                 if(!(received_count%10000000)) {
                     printf("received %u max_total_len %u\n",received_count,max_total_length);
                 }
-                ipaugenblick_release_rx_buffer(rxbuff,ready_socket);
+                ipaugenblick_release_rx_buffer(porigdesc,ready_socket);
             }
         }
 #if USE_TX
@@ -113,12 +113,12 @@ int main(int argc,char **argv)
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
 #if 0
             for(i = 0;i < tx_space;i++) {
-                buff = ipaugenblick_get_buffer(1448,ready_socket);
+                buff = ipaugenblick_get_buffer(1448,ready_socket,&pdesc);
                 if(!buff) {
                     break;
                 }
-                if(ipaugenblick_send(ready_socket,buff,0,1448)) { 
-                    ipaugenblick_release_tx_buffer(buff);
+                if(ipaugenblick_send(ready_socket,pdesc,0,1448)) { 
+                    ipaugenblick_release_tx_buffer(pdesc);
                     break;
                 }
             }
@@ -127,7 +127,7 @@ int main(int argc,char **argv)
 #else
 	    if(tx_space == 0)
 		continue;
-	    void *bulk_bufs[tx_space];
+	    struct data_and_descriptor bulk_bufs[tx_space];
             int offsets[tx_space];
             int lengths[tx_space];
 	    if(!ipaugenblick_get_buffers_bulk(1448,ready_socket,tx_space,bulk_bufs)) {
@@ -136,7 +136,8 @@ int main(int argc,char **argv)
                         lengths[i] = 1448;
                     }
                     if(ipaugenblick_send_bulk(ready_socket,bulk_bufs,offsets,lengths,tx_space)) {
-//                        ipaugenblick_release_tx_buffer(buff);
+			for(i = 0;i < tx_space;i++)
+                        	ipaugenblick_release_tx_buffer(bulk_bufs[i].pdesc);
                         printf("%s %d\n",__FILE__,__LINE__);
                     }
                     else {

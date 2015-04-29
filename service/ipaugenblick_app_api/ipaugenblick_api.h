@@ -6,6 +6,12 @@
 
 #define IPAUGENBLICK_MAX_SOCKETS 1000
 
+struct data_and_descriptor
+{
+    void *pdata;
+    void *pdesc;
+};
+
 typedef void (*ipaugenblick_update_cbk_t)(unsigned char command,unsigned char *buffer,int len);
 
 /* must be called per process */
@@ -32,29 +38,29 @@ extern void ipaugenblick_close(int sock);
 extern int ipaugenblick_get_socket_tx_space(int sock);
 
 /* TCP or connected UDP */
-extern int ipaugenblick_send(int sock,void *buffer,int offset,int length);
+extern int ipaugenblick_send(int sock,void *pdesc,int offset,int length);
 
-extern int ipaugenblick_send_bulk(int sock,void **buffers,int *offsets,int *lengths,int buffer_count);
+extern int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_desc,int *offsets,int *lengths,int buffer_count);
 
 /* UDP or RAW */
-extern int ipaugenblick_sendto(int sock,void *buffer,int offset,int length,unsigned int ipaddr,unsigned short port);
-extern int ipaugenblick_sendto_bulk(int sock,void **buffers,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count);
+extern int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length,unsigned int ipaddr,unsigned short port);
+extern int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_and_desc,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count);
 
 /* TCP */
-extern int ipaugenblick_receive(int sock,void **pbuffer,int *len,int *first_segment_len);
+extern int ipaugenblick_receive(int sock,void **buffer,int *len,int *first_segment_len,void **pdesc);
 
 /* UDP or RAW */
-extern int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port);
+extern int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port,void **pdesc);
 
 /* Allocate buffer to use later in *send* APIs */
-extern void *ipaugenblick_get_buffer(int length,int owner_sock);
+extern void *ipaugenblick_get_buffer(int length,int owner_sock,void **pdesc);
 
-extern int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,void **bufs);
+extern int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,struct data_and_descriptor *bufs_and_desc);
 
 /* release buffer when either send is complete or receive has done with the buffer */
-extern void ipaugenblick_release_tx_buffer(void *buffer);
+extern void ipaugenblick_release_tx_buffer(void *pdesc);
 
-extern void ipaugenblick_release_rx_buffer(void *buffer,int sock);
+extern void ipaugenblick_release_rx_buffer(void *pdesc,int sock);
 
 extern int ipaugenblick_socket_kick(int sock);
 
@@ -72,7 +78,7 @@ extern int ipaugenblick_socket_connect(int sock,unsigned int ipaddr,unsigned sho
 
 /* receive functions return a chained buffer. this function
    retrieves a next chunk and its length */
-extern void *ipaugenblick_get_next_buffer_segment(void *buffer,int *len);
+extern void *ipaugenblick_get_next_buffer_segment(void **pdesc,int *len);
 
 extern int ipaugenblick_add_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop,short metric);
 extern int ipaugenblick_del_v4_route(unsigned int ipaddr,unsigned int mask,unsigned int nexthop);

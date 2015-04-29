@@ -223,12 +223,13 @@ int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short p
 
 	if(!sock->sk)
 		return -1;
-	while(1) {
+        struct inet_sock *inet = inet_sk(sock->sk);
+	while(!inet->inet_num) {
 		sin.sin_family = AF_INET;
 		sin.sin_addr.s_addr = /*my_ip_addr*/0;
 		sin.sin_port = htons(rand() & 0xffff);
 		if(kernel_bind(sock,(struct sockaddr *)&sin,sizeof(sin))) {
-			printf("cannot bind %s %d\n",__FILE__,__LINE__);
+			printf("cannot bind %s %d %d\n",__FILE__,__LINE__,sin.sin_port);
 			continue;
 		}
 		break;

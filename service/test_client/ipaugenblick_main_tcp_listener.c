@@ -14,7 +14,7 @@
 
 int main(int argc,char **argv)
 {
-    void *buff,**rxbuff;
+    void *txbuff,*rxbuff,*pdesc;
     int sock,len;
     char *p;
     int size = 0,ringset_idx,tx_space = 0;
@@ -45,39 +45,29 @@ int main(int argc,char **argv)
         if(socket_connected == -1) {
             continue;
         }
-#if 0
-	if(tx_space == 0) {
-                iterations_wo_tx++;
-                if(iterations_wo_tx == 10000) {
-                        ipaugenblick_socket_kick(socket_connected);
-                        iterations_wo_tx = 0;
-                }
-        }
-#endif
 	int first_seg_len = 0;
-        if(ipaugenblick_receive(socket_connected,&rxbuff,&len,&first_seg_len) == 0) {
-            ipaugenblick_release_rx_buffer(rxbuff,socket_connected);
+        if(ipaugenblick_receive(socket_connected,&rxbuff,&len,&first_seg_len,&pdesc) == 0) {
+            ipaugenblick_release_rx_buffer(pdesc,socket_connected);
         }
 #if USE_TX
         tx_space = ipaugenblick_get_socket_tx_space(socket_connected);
 #if 0
         for(i = 0;i < tx_space;i++) {
-            buff = ipaugenblick_get_buffer(1448,socket_connected);
-            if(!buff) {
+            txbuff = ipaugenblick_get_buffer(1448,socket_connected,&pdesc);
+            if(!txbuff) {
                 break;
             }
-            if(ipaugenblick_send(socket_connected,buff,0,1448)) {
-                ipaugenblick_release_tx_buffer(buff);
+            if(ipaugenblick_send(socket_connected,pdesc,0,1448)) {
+                ipaugenblick_release_tx_buffer(pdesc);
                 break;
             }
         }
 #else
-	tx_space = tx_space / 2;
         if(tx_space == 0) {
 	    usleep(1);
             continue;
 	}
-        void *bulk_bufs[tx_space];
+        struct data_and_descriptor bulk_bufs[tx_space];
         int offsets[tx_space];
         int lengths[tx_space];
         if(!ipaugenblick_get_buffers_bulk(1448,socket_connected,tx_space,bulk_bufs)) {
@@ -86,7 +76,8 @@ int main(int argc,char **argv)
                     lengths[i] = 1448;
                 }
                 if(ipaugenblick_send_bulk(socket_connected,bulk_bufs,offsets,lengths,tx_space)) {
-//                    ipaugenblick_release_tx_buffer(buff);
+		    for(i = 0;i < tx_space;i++)
+                    	ipaugenblick_release_tx_buffer(bulk_bufs[i].pdesc);
                     printf("%s %d\n",__FILE__,__LINE__);
                 }
                 else {
