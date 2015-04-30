@@ -11,7 +11,7 @@
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
-#define USE_TX 1
+#define USE_TX 0
 
 int main(int argc,char **argv)
 {
@@ -42,19 +42,25 @@ int main(int argc,char **argv)
         return 0;
     }
     printf("opened socket %d\n",sock);
-    ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.62"),htons(7777),1);
-
     int bufsize = 1024*1024*1000;
     ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
+    ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.62"),htons(7777),1);
+ 
+    int first_time = 1;
     while(1) {  
         ready_socket = ipaugenblick_select(selector,&mask,NULL);
         if(ready_socket == -1) {
             continue;
         }
+        if(first_time) {
+		ipaugenblick_socket_kick(ready_socket);
+		first_time = 0;
+	}
         
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
 	    int first_seg_len = 0;
+	    int len = 0;
             while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len,&pdesc) == 0) {
                 received_count++;
 		void *porigdesc = pdesc;
@@ -67,16 +73,18 @@ int main(int argc,char **argv)
                     }
 		    rxbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
                 }
-#endif
+
                 if(!(received_count%10000000)) {
                     printf("received %u max_total_len %u\n",received_count,max_total_length);
                 }
+#endif
                 ipaugenblick_release_rx_buffer(porigdesc,ready_socket);
             }
         }
 #if USE_TX
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
+#if 0 
             for(i = 0;i < tx_space;i++) {
                 txbuff = ipaugenblick_get_buffer(1448,ready_socket,&pdesc);
                 if(!txbuff) {
@@ -87,6 +95,28 @@ int main(int argc,char **argv)
                     break;
                 }
             } 
+#else
+            if(tx_space == 0)
+                continue;
+            struct data_and_descriptor bulk_bufs[tx_space];
+            int offsets[tx_space];
+            int lengths[tx_space];
+            if(!ipaugenblick_get_buffers_bulk(1448,ready_socket,tx_space,bulk_bufs)) {
+                    for(i = 0;i < tx_space;i++) {
+                        offsets[i] = 0;
+                        lengths[i] = 1448;
+                    }
+                    if(ipaugenblick_send_bulk(ready_socket,bulk_bufs,offsets,lengths,tx_space)) {
+                        for(i = 0;i < tx_space;i++)
+                                ipaugenblick_release_tx_buffer(bulk_bufs[i].pdesc);
+                        printf("%s %d\n",__FILE__,__LINE__);
+                    }
+                    else {
+//                        printf("%s %d %d\n",__FILE__,__LINE__,tx_space);
+//                        sent = 1;
+                    }
+            }
+#endif
             ipaugenblick_socket_kick(ready_socket);
         }  
 //        ipaugenblick_socket_kick(ready_socket);

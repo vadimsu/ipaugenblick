@@ -303,7 +303,8 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
         return 1;
     }
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready_to_app)) {
-	//printf("%s %d\n",__FILE__,__LINE__);
+	if(socket_satelite_data->apppid)
+        	kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
         return;
     }
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
