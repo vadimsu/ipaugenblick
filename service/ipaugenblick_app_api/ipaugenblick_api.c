@@ -832,7 +832,7 @@ printf("%s %d %p %d %d %x %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenbl
     local_socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
     cmd->cmd = IPAUGENBLICK_SET_SOCKET_RING_COMMAND;
     cmd->ringset_idx = ipaugenblick_socket->connection_idx;
-    cmd->parent_idx = 0;
+    cmd->parent_idx = -1;
     cmd->u.set_socket_ring.socket_descr = accepted_socket;
     cmd->u.set_socket_ring.pid = getpid();
     if(ipaugenblick_enqueue_command_buf(cmd)) {

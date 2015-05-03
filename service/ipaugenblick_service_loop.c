@@ -216,7 +216,8 @@ static inline void process_commands()
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
            printf("%s %d %d %d %p\n",__FILE__,__LINE__,cmd->ringset_idx,cmd->parent_idx,cmd->u.set_socket_ring.socket_descr);
            socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
-           socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
+	   if(cmd->parent_idx != -1)
+	           socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
 	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_ring.pid;
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,&socket_satelite_data[cmd->ringset_idx]);
            socket_satelite_data[cmd->ringset_idx].socket = cmd->u.set_socket_ring.socket_descr; 
@@ -230,6 +231,7 @@ static inline void process_commands()
            printf("setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select;
 	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_select.pid;
+	   user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
            ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
            break;
         case IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND:
