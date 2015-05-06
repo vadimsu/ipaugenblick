@@ -331,13 +331,14 @@ void ipaugenblick_main_loop()
     uint8_t ports_to_poll[1] = { 0 };
     int drv_poll_interval = get_max_drv_poll_interval_in_micros(0);
     app_glue_init_poll_intervals(drv_poll_interval/(2*MAX_PKT_BURST),
-                                 1000 /*timer_poll_interval*/,
+                                 100 /*timer_poll_interval*/,
                                  drv_poll_interval/(10*MAX_PKT_BURST),
                                 drv_poll_interval/(60*MAX_PKT_BURST));
     
     ipaugenblick_service_api_init(COMMAND_POOL_SIZE,DATA_RINGS_SIZE,DATA_RINGS_SIZE);
     TAILQ_INIT(&buffers_available_notification_socket_list_head);
     TAILQ_INIT(&ipaugenblick_clients_list_head);
+    init_systick(rte_lcore_id());
     printf("IPAugenblick service initialized\n");
     while(1) {
         process_commands();

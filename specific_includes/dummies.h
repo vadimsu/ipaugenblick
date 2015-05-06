@@ -32,7 +32,7 @@
 #define __ALIGN_KERNEL(x, a)		__ALIGN_KERNEL_MASK(x, (typeof(x))(a) - 1)
 #define __ALIGN_KERNEL_MASK(x, mask)	(((x) + (mask)) & ~(mask))
 #define ALIGN(x, a)		__ALIGN_KERNEL((x), (a))
-extern unsigned long long jiffies;
+extern volatile unsigned long long jiffies;
 #define false 0
 #define true 1
 #define NUMA_NO_NODE 0

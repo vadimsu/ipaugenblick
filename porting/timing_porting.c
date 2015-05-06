@@ -21,7 +21,7 @@
 #include <rte_byteorder.h>
 
 static struct rte_timer systick;
-unsigned long long jiffies = 0;
+volatile unsigned long long jiffies = 0;
 
 static void systick_expiry_cbk(struct rte_timer *tim,void *arg)
 {

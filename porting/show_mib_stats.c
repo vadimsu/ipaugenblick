@@ -70,6 +70,7 @@ void show_mib_stats(void)
 	printf(" LINUX_MIB_TCPTSREORDER %"PRIu64"\n",(unsigned long)p_mib->net_statistics[0]->mibs[LINUX_MIB_TCPTSREORDER]);
 	printf(" LINUX_MIB_TCPFULLUNDO %"PRIu64"\n",(unsigned long)p_mib->net_statistics[0]->mibs[LINUX_MIB_TCPFULLUNDO]);
 	printf(" LINUX_MIB_TCPPARTIALUNDO %"PRIu64"\n",(unsigned long)p_mib->net_statistics[0]->mibs[LINUX_MIB_TCPPARTIALUNDO]);
+	printf(" LINUX_MIB_DELAYEDACKLOCKED %"PRIu64"\n",(unsigned long)p_mib->net_statistics[0]->mibs[LINUX_MIB_DELAYEDACKLOCKED]);
 	printf(" LINUX_MIB_TCPDSACKUNDO %"PRIu64"\n",(unsigned long)p_mib->net_statistics[0]->mibs[LINUX_MIB_TCPDSACKUNDO]);
 	printf(" LINUX_MIB_TCPLOSSUNDO %"PRIu64"\n",(unsigned long)p_mib->net_statistics[0]->mibs[LINUX_MIB_TCPLOSSUNDO]);
 	printf(" LINUX_MIB_TCPLOSTRETRANSMIT %"PRIu64"\n",(unsigned long)p_mib->net_statistics[0]->mibs[LINUX_MIB_TCPLOSTRETRANSMIT]);

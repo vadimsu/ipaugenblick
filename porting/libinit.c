@@ -265,7 +265,7 @@ extern uint64_t sk_stream_alloc_skb_failed;
 extern uint64_t write_sockets_queue_len;
 extern uint64_t read_sockets_queue_len;
 extern struct rte_mempool *free_command_pool;
-
+extern volatile unsigned long long jiffies;
 void show_mib_stats(void);
 /* This function only prints statistics, it it not called on data path */
 static int print_stats(__attribute__((unused)) void *dummy)
@@ -278,6 +278,7 @@ static int print_stats(__attribute__((unused)) void *dummy)
 		print_user_stats();
 		printf("sk_stream_alloc_skb_failed %"PRIu64"\n",sk_stream_alloc_skb_failed);
 		printf("tcp_memory_allocated=%"PRIu64"\n",tcp_memory_allocated);
+		printf("jiffies %"PRIu64"\n",jiffies);
 		dump_header_cache();
 		dump_head_cache();
 		dump_fclone_cache();
@@ -618,7 +619,6 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		    printf("%s %d\n",__FILE__,__LINE__);
 		}
 	}
-	init_systick(rte_lcore_id());
 #ifdef DPDK_SW_LOOP
 	init_dpdk_sw_loop();
 #endif
