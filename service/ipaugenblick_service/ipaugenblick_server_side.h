@@ -219,7 +219,7 @@ static inline void ipaugenblick_mark_readable(void *descriptor)
     uint32_t ringidx_ready_mask; 
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
     if(socket_satelite_data->parent_idx == -1) {
-        printf("%s %d\n",__FILE__,__LINE__);
+        //printf("%s %d\n",__FILE__,__LINE__);
         return;
     }
 #if 1
@@ -299,7 +299,7 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
     int rc;
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
     if(socket_satelite_data->parent_idx == -1) {
-	printf("%s %d\n",__FILE__,__LINE__);
+//	printf("%s %d\n",__FILE__,__LINE__);
         return 1;
     }
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready_to_app)) {

@@ -226,6 +226,7 @@ static inline void process_commands()
 //           user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
 	   ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
+	   ipaugenblick_mark_readable(&socket_satelite_data[cmd->ringset_idx]);
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
            printf("setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
@@ -233,6 +234,7 @@ static inline void process_commands()
 	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_select.pid;
 	   user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
            ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
+	   ipaugenblick_mark_readable(&socket_satelite_data[cmd->ringset_idx]);
            break;
         case IPAUGENBLICK_SOCKET_TX_POOL_EMPTY_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
