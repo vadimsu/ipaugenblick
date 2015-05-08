@@ -71,7 +71,10 @@ void app_glue_sock_readable(struct sock *sk, int len)
 {
 	const struct tcp_sock *tp = tcp_sk(sk);
 	
-	if((sk->sk_state != TCP_ESTABLISHED)&&((!sk->sk_socket)||(sk->sk_socket->type == SOCK_STREAM))) {
+	if(!sk->sk_socket) {
+		return;
+	}
+	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
 	}
 	if(sk->sk_socket->read_queue_present) {
@@ -97,7 +100,10 @@ void app_glue_sock_readable(struct sock *sk, int len)
  */
 void app_glue_sock_write_space(struct sock *sk)
 {	
-	if((sk->sk_state != TCP_ESTABLISHED)&&((!sk->sk_socket)||(sk->sk_socket->type == SOCK_STREAM))) {
+	if(!sk->sk_socket) {
+		return;
+	}
+	if((sk->sk_state != TCP_ESTABLISHED)&&(sk->sk_socket->type == SOCK_STREAM)) {
 		return;
 	}
 	if (sk_stream_is_writeable(sk)) {
