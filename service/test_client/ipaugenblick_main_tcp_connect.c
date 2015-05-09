@@ -11,7 +11,8 @@
 #include "../ipaugenblick_app_api/ipaugenblick_api.h"
 #include <string.h>
 
-#define USE_TX 0
+#define USE_TX 1
+#define USE_RX 1
 
 int main(int argc,char **argv)
 {
@@ -59,6 +60,7 @@ int main(int argc,char **argv)
 	}
         
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
+#if USE_RX
 	    int first_seg_len = 0;
 	    int len = 0;
             while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len,&pdesc) == 0) {
@@ -80,9 +82,10 @@ int main(int argc,char **argv)
 #endif
                 ipaugenblick_release_rx_buffer(porigdesc,ready_socket);
             }
+#endif
         }
 #if USE_TX
-        if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
+        if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {	
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
 #if 0 
             for(i = 0;i < tx_space;i++) {

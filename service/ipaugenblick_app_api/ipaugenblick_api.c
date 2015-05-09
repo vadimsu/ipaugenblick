@@ -450,6 +450,19 @@ int ipaugenblick_get_socket_tx_space(int sock)
     return rc;
 }
 
+int ipaugenblick_get_socket_tx_space_own_buffer(int sock)
+{
+    int ring_space = ipaugenblick_socket_tx_space(sock); 
+    int tx_space = rte_atomic32_read(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space))/1448;
+    int rc = (ring_space > tx_space) ? tx_space : ring_space;
+//    printf("sock %d ring space %d free bufs %d tx space %d\n",sock,ring_space,free_bufs_count,tx_space);
+    if(!rc) {
+	rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
+        ipaugenblick_notify_empty_tx_buffers(sock);
+    }
+    return rc;
+}
+
 /* TCP or connected UDP */
 inline int ipaugenblick_send(int sock,void *pdesc,int offset,int length)
 {
@@ -912,6 +925,21 @@ void *ipaugenblick_get_next_buffer_segment(void **pdesc,int *len)
    } 
    *len = mbuf->pkt.data_len;
    *pdesc = mbuf;
+   return mbuf->pkt.data;
+}
+
+void *ipaugenblick_get_next_buffer_segment_and_detach_first(void **pdesc,int *len)
+{
+   struct rte_mbuf *mbuf = (struct rte_mbuf *)*pdesc;
+   
+   mbuf = mbuf->pkt.next;
+   if(!mbuf) {
+       return NULL;
+   } 
+   *len = mbuf->pkt.data_len;
+   *pdesc = mbuf;
+   struct rte_mbuf *orig = (struct rte_mbuf *)*pdesc;
+   orig->pkt.next = NULL;
    return mbuf->pkt.data;
 }
 

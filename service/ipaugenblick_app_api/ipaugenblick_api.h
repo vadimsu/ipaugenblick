@@ -114,6 +114,20 @@ extern int ipaugenblick_get_socket_tx_space(int sock);
 
 /*
 * FUNCTION:
+*    ipaugenblick_get_socket_tx_space_own_buffer(int sock)
+* DESCRIPTION:
+*    This function returns a number of buffers that can be sent. 
+*    It is assumed the user already allocated buffer or there is enough buffers to allocate
+*    This is a min of currently available buffers and socket's buffer space
+* PARAMETERS:
+*    - sock - socket's descriptor (returned by ipaugenblick_open_socket)
+* RETURNS:
+*    A number of buffers can be allocated and sent on the socket (0 if none)
+*/
+extern int ipaugenblick_get_socket_tx_space_own_buffer(int sock);
+
+/*
+* FUNCTION:
 *    void *ipaugenblick_get_buffer(int length,int owner_sock,void **pdesc)
 * DESCRIPTION:
 *    This function allocates a buffer (associated with the socket)
@@ -239,6 +253,23 @@ extern int ipaugenblick_socket_kick(int sock);
 */
 extern void *ipaugenblick_get_next_buffer_segment(void **pdesc,int *len);
 
+/*
+* FUNCTION:
+*    void *ipaugenblick_get_next_buffer_segment_and_detach_first(void **pdesc,int *len)
+* DESCRIPTION:
+*    This function returns a pointer to the data of the next (chained) buffer's segment, its descriptor and its length.
+*    The buffer to which *pdesc pointed when this function is called is detached (i.e. does not point to next anymore)
+*    This function is supposed to be called for the buffers returned by ipaugenblick_receive and ipaugenblick_receivefrom
+* PARAMETERS:
+*    - pdesc (IN and OUT) - an address of buffer's descriptor (returned by ipaugenblick_receive*). In case the return value is not NULL,
+*    an address of the next buffer's descriptor is written here
+*    - len (OUT) - an address where the returned buffer length is written
+* RETURNS:
+*    If there is a next segment in the chained buffer, an address of the data in that buffer is returned. In this case,
+*    the buffer descriptor is returned in pdesc and the buffer length is returned in len. If there is no more segments,
+*    returns NULL, in this case pdesc and len are untouched
+*/
+extern void *ipaugenblick_get_next_buffer_segment_and_detach_first(void **pdesc,int *len);
 /*
 * FUNCTION:
 *    void ipaugenblick_release_rx_buffer(void *pdesc,int sock)
