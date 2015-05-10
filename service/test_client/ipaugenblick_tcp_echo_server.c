@@ -94,7 +94,9 @@ int main(int argc,char **argv)
 		ptv = &tv;
 	else
 		ptv = NULL;
+//	printf("calling select %p read %d write %d free %d echo %d\n",ptv,read_ready_flag,write_ready_flag,TAILQ_EMPTY(&free_queue),TAILQ_EMPTY(&echo_queue));
         ready_socket = ipaugenblick_select(selector,&mask, ptv);
+//	printf("after select %d %x\n",ready_socket,mask);
         if(ready_socket == -1) {
             continue;
         }
@@ -112,6 +114,7 @@ int main(int argc,char **argv)
             continue;
         }
         if(((mask & /*SOCKET_READABLE_BIT*/0x1)||(read_ready_flag))&&(!TAILQ_EMPTY(&free_queue))) {
+//	  if (!TAILQ_EMPTY(&free_queue)) {
 	    int first_seg_len = 0;
 	    len = /*1024*/0;
             while((rc = ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len,&pdesc)) == 0) {
@@ -132,6 +135,7 @@ int main(int argc,char **argv)
                 if(!(received_count%10000000)) {
                     printf("received %u max_total_len %u\n",received_count,max_total_length);
                 }
+//		printf("received %d bytes\n");
 		struct echo_queue_entry *p_queue_entry = TAILQ_FIRST(&free_queue);
 		TAILQ_REMOVE(&free_queue,p_queue_entry, q_entry);
 		p_queue_entry->pdesc = porigdesc;
@@ -139,18 +143,26 @@ int main(int argc,char **argv)
 		TAILQ_INSERT_TAIL(&echo_queue,p_queue_entry,q_entry);
 		if(TAILQ_EMPTY(&free_queue))
 			break;
+		len = 0;
             }
-	    if(rc == 0)
+	    if(rc == 0) {
+//		printf("setting read_ready_flag\n");
 		read_ready_flag = 1;
-	    else
+	    }
+	    else  {
 		read_ready_flag = 0;
+//		printf("setting read_ready_flag\n");
+	    }
         }
 	else if(mask & /*SOCKET_REDABLE_BIT*/0x1)
 		read_ready_flag = 1;
 #if USE_TX
         if(((mask & /*SOCKET_WRITABLE_BIT*/0x2)||(write_ready_flag))&&(!TAILQ_EMPTY(&echo_queue))) {
+//	if (!TAILQ_EMPTY(&echo_queue)) {
 	    tx_space = ipaugenblick_get_socket_tx_space_own_buffer(ready_socket);
-            for(i = 0;i < tx_space;i++) {
+//	    printf("tx_space %d\n",tx_space);
+	    i = 0;
+            while(i < tx_space) {
                 p_echo_queue_entry = TAILQ_FIRST(&echo_queue);
 		TAILQ_REMOVE(&echo_queue, p_echo_queue_entry, q_entry);
 		pdesc = p_echo_queue_entry->pdesc;
@@ -158,20 +170,29 @@ int main(int argc,char **argv)
 		do {	
                 	if(ipaugenblick_send(ready_socket,pdesc,0,len)) { 
                     		ipaugenblick_release_tx_buffer(p_echo_queue_entry->pdesc);
+				printf("cannot send\n");
                     		break;
                 	}
+//			printf("sent %d\n",len);
+			i++;
 			txbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
-		} while(txbuff && pdesc);
+		} while(txbuff && pdesc && (i < tx_space));
 		TAILQ_INSERT_TAIL(&free_queue,p_echo_queue_entry,q_entry);
-		if(TAILQ_EMPTY(&echo_queue))
+		if(TAILQ_EMPTY(&echo_queue)) {
+//		    printf("echo is empty\n");
 		    break;
+		}
             }
 	    if(tx_space == 0)
 		continue;
-	    if(i < tx_space)
+	    if(i < tx_space) {
+//		printf("setting write_ready_flag\n");
 		write_ready_flag = 1;
-	    else
+	    }
+	    else {
 		write_ready_flag = 0;
+//		printf("resetting write_ready_flag\n");
+	    }
             ipaugenblick_socket_kick(ready_socket);
         }
 	else if(mask & /*SOCKET_WRITABLE_BIT*/0x2)
