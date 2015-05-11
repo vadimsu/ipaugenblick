@@ -59,7 +59,7 @@ ipaugenblick_update_cbk_t ipaugenblick_update_cbk = NULL;
 void print_stats()
 {
     while(g_print_stats_loop) {
-#if 0
+#if 1
         printf("ipaugenblick_stats_receive_called %lu ipaugenblick_stats_send_called %lu \n\t\
                 ipaugenblick_stats_rx_kicks_sent %lu ipaugenblick_stats_tx_kicks_sent %lu ipaugenblick_stats_cannot_allocate_cmd %lu  \n\t\
                 ipaugenblick_stats_rx_full %lu ipaugenblick_stats_rx_dequeued %lu ipaugenblick_stats_rx_dequeued_local %lu \n\t\
@@ -470,6 +470,7 @@ inline int ipaugenblick_send(int sock,void *pdesc,int offset,int length)
     struct rte_mbuf *mbuf = (struct rte_mbuf *)pdesc;
     ipaugenblick_stats_send_called++;
     mbuf->pkt.data_len = length;
+    mbuf->pkt.next = NULL;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
     if(rc == 0)
