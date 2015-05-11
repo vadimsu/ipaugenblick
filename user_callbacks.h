@@ -92,12 +92,12 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
 	    user_on_tx_opportunity_socket_full += (sk_stream_wspace(sock->sk) == 0);
             ring_entries = ipaugenblick_tx_buf_count(socket_satelite_data);
             
-            if(ring_entries == 0) {
+//            if(ring_entries == 0) {
                 ipaugenblick_mark_writable(socket_satelite_data);
-            }
-            else {
-                user_on_tx_opportunity_socket_send_error += (i<=0);
-            }
+  //          }
+    //        else {
+      //          user_on_tx_opportunity_socket_send_error += (i<=0);
+        //    }
         }
         else if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             struct msghdr msghdr;
