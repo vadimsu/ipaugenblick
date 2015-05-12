@@ -2325,7 +2325,7 @@ static inline int skb_add_data(struct sk_buff *skb,
 	}
 	if (skb->ip_summed == CHECKSUM_NONE) {
 		int err = 0;
-		__wsum csum = csum_partial_from_user(from->pkt.data, copy, 0, &err);
+		__wsum csum = csum_partial_from_user(rte_pktmbuf_mtod(from, void *), copy, 0, &err);
 		if (!err) {
 			skb->csum = csum_block_add(skb->csum, csum, off);
 			skb_frag_set_page(skb,skb_shinfo(skb)->nr_frags,from);

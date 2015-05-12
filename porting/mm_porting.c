@@ -164,19 +164,19 @@ int csum_partial_copy_fromiovecend(struct sk_buff *skb, struct iovec *iov,
 	struct rte_mbuf *current = iov->head;
 	while(current) {
 		struct rte_mbuf *mbuf = current;
-		if(offset < mbuf->pkt.data_len) {
+		if(offset < rte_pktmbuf_data_len(mbuf)) {
 			struct page page;
-			current = current->pkt.next;
+			current = current->next;
 			page.mbuf = mbuf;
-			*csump = csum_partial(((char *)mbuf->pkt.data)+offset,mbuf->pkt.data_len - offset, csum);
-			skb_fill_page_desc(skb,skb_shinfo(skb)->nr_frags,&page,offset,mbuf->pkt.data_len - offset);
-			skb->len += mbuf->pkt.data_len - offset;
-		    skb->data_len += mbuf->pkt.data_len - offset;
+			*csump = csum_partial(rte_pktmbuf_mtod(mbuf,char *)+offset,rte_pktmbuf_data_len(mbuf) - offset, csum);
+			skb_fill_page_desc(skb,skb_shinfo(skb)->nr_frags,&page,offset,rte_pktmbuf_data_len(mbuf) - offset);
+			skb->len += rte_pktmbuf_data_len(mbuf) - offset;
+		    skb->data_len += rte_pktmbuf_data_len(mbuf) - offset;
 			offset = 0;
 		}
 		else {
-			offset -= mbuf->pkt.data_len;
-			current = current->pkt.next;
+			offset -= rte_pktmbuf_data_len(mbuf);
+			current = current->next;
 		}
 	}
     *csump = csum;
@@ -188,18 +188,18 @@ int memcpy_fromiovecend(struct sk_buff *skb, const struct iovec *iov,
 	struct rte_mbuf *current = iov->head;
 	while(current) {
 		struct rte_mbuf *mbuf = current;
-		if(offset < mbuf->pkt.data_len) {
+		if(offset < rte_pktmbuf_data_len(mbuf)) {
 			struct page page;
-			current = current->pkt.next;
+			current = current->next;
 			page.mbuf = mbuf;
-			skb_fill_page_desc(skb,skb_shinfo(skb)->nr_frags,&page,offset,mbuf->pkt.data_len - offset);
-			skb->len += mbuf->pkt.data_len - offset;
-			skb->data_len += mbuf->pkt.data_len - offset;
+			skb_fill_page_desc(skb,skb_shinfo(skb)->nr_frags,&page,offset,rte_pktmbuf_data_len(mbuf) - offset);
+			skb->len += rte_pktmbuf_data_len(mbuf) - offset;
+			skb->data_len += rte_pktmbuf_data_len(mbuf) - offset;
 			offset = 0;
 		}
 		else {
-			offset -= mbuf->pkt.data_len;
-			current = current->pkt.next;
+			offset -= rte_pktmbuf_data_len(mbuf);
+			current = current->next;
 		}
 	}
 	return 0;
@@ -211,16 +211,16 @@ int memcpy_fromiovecend2(unsigned char *kdata, const struct iovec *iov,
 	struct rte_mbuf *current = iov->head;
 	while((current)&&(copied < len)) {
 		struct rte_mbuf *mbuf = current;
-		if(offset < mbuf->pkt.data_len) {
-			char *data = (char *)mbuf->pkt.data;
-			current = current->pkt.next;
-			rte_memcpy(kdata+copied,data+offset,mbuf->pkt.data_len - offset);
-			copied += mbuf->pkt.data_len - offset;
+		if(offset < rte_pktmbuf_data_len(mbuf)) {
+			char *data = rte_pktmbuf_mtod(mbuf, char *);
+			current = current->next;
+			rte_memcpy(kdata+copied,data+offset,rte_pktmbuf_data_len(mbuf) - offset);
+			copied += rte_pktmbuf_data_len(mbuf) - offset;
 			offset = 0;
 		}
 		else {
-			offset -= mbuf->pkt.data_len;
-			current = current->pkt.next;
+			offset -= rte_pktmbuf_data_len(mbuf);
+			current = current->next;
 		}
 	}
     return (copied == len);
@@ -269,21 +269,21 @@ int copy_to_user(void *dst,void *src,int size)
 int memcpy_toiovec(struct iovec *iov,struct rte_mbuf *mbuf,int offset,int len)
 {
 	if(rte_pktmbuf_adj(mbuf,offset) == NULL) {
-		printf("CANNOT ADJUST MBUF %s %d %d %d %d\n",__FILE__,__LINE__,offset,len,mbuf->pkt.data_len);
+		printf("CANNOT ADJUST MBUF %s %d %d %d %d\n",__FILE__,__LINE__,offset,len,rte_pktmbuf_data_len(mbuf));
 		return -1;
 	}
 	rte_mbuf_refcnt_update(mbuf,1);
 	if(iov->head == NULL) {
 		iov->head = mbuf;
 		iov->tail = mbuf;
-                iov->head->pkt.pkt_len = iov->head->pkt.data_len;
-                iov->head->pkt.nb_segs = 1;
+                rte_pktmbuf_pkt_len(iov->head) = rte_pktmbuf_data_len(iov->head);
+                iov->head->nb_segs = 1;
 	}
 	else if(iov->tail != mbuf) { /* check the case partial data is submitted */
-		iov->tail->pkt.next = mbuf;
-		iov->tail = iov->tail->pkt.next;
-                iov->head->pkt.pkt_len += mbuf->pkt.data_len;
-                iov->head->pkt.nb_segs++;
+		iov->tail->next = mbuf;
+		iov->tail = iov->tail->next;
+                rte_pktmbuf_pkt_len(iov->head) += rte_pktmbuf_data_len(mbuf);
+                iov->head->nb_segs++;
 	}
 	iov->len += len;
 	return 0;

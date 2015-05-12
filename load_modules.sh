@@ -1,2 +1,2 @@
 sudo modprobe uio
-sudo insmod ./dpdk-1.6.0r2/x86_64-default-linuxapp-gcc/kmod/igb_uio.ko 
+sudo insmod ./dpdk-1.8.0/x86_64-native-linuxapp-gcc/kmod/igb_uio.ko 

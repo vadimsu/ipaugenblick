@@ -31,11 +31,11 @@ static inline __attribute__ ((always_inline)) struct rte_mbuf *user_get_buffer(s
             user_on_tx_opportunity_cannot_get_buff++;
             return first;
         }
-        (*copy) -= mbuf->pkt.data_len;
+        (*copy) -= rte_pktmbuf_data_len(mbuf);
         if(!first)
             first = mbuf;
         else
-            prev->pkt.next = mbuf;
+            prev->next = mbuf;
         prev = mbuf;
         user_on_tx_opportunity_api_mbufs_sent++;
         break;

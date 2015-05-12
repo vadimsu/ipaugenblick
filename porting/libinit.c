@@ -22,7 +22,7 @@
 //#define MBUFS_PER_RX_QUEUE (RTE_RX_DESC_DEFAULT*2/*+MAX_PKT_BURST*2*/)
 
 //#define MBUFS_PER_TX_QUEUE /*((RTE_RX_DESC_DEFAULT+MAX_PKT_BURST*2)*RX_QUEUE_PER_PORT)*/4096*64
-#define MBUF_SIZE (((2048 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM) + CACHE_LINE_SIZE) & ~(CACHE_LINE_SIZE))
+#define MBUF_SIZE (((2048 + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM) + RTE_CACHE_LINE_SIZE) & ~(RTE_CACHE_LINE_SIZE))
 #define MAX_PORTS	RTE_MAX_ETHPORTS
 /*
  * RX and TX Prefetch, Host, and Write-back threshold values should be
@@ -301,7 +301,7 @@ void *get_buffer()
 void *get_data_ptr(void *buf)
 {
 	struct rte_mbuf *mbuf = (struct rte_mbuf *)buf;
-	return mbuf->pkt.data;
+	return rte_pktmbuf_mtod(mbuf,void *);
 }
 /* this function returns an available mbufs count */
 int get_buffer_count()
@@ -492,14 +492,18 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		printf("%s %d\n",__FILE__,__LINE__);
 		exit(0);
 	}
+	rte_set_log_type(RTE_LOGTYPE_PMD,1);
+	rte_set_log_level(RTE_LOG_DEBUG);
 #ifndef DPDK_SW_LOOP /* enable when at least one compatable NIC */
 	/* init driver(s) */
+#if 0
 	if (rte_pmd_init_all() < 0)
 		rte_exit(EXIT_FAILURE, "Cannot init pmd\n");
 
 	if (rte_eal_pci_probe() < 0)
 		rte_exit(EXIT_FAILURE, "Cannot probe PCI\n");
-
+#else
+#endif
 	nb_ports = rte_eth_dev_count();
 	if (nb_ports == 0)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");

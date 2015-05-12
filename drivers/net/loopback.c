@@ -125,20 +125,20 @@ printf("%s %d %p\n",__FILE__,__LINE__,skb);
 //	printf("%s %d %d %d %d %d %p %d %d\n",
 //__FILE__,__LINE__,(int)skb_shinfo(skb)->nr_frags,skb_headlen(skb),skb->len,skb->data_len,skb,skb->protocol,skb_headroom(skb));
 	head = skb->header_mbuf;
-	head->pkt.data_len = skb_headroom(skb) + skb_headlen(skb);
+	rte_pktmbuf_data_len(head) = skb_headroom(skb) + skb_headlen(skb);
 	rte_pktmbuf_adj(head,skb_headroom(skb));/* now mbuf data is at eth header */
-	pkt_len = head->pkt.data_len;
-	mbuf = &head->pkt.next;
+	pkt_len = rte_pktmbuf_data_len(head);
+	mbuf = &head->next;
 	skb->header_mbuf = NULL;
 	for (i = 0; i < (int)skb_shinfo(skb)->nr_frags; i++)
 	{
 		*mbuf = skb_shinfo(skb)->frags[i].page.p;
 //		printf("%s %d %d %p\n",__FILE__,__LINE__,rte_mbuf_refcnt_read(*mbuf),skb_shinfo(skb)->frags[i].page.p);
 		skb_frag_ref(skb,i);
-		pkt_len += (*mbuf)->pkt.data_len;
-		mbuf = &((*mbuf)->pkt.next);
+		pkt_len += rte_pktmbuf_data_len((*mbuf));
+		mbuf = &((*mbuf)->next);
 	}
-	head->pkt.pkt_len = pkt_len;
+	rte_pktmbuf_pkt_len(head) = pkt_len;
 	dpdk_dev_enqueue_for_tx(head);
 	kfree_skb(skb);
 #endif

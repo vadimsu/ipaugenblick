@@ -126,7 +126,7 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
                     for(i = 0;i < dequeued;i++) {
                         char *p_addr;
                         if(established) {
-                            p_addr = (char *)mbuf[i]->pkt.data;
+                            p_addr = rte_pktmbuf_mtod(mbuf[i],char *);
                             p_addr -= sizeof(struct sockaddr_in);
                             msghdr.msg_name = p_addr;
                         }
@@ -135,7 +135,7 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
 
                         iov.head = mbuf[i]; 
                 
-                        rc = udp_sendmsg(NULL, sk, &msghdr, mbuf[i]->pkt.data_len);
+                        rc = udp_sendmsg(NULL, sk, &msghdr, rte_pktmbuf_data_len(mbuf[i]));
                         exhausted |= !(rc > 0);
                         if(exhausted) {
                             user_on_tx_opportunity_api_failed += dequeued - i;
@@ -202,7 +202,7 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
         }
         ring_free--;
         if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
-            char *p_addr = (char *)msg.msg_iov->head->pkt.data;
+            char *p_addr = rte_pktmbuf_mtod(msg.msg_iov->head, char *);
             p_addr -= msg.msg_namelen;
             rte_memcpy(p_addr,msg.msg_name,msg.msg_namelen);
         } 

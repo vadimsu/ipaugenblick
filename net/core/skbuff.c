@@ -279,7 +279,7 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 		goto out;
 	}
 #endif
-	data = skb->header_mbuf->pkt.data;
+	data = rte_pktmbuf_mtod(skb->header_mbuf, u8 *);
 	/* Account for allocated memory : skb + skb->head */
 	skb->truesize = SKB_TRUESIZE(size);
 	skb->pfmemalloc = pfmemalloc;
@@ -363,7 +363,7 @@ struct sk_buff *build_skb(struct rte_mbuf *mbuf, unsigned int frag_size)
 	skb->pfmemalloc = pfmemalloc;
 	skb->head_frag = frag_size != 0;
 	skb->header_mbuf = mbuf;
-	data = skb->header_mbuf->pkt.data;
+	data = rte_pktmbuf_mtod(skb->header_mbuf, void *);
 	atomic_set(&skb->users, 1);
 	skb->head = data;
 	skb->data = data;
@@ -1104,7 +1104,7 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail,
 	new_head = rte_pktmbuf_alloc(skbuff_header_cache);
 	if (!new_head)
 		goto nodata;
-	data = new_head->pkt.data;
+	data = rte_pktmbuf_mtod(new_head, u8 *);
 	if (!data)
 		goto nodata;
 	size = SKB_WITH_OVERHEAD(size);
@@ -1330,7 +1330,7 @@ unsigned char *skb_put(struct sk_buff *skb, unsigned int len)
 			int size = skb_frag_size(&skb_shinfo(skb)->frags[skb_shinfo(skb)->nr_frags-1]);
 			struct rte_mbuf *mbuf = skb_shinfo(skb)->frags[skb_shinfo(skb)->nr_frags-1].page.p;
 			if((size + len) < mbuf->buf_len) {
-				tmp = ((char *)mbuf->pkt.data) + size;
+				tmp = rte_pktmbuf_mtod(mbuf, unsigned char *) + size;
 				skb_frag_size_add(&skb_shinfo(skb)->frags[skb_shinfo(skb)->nr_frags-1],len);
 			}
 			else {
@@ -1756,7 +1756,7 @@ int skb_copy_bits2(const struct sk_buff *skb, int offset, void *to, int len)
 			if (copy > len)
 				copy = len;
 
-			vaddr = (u8 *)skb_frag_page(f)->pkt.data;
+			vaddr = rte_pktmbuf_mtod(skb_frag_page(f), u8 *);
 			memcpy(to,
 					vaddr + f->page_offset + offset - start,
 					copy);
@@ -2114,7 +2114,7 @@ __wsum __skb_checksum(const struct sk_buff *skb, int offset, int len,
 
 			if (copy > len)
 				copy = len;
-			vaddr = skb_frag_page(frag)->pkt.data;
+			vaddr = rte_pktmbuf_mtod(skb_frag_page(frag), u8 *);
 			csum2 = ops->update(vaddr + frag->page_offset +
 					    offset - start, copy, 0);
 			kunmap_atomic(vaddr);

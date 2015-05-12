@@ -66,12 +66,12 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
             rte_prefetch0(rte_pktmbuf_mtod(mbufs[i],void *));
         }
 	for(i = 0;i < ret;i++) {
-		skb = build_skb(mbufs[i],mbufs[i]->pkt.data_len);
+		skb = build_skb(mbufs[i],rte_pktmbuf_data_len(mbufs[i]));
 		if(unlikely(skb == NULL)) {
 			rte_pktmbuf_free(mbufs[i]);
 			continue;
 		}
-		skb->len = mbufs[i]->pkt.data_len;
+		skb->len = rte_pktmbuf_data_len(mbufs[i]);
 #if 0 /* once the receive will scatter the packets, this will be needed */
 		m = mbufs[i]->pkt.next;
 		frag_idx = 0;
@@ -84,6 +84,13 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
 			m = m->pkt.next;
 		}
 #endif
+{
+    unsigned char *p = (unsigned char *)skb->data;
+    printf("%s %d %d\n",__FILE__,__LINE__,skb->len);
+    for(i = 0;i < skb->len;i++)
+	printf("  %x",p[i]);
+    printf("\n");
+}
                 /* removing vlan tagg */
                 eth = (struct ethhdr *)skb->data;
                 if(eth->h_proto == htons(ETH_P_8021Q)) {
@@ -120,16 +127,25 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	skb_dst_force(skb);
 
 	head = skb->header_mbuf;
-	head->pkt.data_len = skb_headroom(skb) + skb_headlen(skb);
+	rte_pktmbuf_data_len(head) = skb_headroom(skb) + skb_headlen(skb);
+printf("%s %d %d\n",__FILE__,__LINE__,rte_pktmbuf_data_len(head));
 	/* across all the stack, pkt.data in rte_mbuf is not moved while skb's data is.
 	 * now is the time to do that
 	 */
 	rte_pktmbuf_adj(head,skb_headroom(skb));/* now mbuf data is at eth header */
-	pkt_len = head->pkt.data_len;
-	head->pkt.data = skb->data;
-	mbuf = &head->pkt.next;
+	pkt_len = rte_pktmbuf_data_len(head);
+	head->buf_addr = skb->data;
+{
+    unsigned char *p = (unsigned char *)head->buf_addr;
+    pkt_len += 2;
+    for(i = 0;i < pkt_len;i++)
+	printf("  %x",p[i]);
+    printf("\n");
+}
+	head->data_off = 0;
+	mbuf = &head->next;
 	skb->header_mbuf = NULL;
-	head->pkt.nb_segs = 1 + skb_shinfo(skb)->nr_frags;
+	head->nb_segs = 1 + skb_shinfo(skb)->nr_frags;
 	/* typically, the headers are in skb->header_mbuf
 	 * while the data is in the frags.
 	 * An exception could be ICMP where skb->header_mbuf carries some payload aside headers
@@ -137,11 +153,11 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	for (i = 0; i < (int)skb_shinfo(skb)->nr_frags; i++) {
 		*mbuf = skb_shinfo(skb)->frags[i].page.p;
 		skb_frag_ref(skb,i);
-		pkt_len += (*mbuf)->pkt.data_len;
-		mbuf = &((*mbuf)->pkt.next);
+		pkt_len += rte_pktmbuf_data_len((*mbuf));
+		mbuf = &((*mbuf)->next);
 	}
         *mbuf = NULL;
-	head->pkt.pkt_len = pkt_len;
+	rte_pktmbuf_pkt_len(head) = pkt_len;
 #ifdef GSO
         if ((skb->protocol == htons(ETH_P_IP))&&(ip_hdr(skb)->protocol == IPPROTO_TCP)&&(i> 0)) {
                  struct iphdr *iph = ip_hdr(skb);
@@ -161,12 +177,25 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
            head->ol_flags = PKT_TX_IP_CKSUM;        
            struct iphdr *iph = ip_hdr(skb);
            iph->check = 0;
-           head->pkt.vlan_macip.f.l3_len = sizeof(struct iphdr);
-           head->pkt.vlan_macip.f.l2_len = skb_network_offset(skb);
-           if (ip_hdr(skb)->protocol == IPPROTO_TCP)
+           head->l3_len = sizeof(struct iphdr);
+           head->l2_len = skb_network_offset(skb);
+           if (ip_hdr(skb)->protocol == IPPROTO_TCP) {
+	       head->l4_len = tcp_hdrlen(skb);
                head->ol_flags |= PKT_TX_TCP_CKSUM;
-           else if(ip_hdr(skb)->protocol == IPPROTO_UDP)
+	       head->tso_segsz = 0;
+	       tcp_hdr(skb)->check = ~csum_tcpudp_magic(iph->saddr,
+                                                        iph->daddr, 0,
+                                                        IPPROTO_TCP,
+                                                        0);
+	   }
+           else if(ip_hdr(skb)->protocol == IPPROTO_UDP) {
+	       head->l4_len = sizeof(struct udphdr);
                head->ol_flags |= PKT_TX_UDP_CKSUM;
+	       udp_hdr(skb)->check = ~csum_tcpudp_magic(iph->saddr,
+                                                        iph->daddr, 0,
+                                                        IPPROTO_UDP,
+                                                        0);
+	   }
        }
 #endif
 	/* this will pass the mbuf to DPDK PMD driver */

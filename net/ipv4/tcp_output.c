@@ -2949,7 +2949,7 @@ static int tcp_send_syn_data(struct sock *sk, struct sk_buff *syn)
 	for (i = 0; i < iovlen && syn_data->len < space; ++i) {
 		struct iovec *iov = &fo->data->msg_iov[i];
 		//unsigned char __user *from = iov->iov_base;
-		int len = iov->head ?  iov->head->pkt.data_len : 0;
+		int len = iov->head ?  rte_pktmbuf_data_len(iov->head) : 0;
 
 		if(len == 0) {
 			continue;
@@ -2963,8 +2963,8 @@ static int tcp_send_syn_data(struct sock *sk, struct sk_buff *syn)
 
 		if (skb_add_data(syn_data, iov->head, len))
 			goto fallback;
-		if(len == iov->head->pkt.data_len) {
-			iov->head = iov->head->pkt.next;
+		if(len == rte_pktmbuf_data_len(iov->head)) {
+			iov->head = iov->head->next;
 			if(iov->head == NULL) {
 				iov->tail = NULL;
 			}

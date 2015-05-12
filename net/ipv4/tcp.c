@@ -1018,11 +1018,11 @@ wait_for_memory:
                 copied = 0;
 		goto out;
             }
-            next = mbuf->pkt.next;
-            mbuf->pkt.next = NULL;
+            next = mbuf->next;
+            mbuf->next = NULL;
 	    _page.mbuf = mbuf;
-	    skb_fill_page_desc(skb, i++, &_page, 0/*offset*/, mbuf->pkt.data_len); 
-            copied += mbuf->pkt.data_len; 
+	    skb_fill_page_desc(skb, i++, &_page, 0/*offset*/, rte_pktmbuf_data_len(mbuf)); 
+            copied += rte_pktmbuf_data_len(mbuf); 
             if ((i >= MAX_SKB_FRAGS)||(!next)) {
                 i = 0;
                 skb_entail(sk, skb);
@@ -1769,8 +1769,8 @@ found_ok_skb:
 		/* Ok so how much can we use? */
 		used = skb->len - offset;
 //printf("%s %d %d %d %d\n",__FILE__,__LINE__,skb->header_mbuf->pkt.data_len,used,skb->len);
-                if(skb->header_mbuf->pkt.data_len < used) {
-                    used = skb->header_mbuf->pkt.data_len;
+                if(rte_pktmbuf_data_len(skb->header_mbuf) < used) {
+                    used = rte_pktmbuf_data_len(skb->header_mbuf);
                 }
 /*		if (len < used)
 			used = len;*/

@@ -355,7 +355,7 @@ static inline int copy_to_user(void *dst,void *src,int size)
 //#define __GFP_NORETRY 0
 //#define __GFP_ZERO 0
 //#define GFP_USER 0
-#define page_address(a) a->pkt.data
+#define page_address(a) rte_pktmbuf_mtod((a), char *)
 //#define gfp_t int
 //#define ___htons(x) x
 //#define htons(x) ___htons(x)
@@ -388,7 +388,7 @@ unsigned int jiffies_to_msecs(const unsigned long j);
 #define complete_all(a)
 #define noinline
 #define inet_ehash_locks_alloc(a) 0
-#define kmap(page) page->mbuf->pkt.data
+#define kmap(page) page_address(page->mbuf)
 #define kunmap
 #define get_page(a)
 #define put_page(a)

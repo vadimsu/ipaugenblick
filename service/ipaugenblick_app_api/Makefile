@@ -1,5 +1,5 @@
-RTE_SDK=$(CURRENT_DIR)../../dpdk-1.6.0r2
-RTE_TARGET ?= x86_64-default-linuxapp-gcc
+RTE_SDK=$(CURRENT_DIR)../../dpdk-1.8.0
+RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.extvars.mk
 SRC_ROOT=$(CURRENT_DIR)
 SRCS-y :=  ipaugenblick_api.c
@@ -7,7 +7,7 @@ SRCS-y :=  ipaugenblick_api.c
 CFLAGS += -Ofast  
 CFLAGS += $(WERROR_FLAGS) 
 LINUX_HEADERS=$(SRC_ROOT)../../
-DPDK_HEADERS=$(SRC_ROOT)../../dpdk-1.6.0r2/x86_64-default-linuxapp-gcc/include
+DPDK_HEADERS=$(SRC_ROOT)../../dpdk-1.8.0/x86_64-native-linuxapp-gcc/include
 ALL_HEADERS = -I$(LINUX_HEADERS) -I$(DPDK_HEADERS) -I./
 CFLAGS += $(ALL_HEADERS) -DMAXCPU=32 -D__UAPI_DEF_IN6_ADDR=1 -D__UAPI_DEF_SOCKADDR_IN6=1 -D__UAPI_DEF_IN6_ADDR_ALT=1 -DCONFIG_INET\
 -D__UAPI_DEF_IPPROTO_V6=1 -DCONFIG_SLAB -DCONFIG_HZ=4000 -DNR_CPUS=32 -DCONFIG_64BIT -DCONFIG_SMP \

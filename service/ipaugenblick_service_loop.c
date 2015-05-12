@@ -92,19 +92,19 @@ static void on_client_connect(int client_idx)
 	if(!buffer) {
 		return;
 	}
-	unsigned char *data = buffer->pkt.data;
+	unsigned char *data = rte_pktmbuf_mtod(buffer, unsigned char *);
 	*data = IPAUGENBLICK_NEW_IFACES;
 	data++;
-	buffer->pkt.data_len = get_all_devices(data) + 1;
+	rte_pktmbuf_data_len(buffer) = get_all_devices(data) + 1;
 	rte_ring_enqueue(ipaugenblick_clients[client_idx].client_ring,(void *)buffer);
 	buffer = get_buffer();
 	if(!buffer) {
 		return;
 	}
-	data = buffer->pkt.data;
+	data = rte_pktmbuf_mtod(buffer, unsigned char *);
 	*data = IPAUGENBLICK_NEW_ADDRESSES;
 	data++;
-	buffer->pkt.data_len = get_all_addresses(data) + 1;
+	rte_pktmbuf_data_len(buffer) = get_all_addresses(data) + 1;
 	rte_ring_enqueue(ipaugenblick_clients[client_idx].client_ring,(void *)buffer);
 }
 
@@ -114,7 +114,7 @@ void user_transmitted_callback(struct rte_mbuf *mbuf,struct socket *sock)
         if((sock)&&(last)) {
                socket_satelite_data_t *socket_satelite_data = get_user_data(sock);
                if(socket_satelite_data) {
-                       user_increment_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,mbuf->pkt.data_len);
+                       user_increment_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,rte_pktmbuf_data_len(mbuf));
                }
         }
         rte_pktmbuf_free_seg(mbuf);
