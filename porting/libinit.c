@@ -159,8 +159,7 @@ static const struct rte_eth_conf port_conf = {
 		.header_split   = 0, /**< Header Split disabled */
 		.hw_ip_checksum = 0, /**< IP checksum offload disabled */
 		.hw_vlan_filter = 0, /**< VLAN filtering disabled */
-		.jumbo_frame    = 1, /**< Jumbo Frame Support disabled */
-                .max_rx_pkt_len = 0x2000,
+		.jumbo_frame    = 0, /**< Jumbo Frame Support disabled */
 		.hw_strip_crc   = 0, /**< CRC stripped by hardware */
 		.mq_mode = ETH_MQ_RX_NONE/*ETH_MQ_RX_RSS*/,
 	},
@@ -168,7 +167,7 @@ static const struct rte_eth_conf port_conf = {
 		.mq_mode = ETH_MQ_TX_NONE/*ETH_MQ_TX_VMDQ_ONLY*/,
 	},
 };
-
+#if 0
 static const struct rte_eth_rxconf rx_conf = {
 	.rx_thresh = {
 		.pthresh = RX_PTHRESH,
@@ -190,7 +189,7 @@ static const struct rte_eth_txconf tx_conf = {
         .txq_flags = ((uint32_t)/*ETH_TXQ_FLAGS_NOMULTSEGS | \*/
 			    /*ETH_TXQ_FLAGS_NOOFFLOADS*/0),
 };
-
+#endif
 static int parse_portmask(const char *portmask)
 {
 	char *end = NULL;
@@ -271,7 +270,7 @@ void show_mib_stats(void);
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
-#if 1
+#if 0
 		app_glue_print_stats();
 		show_mib_stats();
         dpdk_dev_print_stats();
@@ -572,7 +571,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		fflush(stdout);
         for(queue_id = 0;queue_id < RX_QUEUE_PER_PORT;queue_id++) {
 		    ret = rte_eth_rx_queue_setup(portid, queue_id, nb_rxd,
-			   		rte_eth_dev_socket_id(portid), &rx_conf,
+			   		rte_eth_dev_socket_id(portid), /*&rx_conf*/NULL,
 					get_direct_pool(queue_id));
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup:err=%d, port=%u\n",
@@ -582,7 +581,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		fflush(stdout);
 		for(queue_id = 0;queue_id < TX_QUEUE_PER_PORT;queue_id++) {
 			ret = rte_eth_tx_queue_setup(portid, queue_id, nb_txd,
-					rte_eth_dev_socket_id(portid), &tx_conf);
+					rte_eth_dev_socket_id(portid), /*&tx_conf*/NULL);
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup:err=%d, port=%u\n",
 						ret, (unsigned) portid);

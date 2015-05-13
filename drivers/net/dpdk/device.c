@@ -84,13 +84,6 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
 			m = m->pkt.next;
 		}
 #endif
-{
-    unsigned char *p = (unsigned char *)skb->data;
-    printf("%s %d %d\n",__FILE__,__LINE__,skb->len);
-    for(i = 0;i < skb->len;i++)
-	printf("  %x",p[i]);
-    printf("\n");
-}
                 /* removing vlan tagg */
                 eth = (struct ethhdr *)skb->data;
                 if(eth->h_proto == htons(ETH_P_8021Q)) {
@@ -128,21 +121,14 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 
 	head = skb->header_mbuf;
 	rte_pktmbuf_data_len(head) = skb_headroom(skb) + skb_headlen(skb);
-printf("%s %d %d\n",__FILE__,__LINE__,rte_pktmbuf_data_len(head));
+
 	/* across all the stack, pkt.data in rte_mbuf is not moved while skb's data is.
 	 * now is the time to do that
 	 */
 	rte_pktmbuf_adj(head,skb_headroom(skb));/* now mbuf data is at eth header */
 	pkt_len = rte_pktmbuf_data_len(head);
 	head->buf_addr = skb->data;
-{
-    unsigned char *p = (unsigned char *)head->buf_addr;
-    pkt_len += 2;
-    for(i = 0;i < pkt_len;i++)
-	printf("  %x",p[i]);
-    printf("\n");
-}
-	head->data_off = 0;
+
 	mbuf = &head->next;
 	skb->header_mbuf = NULL;
 	head->nb_segs = 1 + skb_shinfo(skb)->nr_frags;
@@ -158,31 +144,18 @@ printf("%s %d %d\n",__FILE__,__LINE__,rte_pktmbuf_data_len(head));
 	}
         *mbuf = NULL;
 	rte_pktmbuf_pkt_len(head) = pkt_len;
-#ifdef GSO
-        if ((skb->protocol == htons(ETH_P_IP))&&(ip_hdr(skb)->protocol == IPPROTO_TCP)&&(i> 0)) {
-                 struct iphdr *iph = ip_hdr(skb);
-                 head->pkt.vlan_macip.data = skb_network_header_len(skb) | (skb_network_offset(skb) << 9);
-                 head->pkt.hash.fdir.hash = tcp_hdrlen(skb); /* ugly, but no other place */
-                 head->pkt.hash.fdir.id = skb_transport_offset(skb);
-                 head->ol_flags = PKT_TX_TCP_CKSUM | PKT_TX_IP_CKSUM;
-                 iph->tot_len = 0;
-                 iph->check = 0; 
-                 tcp_hdr(skb)->check = ~csum_tcpudp_magic(iph->saddr,
-                                                          iph->daddr, 0,
-                                                          IPPROTO_TCP,
-                                                          0);
-        }
-#else 
-       if (skb->protocol == htons(ETH_P_IP)) {
+
+#ifdef OFFLOAD_NOT_YET
+       if (skb->protocol == htons(ETH_P_IP)&&((ip_hdr(skb)->protocol == IPPROTO_TCP)||(ip_hdr(skb)->protocol == IPPROTO_UDP))) {
            head->ol_flags = PKT_TX_IP_CKSUM;        
            struct iphdr *iph = ip_hdr(skb);
            iph->check = 0;
            head->l3_len = sizeof(struct iphdr);
            head->l2_len = skb_network_offset(skb);
            if (ip_hdr(skb)->protocol == IPPROTO_TCP) {
-	       head->l4_len = tcp_hdrlen(skb);
+	       head->l4_len = /*tcp_hdrlen(skb)*/rte_pktmbuf_data_len(head) - (head->l3_len+head->l2_len);
                head->ol_flags |= PKT_TX_TCP_CKSUM;
-	       head->tso_segsz = 0;
+//	       head->tso_segsz = 0;
 	       tcp_hdr(skb)->check = ~csum_tcpudp_magic(iph->saddr,
                                                         iph->daddr, 0,
                                                         IPPROTO_TCP,
@@ -195,8 +168,9 @@ printf("%s %d %d\n",__FILE__,__LINE__,rte_pktmbuf_data_len(head));
                                                         iph->daddr, 0,
                                                         IPPROTO_UDP,
                                                         0);
-	   }
+	   } 
        }
+#else
 #endif
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
@@ -453,10 +427,10 @@ void *create_netdev(int port_num)
 	memset(priv, 0, sizeof(dpdk_dev_priv_t));
 	priv->port_number = port_num;
 	netdev->netdev_ops = &dpdk_netdev_ops;
-#ifdef GSO
-	netdev->features = NETIF_F_SG | NETIF_F_GSO | NETIF_F_FRAGLIST;
-#else
+#ifdef OFFLOAD_NOT_YET
         netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST|NETIF_F_V4_CSUM;
+#else
+	netdev->features = NETIF_F_SG | NETIF_F_GSO | NETIF_F_FRAGLIST;
 #endif
 	netdev->hw_features = 0;
 
