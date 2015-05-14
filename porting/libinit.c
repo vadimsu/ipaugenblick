@@ -167,7 +167,7 @@ static const struct rte_eth_conf port_conf = {
 		.mq_mode = ETH_MQ_TX_NONE/*ETH_MQ_TX_VMDQ_ONLY*/,
 	},
 };
-#if 0
+#if 1
 static const struct rte_eth_rxconf rx_conf = {
 	.rx_thresh = {
 		.pthresh = RX_PTHRESH,
@@ -571,7 +571,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		fflush(stdout);
         for(queue_id = 0;queue_id < RX_QUEUE_PER_PORT;queue_id++) {
 		    ret = rte_eth_rx_queue_setup(portid, queue_id, nb_rxd,
-			   		rte_eth_dev_socket_id(portid), /*&rx_conf*/NULL,
+			   		rte_eth_dev_socket_id(portid), &rx_conf,
 					get_direct_pool(queue_id));
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup:err=%d, port=%u\n",
@@ -581,7 +581,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		fflush(stdout);
 		for(queue_id = 0;queue_id < TX_QUEUE_PER_PORT;queue_id++) {
 			ret = rte_eth_tx_queue_setup(portid, queue_id, nb_txd,
-					rte_eth_dev_socket_id(portid), /*&tx_conf*/NULL);
+					rte_eth_dev_socket_id(portid), &tx_conf);
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup:err=%d, port=%u\n",
 						ret, (unsigned) portid);

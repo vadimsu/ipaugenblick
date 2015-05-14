@@ -40,11 +40,89 @@
 #include <rte_common.h>
 #include <rte_cycles.h>
 #include <rte_timer.h>
+#include <rte_byteorder.h>
 
 typedef struct
 {
 	int port_number;
 }dpdk_dev_priv_t;
+
+/**
+ * @internal Calculate a sum of all words in the buffer.
+ * Helper routine for the rte_raw_cksum().
+ *
+ * @param buf
+ *   Pointer to the buffer.
+ * @param len
+ *   Length of the buffer.
+ * @param sum
+ *   Initial value of the sum.
+ * @return
+ *   sum += Sum of all words in the buffer.
+ */
+static inline uint32_t
+__rte_raw_cksum(const void *buf, size_t len, uint32_t sum)
+{
+        /* workaround gcc strict-aliasing warning */
+        uintptr_t ptr = (uintptr_t)buf;
+        const uint16_t *u16 = (const uint16_t *)ptr;
+
+        while (len >= (sizeof(*u16) * 4)) {
+                sum += u16[0];
+                sum += u16[1];
+                sum += u16[2];
+                sum += u16[3];
+                len -= sizeof(*u16) * 4;
+                u16 += 4;
+        }
+        while (len >= sizeof(*u16)) {
+                sum += *u16;
+                len -= sizeof(*u16);
+                u16 += 1;
+        }
+
+        /* if length is in odd bytes */
+        if (len == 1)
+                sum += *((const uint8_t *)u16);
+
+        return sum;
+}
+
+/**
+ * @internal Reduce a sum to the non-complemented checksum.
+ * Helper routine for the rte_raw_cksum().
+ *
+ * @param sum
+ *   Value of the sum.
+ * @return
+ *   The non-complemented checksum.
+ */
+static inline uint16_t
+__rte_raw_cksum_reduce(uint32_t sum)
+{
+        sum = ((sum & 0xffff0000) >> 16) + (sum & 0xffff);
+        sum = ((sum & 0xffff0000) >> 16) + (sum & 0xffff);
+        return (uint16_t)sum;
+}
+
+/**
+ * Process the non-complemented checksum of a buffer.
+ *
+ * @param buf
+ *   Pointer to the buffer.
+ * @param len
+ *   Length of the buffer.
+ * @return
+ *   The non-complemented checksum.
+ */
+static inline uint16_t
+rte_raw_cksum(const void *buf, size_t len)
+{
+        uint32_t sum;
+
+        sum = __rte_raw_cksum(buf, len, 0);
+        return __rte_raw_cksum_reduce(sum);
+}
 
 /* this function polls DPDK PMD driver for the received buffers.
  * It constructs skb and submits it to the stack.
@@ -146,25 +224,50 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	rte_pktmbuf_pkt_len(head) = pkt_len;
 
 #ifdef OFFLOAD_NOT_YET
-       if (skb->protocol == htons(ETH_P_IP)&&((ip_hdr(skb)->protocol == IPPROTO_TCP)||(ip_hdr(skb)->protocol == IPPROTO_UDP))) {
-           head->ol_flags = PKT_TX_IP_CKSUM;        
+       if ((skb->protocol == htons(ETH_P_IP))&&((ip_hdr(skb)->protocol == IPPROTO_TCP)||(ip_hdr(skb)->protocol == IPPROTO_UDP))) {
+           head->ol_flags = PKT_TX_IP_CKSUM;
            struct iphdr *iph = ip_hdr(skb);
            iph->check = 0;
-           head->l3_len = sizeof(struct iphdr);
+//	   iph->tot_len = 0;
+           head->l3_len = /*sizeof(struct iphdr)*/skb_network_header_len(skb);
            head->l2_len = skb_network_offset(skb);
-           if (ip_hdr(skb)->protocol == IPPROTO_TCP) {
-	       head->l4_len = /*tcp_hdrlen(skb)*/rte_pktmbuf_data_len(head) - (head->l3_len+head->l2_len);
-               head->ol_flags |= PKT_TX_TCP_CKSUM;
-//	       head->tso_segsz = 0;
-	       tcp_hdr(skb)->check = ~csum_tcpudp_magic(iph->saddr,
-                                                        iph->daddr, 0,
-                                                        IPPROTO_TCP,
-                                                        0);
+	   head->l4_len = 0;
+	   head->tso_segsz = 0;
+           if (/*(skb_shinfo(skb)->nr_frags)&&*/(ip_hdr(skb)->protocol == IPPROTO_TCP)) {
+	       head->l4_len = tcp_hdrlen(skb);
+               head->ol_flags |= PKT_TX_TCP_CKSUM /*| PKT_TX_TCP_SEG*/;
+	       head->tso_segsz =  skb_shinfo(skb)->gso_size;
+printf("l3len %d l2len %d l4len %d tso %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz);
+	       if (head->tso_segsz) { /* this does not work */
+	       		tcp_hdr(skb)->check = csum_tcpudp_magic(iph->saddr,
+                        	                                iph->daddr, skb->len - head->l3_len,
+                                	                        IPPROTO_TCP,
+                                        	                0);
+	       }
+#if 1 /* this works */
+	       else {
+			struct ipv4_psd_header {
+		                uint32_t src_addr; /* IP address of source host. */
+                		uint32_t dst_addr; /* IP address of destination host. */
+		                uint8_t  zero;     /* zero. */
+                		uint8_t  proto;    /* L4 protocol type. */
+		                uint16_t len;      /* L4 length. */
+		        } psd_hdr;
+
+		        psd_hdr.src_addr = iph->saddr;
+		        psd_hdr.dst_addr = iph->daddr;
+		        psd_hdr.zero = 0;
+		        psd_hdr.proto = IPPROTO_TCP;
+			psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
+			
+			tcp_hdr(skb)->check =  rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
+	       }
+#endif
 	   }
            else if(ip_hdr(skb)->protocol == IPPROTO_UDP) {
 	       head->l4_len = sizeof(struct udphdr);
                head->ol_flags |= PKT_TX_UDP_CKSUM;
-	       udp_hdr(skb)->check = ~csum_tcpudp_magic(iph->saddr,
+	       udp_hdr(skb)->check = csum_tcpudp_magic(iph->saddr,
                                                         iph->daddr, 0,
                                                         IPPROTO_UDP,
                                                         0);
@@ -367,7 +470,7 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 		goto leave;
 	}
         dev->mtu = 1500;
-#ifdef GSO
+#ifdef OFFLOAD_NOT_YET
         dev->gso_max_segs = 2;
         dev->gso_max_size = 4096;
 #endif

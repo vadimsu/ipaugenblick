@@ -1038,7 +1038,7 @@ wait_for_memory:
 	        skb->ip_summed = CHECKSUM_PARTIAL;
 	        tp->write_seq += copied;
 	        TCP_SKB_CB(skb)->end_seq += copied;
-#ifdef GSO
+#ifdef OFFLOAD_NOT_YET
                 skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss_now);
                 skb_shinfo(skb)->gso_size = mss_now;
 #endif
