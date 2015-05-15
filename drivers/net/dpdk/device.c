@@ -233,44 +233,39 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
            head->l2_len = skb_network_offset(skb);
 	   head->l4_len = 0;
 	   head->tso_segsz = 0;
+	   struct ipv4_psd_header {
+	   	uint32_t src_addr; /* IP address of source host. */
+                uint32_t dst_addr; /* IP address of destination host. */
+		uint8_t  zero;     /* zero. */
+                uint8_t  proto;    /* L4 protocol type. */
+		uint16_t len;      /* L4 length. */
+	    } psd_hdr;
+
+	    psd_hdr.src_addr = iph->saddr;
+	    psd_hdr.dst_addr = iph->daddr;
+	    psd_hdr.zero = 0; 
+
            if (/*(skb_shinfo(skb)->nr_frags)&&*/(ip_hdr(skb)->protocol == IPPROTO_TCP)) {
-	       head->l4_len = tcp_hdrlen(skb);
+	       psd_hdr.proto = IPPROTO_TCP; 
                head->ol_flags |= PKT_TX_TCP_CKSUM /*| PKT_TX_TCP_SEG*/;
 	       head->tso_segsz =  skb_shinfo(skb)->gso_size;
-printf("l3len %d l2len %d l4len %d tso %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz);
+	       head->l4_len = tcp_hdrlen(skb) + head->tso_segsz;
+//printf("l3len %d l2len %d l4len %d tso %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz);
 	       if (head->tso_segsz) { /* this does not work */
-	       		tcp_hdr(skb)->check = csum_tcpudp_magic(iph->saddr,
-                        	                                iph->daddr, skb->len - head->l3_len,
-                                	                        IPPROTO_TCP,
-                                        	                0);
+			head->ol_flags |= PKT_TX_TCP_SEG;
+			psd_hdr.len = 0;
 	       }
-#if 1 /* this works */
 	       else {
-			struct ipv4_psd_header {
-		                uint32_t src_addr; /* IP address of source host. */
-                		uint32_t dst_addr; /* IP address of destination host. */
-		                uint8_t  zero;     /* zero. */
-                		uint8_t  proto;    /* L4 protocol type. */
-		                uint16_t len;      /* L4 length. */
-		        } psd_hdr;
-
-		        psd_hdr.src_addr = iph->saddr;
-		        psd_hdr.dst_addr = iph->daddr;
-		        psd_hdr.zero = 0;
-		        psd_hdr.proto = IPPROTO_TCP;
 			psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
-			
-			tcp_hdr(skb)->check =  rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 	       }
-#endif
+               tcp_hdr(skb)->check =  rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 	   }
            else if(ip_hdr(skb)->protocol == IPPROTO_UDP) {
+	       psd_hdr.proto = IPPROTO_UDP;
 	       head->l4_len = sizeof(struct udphdr);
                head->ol_flags |= PKT_TX_UDP_CKSUM;
-	       udp_hdr(skb)->check = csum_tcpudp_magic(iph->saddr,
-                                                        iph->daddr, 0,
-                                                        IPPROTO_UDP,
-                                                        0);
+	       psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
+	       udp_hdr(skb)->check = rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 	   } 
        }
 #else
