@@ -177,7 +177,7 @@ struct page_frag {
  * Since GRO uses frags we allocate at least 16 regardless of page
  * size.
  */
-#ifdef GSO
+#ifdef OFFLOAD_NOT_YET
 #define MAX_SKB_FRAGS (2)
 #else
 #define MAX_SKB_FRAGS (1)
