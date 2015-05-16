@@ -227,8 +227,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
        if ((skb->protocol == htons(ETH_P_IP))&&((ip_hdr(skb)->protocol == IPPROTO_TCP)||(ip_hdr(skb)->protocol == IPPROTO_UDP))) {
            head->ol_flags = PKT_TX_IP_CKSUM;
            struct iphdr *iph = ip_hdr(skb);
-           iph->check = 0;
-//	   iph->tot_len = 0;
+           iph->check = 0; 
            head->l3_len = /*sizeof(struct iphdr)*/skb_network_header_len(skb);
            head->l2_len = skb_network_offset(skb);
 	   head->l4_len = 0;
@@ -254,6 +253,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	       if (head->tso_segsz) { /* this does not work */
 			head->ol_flags |= PKT_TX_TCP_SEG;
 			psd_hdr.len = 0;
+			iph->tot_len = 0;
 	       }
 	       else {
 			psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
