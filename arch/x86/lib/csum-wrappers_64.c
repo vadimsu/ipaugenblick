@@ -150,7 +150,7 @@ EXPORT_SYMBOL(csum_partial_copy_to_user);
 __wsum
 csum_partial_copy_nocheck(const void *src, void *dst, int len, __wsum sum)
 {
-	rte_memcpy(dst,src,len);
+	memcpy(dst,src,len);
 	return csum_partial_generic(src, len, sum, NULL, NULL);
 }
 EXPORT_SYMBOL(csum_partial_copy_nocheck);

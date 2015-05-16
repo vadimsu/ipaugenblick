@@ -2330,7 +2330,7 @@ static int do_tcp_setsockopt(struct sock *sk, int level,
 	if (optlen < sizeof(int))
 		return -EINVAL;
 
-	rte_memcpy(&val, optval,optlen);
+	memcpy(&val, optval,optlen);
 
 	lock_sock(sk);
 

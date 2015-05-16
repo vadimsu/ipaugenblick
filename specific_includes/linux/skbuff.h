@@ -35,7 +35,7 @@
 #include <specific_includes/linux/netdev_features.h>
 #include <specific_includes/net/flow_keys.h>
 #include <rte_mbuf.h>
-#include <rte_memcpy.h>
+//#include <rte_memcpy.h>
 #include <pools.h>
 #define MBUF_SIZE 2048
 /* A. Checksumming of received packets by device.
@@ -2575,21 +2575,21 @@ static inline void skb_copy_from_linear_data(const struct sk_buff *skb,
 					     void *to,
 					     const unsigned int len)
 {
-	rte_memcpy(to, skb->data, len);
+	memcpy(to, skb->data, len);
 }
 
 static inline void skb_copy_from_linear_data_offset(const struct sk_buff *skb,
 						    const int offset, void *to,
 						    const unsigned int len)
 {
-	rte_memcpy(to, skb->data + offset, len);
+	memcpy(to, skb->data + offset, len);
 }
 
 static inline void skb_copy_to_linear_data(struct sk_buff *skb,
 					   const void *from,
 					   const unsigned int len)
 {
-	rte_memcpy(skb->data, from, len);
+	memcpy(skb->data, from, len);
 }
 
 static inline void skb_copy_to_linear_data_offset(struct sk_buff *skb,
@@ -2597,7 +2597,7 @@ static inline void skb_copy_to_linear_data_offset(struct sk_buff *skb,
 						  const void *from,
 						  const unsigned int len)
 {
-	rte_memcpy(skb->data + offset, from, len);
+	memcpy(skb->data + offset, from, len);
 }
 
 void skb_init(void);

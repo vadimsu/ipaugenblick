@@ -76,7 +76,7 @@ CONFIG_RTE_FORCE_INTRINSICS=n
 #
 # Compile to share library
 #
-CONFIG_RTE_BUILD_SHARED_LIB=n
+CONFIG_RTE_BUILD_SHARED_LIB=y
 
 #
 # Combine to one single library

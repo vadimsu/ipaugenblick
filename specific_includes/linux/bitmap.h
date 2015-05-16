@@ -183,7 +183,7 @@ static inline void bitmap_copy(unsigned long *dst, const unsigned long *src,
 		*dst = *src;
 	else {
 		int len = BITS_TO_LONGS(nbits) * sizeof(unsigned long);
-		rte_memcpy(dst, src, len);
+		memcpy(dst, src, len);
 	}
 }
 

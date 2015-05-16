@@ -14,7 +14,7 @@
 #include <specific_includes/linux/tasklet.h>
 #include <rte_config.h>
 #include <rte_common.h>
-#include <rte_memcpy.h>
+//#include <rte_memcpy.h>
 #include <rte_lcore.h>
 #include <rte_mempool.h>
 #include <rte_cycles.h>
