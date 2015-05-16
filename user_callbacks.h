@@ -204,7 +204,7 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
         if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             char *p_addr = rte_pktmbuf_mtod(msg.msg_iov->head, char *);
             p_addr -= msg.msg_namelen;
-            rte_memcpy(p_addr,msg.msg_name,msg.msg_namelen);
+            memcpy(p_addr,msg.msg_name,msg.msg_namelen);
         } 
         
         if(ipaugenblick_submit_rx_buf(msg.msg_iov->head,socket_satelite_data)) {
