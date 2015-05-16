@@ -245,17 +245,16 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	    psd_hdr.zero = 0; 
 
            if (/*(skb_shinfo(skb)->nr_frags)&&*/(ip_hdr(skb)->protocol == IPPROTO_TCP)) {
-	       psd_hdr.proto = IPPROTO_TCP; 
-               head->ol_flags |= PKT_TX_TCP_CKSUM /*| PKT_TX_TCP_SEG*/;
+	       psd_hdr.proto = IPPROTO_TCP;  
 	       head->tso_segsz =  skb_shinfo(skb)->gso_size;
 	       head->l4_len = tcp_hdrlen(skb) /*+head->tso_segsz*/;
 //printf("l3len %d l2len %d l4len %d tso %d %d %d %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),head->nb_segs);
 	       if (head->tso_segsz) { /* this does not work */
 			head->ol_flags |= PKT_TX_TCP_SEG;
 			psd_hdr.len = 0;
-			iph->tot_len = 0;
 	       }
 	       else {
+			head->ol_flags |= PKT_TX_TCP_CKSUM;
 			psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
 	       }
                tcp_hdr(skb)->check =  rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
@@ -465,9 +464,14 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 		goto leave;
 	}
         dev->mtu = 1500;
+#if 0
 #ifdef OFFLOAD_NOT_YET
         dev->gso_max_segs = 2;
         dev->gso_max_size = 4096;
+#endif
+#else
+	dev->gso_max_segs = 1;
+        dev->gso_max_size = 1448;
 #endif
 	memcpy(macaddr.sa_data,mac_addr,ETH_ALEN);
 	memset(&ifr,0,sizeof(ifr));
