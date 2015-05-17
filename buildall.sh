@@ -15,7 +15,7 @@ make CURRENT_DIR=$(pwd)/ clean
 make CURRENT_DIR=$(pwd)/
 cd ../..
 echo 'install libaries'
-sudo cp dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/*.so /usr/lib/.
+sudo cp dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/*.so.* /usr/lib/.
 sudo cp service/ipaugenblick_app_api/build/libipaugenblickservice.so /usr/lib/.
 echo 'install headers'
 sudo cp service/ipaugenblick_app_api/ipaugenblick_api.h /usr/include/.
