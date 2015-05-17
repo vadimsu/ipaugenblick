@@ -145,6 +145,14 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
         }
 	for(i = 0;i < ret;i++) {
 		skb = build_skb(mbufs[i],rte_pktmbuf_data_len(mbufs[i]));
+/*if(rte_pktmbuf_pkt_len(mbufs[i]) == 70)
+{
+	int j;
+	unsigned char *p = rte_pktmbuf_mtod(mbufs[i], unsigned char *);
+	printf("print 70 bytes\n");
+	for(j = 0;j < rte_pktmbuf_data_len(mbufs[i]);j++)
+		printf("  %x",p[j]);
+}*/
 		if(unlikely(skb == NULL)) {
 			rte_pktmbuf_free(mbufs[i]);
 			continue;
@@ -243,7 +251,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	    psd_hdr.src_addr = iph->saddr;
 	    psd_hdr.dst_addr = iph->daddr;
 	    psd_hdr.zero = 0; 
-
+if(skb_shinfo(skb)->nr_frags > 1) { printf("%s %d\n",__FILE__,__LINE__);exit(0); }
            if (/*(skb_shinfo(skb)->nr_frags)&&*/(ip_hdr(skb)->protocol == IPPROTO_TCP)) {
 	       psd_hdr.proto = IPPROTO_TCP;  
 	       head->tso_segsz =  skb_shinfo(skb)->gso_size;
@@ -267,7 +275,28 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	       udp_hdr(skb)->check = rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 	   } 
        }
+       else {
+		printf("%s %d %x %lu %d\n",__FILE__,__LINE__,skb->protocol,head->ol_flags,rte_pktmbuf_data_len(head));
+		{
+		    unsigned char *p = rte_pktmbuf_mtod(head, unsigned char *);
+		    for(i = 0;i < rte_pktmbuf_data_len(head);i++)
+			printf("  %x",p[i]);
+		}
+	}
 #else
+	if(skb->protocol == htons(ETH_P_IP)) {
+		head->ol_flags = PKT_TX_IP_CKSUM;
+	        struct iphdr *iph = ip_hdr(skb);
+        	iph->check = 0;
+		head->l3_len = /*sizeof(struct iphdr)*/skb_network_header_len(skb);
+           	head->l2_len = skb_network_offset(skb);
+		if(ip_hdr(skb)->protocol == IPPROTO_TCP) {
+			head->ol_flags |= PKT_TX_TCP_CKSUM;
+		}
+		else if(ip_hdr(skb)->protocol == IPPROTO_UDP) {
+			head->ol_flags |= PKT_TX_UDP_CKSUM;
+		}
+	}
 #endif
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
@@ -464,14 +493,9 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 		goto leave;
 	}
         dev->mtu = 1500;
-#if 0
 #ifdef OFFLOAD_NOT_YET
         dev->gso_max_segs = 2;
         dev->gso_max_size = 4096;
-#endif
-#else
-	dev->gso_max_segs = 1;
-        dev->gso_max_size = 1448;
 #endif
 	memcpy(macaddr.sa_data,mac_addr,ETH_ALEN);
 	memset(&ifr,0,sizeof(ifr));
@@ -532,7 +556,7 @@ void *create_netdev(int port_num)
 #ifdef OFFLOAD_NOT_YET
         netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST|NETIF_F_V4_CSUM | NETIF_F_GSO;
 #else
-	netdev->features = NETIF_F_SG | NETIF_F_GSO | NETIF_F_FRAGLIST;
+	netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_V4_CSUM;
 #endif
 	netdev->hw_features = 0;
 

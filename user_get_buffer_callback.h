@@ -44,7 +44,7 @@ static inline __attribute__ ((always_inline)) struct rte_mbuf *user_get_buffer(s
 	}
         prev = mbuf;
         user_on_tx_opportunity_api_mbufs_sent++;
-//        break;
+        break;
     }
     return first;
 }
