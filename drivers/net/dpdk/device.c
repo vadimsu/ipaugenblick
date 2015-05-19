@@ -205,7 +205,6 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	 */
 	rte_pktmbuf_adj(head,skb_headroom(skb));/* now mbuf data is at eth header */
 	pkt_len = rte_pktmbuf_data_len(head);
-	head->buf_addr = skb->data;
 
 	mbuf = &head->next;
 	skb->header_mbuf = NULL;
@@ -264,9 +263,11 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	       head->l4_len = sizeof(struct udphdr);
                head->ol_flags |= PKT_TX_UDP_CKSUM;
 	       psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
+//printf("UDP l3len %d l2len %d l4len %d tso %d %d %d %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),head->nb_segs);
 	       udp_hdr(skb)->check = rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 	   } 
        }
+
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
 	kfree_skb(skb);
