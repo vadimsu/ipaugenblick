@@ -35,10 +35,8 @@ static inline __attribute__ ((always_inline)) struct rte_mbuf *user_get_buffer(s
         (*copy) -= rte_pktmbuf_data_len(mbuf);
         if(!first)
             first = mbuf;
-	}
-        else {
+        else
             prev->next = mbuf;
-	}
         prev = mbuf;
         user_on_tx_opportunity_api_mbufs_sent++;
         break;
