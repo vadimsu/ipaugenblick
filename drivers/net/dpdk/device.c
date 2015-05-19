@@ -205,7 +205,6 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	 */
 	rte_pktmbuf_adj(head,skb_headroom(skb));/* now mbuf data is at eth header */
 	pkt_len = rte_pktmbuf_data_len(head);
-	head->buf_addr = skb->data;
 
 	mbuf = &head->next;
 	skb->header_mbuf = NULL;
