@@ -223,7 +223,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
         *mbuf = NULL;
 	rte_pktmbuf_pkt_len(head) = pkt_len;
 
-       if (skb->protocol == htons(ETH_P_IP)) {
+       if ((skb->ip_summed == CHECKSUM_PARTIAL)&&(skb->protocol == htons(ETH_P_IP))) {
            head->ol_flags = PKT_TX_IP_CKSUM;
            struct iphdr *iph = ip_hdr(skb);
            iph->check = 0;
