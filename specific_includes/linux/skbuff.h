@@ -178,7 +178,7 @@ struct page_frag {
  * size.
  */
 #ifdef OFFLOAD_NOT_YET
-#define MAX_SKB_FRAGS (1)
+#define MAX_SKB_FRAGS (4)
 #else
 #define MAX_SKB_FRAGS (1)
 #endif

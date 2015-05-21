@@ -265,12 +265,14 @@ extern uint64_t write_sockets_queue_len;
 extern uint64_t read_sockets_queue_len;
 extern struct rte_mempool *free_command_pool;
 extern volatile unsigned long long jiffies;
+extern uint64_t driver_tx_offload_pkts;
+extern uint64_t driver_tx_wo_offload_pkts;
 void show_mib_stats(void);
 /* This function only prints statistics, it it not called on data path */
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
-#if 0
+#if 1
 		app_glue_print_stats();
 		show_mib_stats();
         dpdk_dev_print_stats();
@@ -285,6 +287,7 @@ static int print_stats(__attribute__((unused)) void *dummy)
 		printf("stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
                 printf("write_sockets_queue_len %"PRIu64" read_sockets_queue_len %"PRIu64" command pool %d \n",
                        write_sockets_queue_len,read_sockets_queue_len,free_command_pool ? rte_mempool_count(free_command_pool) : -1);
+		printf("driver_tx_offload_pkts %"PRIu64" driver_tx_wo_offload_pkts %"PRIu64"\n",driver_tx_offload_pkts,driver_tx_wo_offload_pkts);
 		print_skb_iov_stats();
 #endif
 		sleep(1);
