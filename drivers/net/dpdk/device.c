@@ -251,7 +251,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	       head->tso_segsz =  skb_shinfo(skb)->gso_size;
 	       head->l4_len = tcp_hdrlen(skb);
 	       head->ol_flags |= PKT_TX_TCP_CKSUM;
-printf("l3len %d l2len %d l4len %d tso %d %d %d %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),head->nb_segs);
+//printf("l3len %d l2len %d l4len %d tso %d %d %d %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),head->nb_segs);
 	       if (head->tso_segsz) { /* this does not work */
 			head->ol_flags |= PKT_TX_TCP_SEG;
 			psd_hdr.len = 0;
