@@ -106,6 +106,13 @@ static void on_client_connect(int client_idx)
 	data++;
 	rte_pktmbuf_data_len(buffer) = get_all_addresses(data) + 1;
 	rte_ring_enqueue(ipaugenblick_clients[client_idx].client_ring,(void *)buffer);
+	buffer = get_buffer();
+	if(!buffer) {
+		return;
+	}
+	data = rte_pktmbuf_mtod(buffer, unsigned char *);
+	*data = IPAUGENBLICK_END_OF_RECORD;
+	rte_ring_enqueue(ipaugenblick_clients[client_idx].client_ring,(void *)buffer);
 }
 
 void user_transmitted_callback(struct rte_mbuf *mbuf,struct socket *sock)

@@ -278,8 +278,10 @@ int ipaugenblick_read_updates(void)
 			ipaugenblick_update_cbk(cmd,p,rte_pktmbuf_data_len(mbuf) - 1);
 		}
 		break;
+		case IPAUGENBLICK_END_OF_RECORD:
+		return 0;
 	}
-	return 0;
+	return -1;
 }
 
 int ipaugenblick_open_select(void)
@@ -842,7 +844,9 @@ int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port)
 	local_socket_descriptors[sock].local_ipaddr;
     local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port = 
 	local_socket_descriptors[sock].local_port;
-printf("%s %d %p %d %d %x %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_socket->connection_idx,*ipaddr,*port);
+printf("%s %d acpt sock %p listen sock %d accpt idx %d rmt ip %x port %d local ip %x port %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_socket->connection_idx,*ipaddr,*port,
+local_socket_descriptors[ipaugenblick_socket->connection_idx].local_ipaddr,
+local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port);
     local_socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
     cmd->cmd = IPAUGENBLICK_SET_SOCKET_RING_COMMAND;
     cmd->ringset_idx = ipaugenblick_socket->connection_idx;
