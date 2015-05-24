@@ -223,9 +223,11 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
         ipaugenblick_mark_readable(socket_satelite_data);
     }
 }
+void user_on_closure(struct socket *sock);
 static inline __attribute__ ((always_inline)) void user_on_socket_fatal(struct socket *sock)
 {
         user_data_available_cbk(sock);/* flush data */
+	user_on_closure(sock);	
 }
 void app_glue_sock_readable(struct sock *sk, int len);
 void app_glue_sock_write_space(struct sock *sk);

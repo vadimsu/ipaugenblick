@@ -83,6 +83,7 @@ typedef struct
 
 #define SOCKET_READABLE_BIT 1
 #define SOCKET_WRITABLE_BIT 2
+#define SOCKET_CLOSED_BIT   4
 #define SOCKET_READY_SHIFT 16
 #define SOCKET_READY_MASK 0xFFFF
 

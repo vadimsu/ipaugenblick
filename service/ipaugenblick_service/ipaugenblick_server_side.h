@@ -316,6 +316,23 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
     return (rc == -ENOBUFS);
 }
 
+static inline int ipaugenblick_mark_closed(void *descriptor)
+{
+    uint32_t ringidx_ready_mask;
+    int rc;
+    socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
+    if(socket_satelite_data->parent_idx == -1) {
+//	printf("%s %d\n",__FILE__,__LINE__);
+        return 1;
+    }
+    ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_CLOSED_BIT << SOCKET_READY_SHIFT);
+    rc = rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
+//    printf("%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
+    if(socket_satelite_data->apppid)
+        kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
+    return (rc == -ENOBUFS);
+}
+
 static inline void ipaugenblick_free_socket(int connidx)
 {
    rte_ring_enqueue(free_connections_ring,(void *)&g_ipaugenblick_sockets[connidx]);

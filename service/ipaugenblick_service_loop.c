@@ -86,6 +86,15 @@ void on_new_addr(char *iface_name,unsigned int ipaddr,unsigned int mask)
 {
 }
 
+void user_on_closure(struct socket *sock)
+{
+	socket_satelite_data_t *socket_satelite_data = get_user_data(sock);
+	if (!socket_satelite_data) {
+		return;
+	}
+	ipaugenblick_mark_closed(socket_satelite_data);
+}
+
 static void on_client_connect(int client_idx)
 {
 	struct rte_mbuf *buffer = get_buffer();
