@@ -41,6 +41,7 @@
 #include <rte_cycles.h>
 #include <rte_timer.h>
 #include <rte_byteorder.h>
+#include <syslog.h>
 
 typedef struct
 {
@@ -415,19 +416,19 @@ void add_dev_addr(void *netdev,int instance,char *ip_addr,char *ip_mask)
 
 	dev = (struct net_device *)netdev;
 	if(netdev == NULL) {
-		printf("netdev is NULL%s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"netdev is NULL%s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	memset(&ifr,0,sizeof(ifr));
 	sprintf(ifr.ifr_ifrn.ifrn_name,"%s:%d",dev->name,instance);
 	if(sock_create_kern(AF_INET,SOCK_STREAM,0,&sock)) {
-		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"cannot create socket %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	sin->sin_family = AF_INET;
 	sin->sin_addr.s_addr = inet_addr(ip_addr);
 	if(inet_ioctl(sock,SIOCSIFADDR,&ifr)) {
-		printf("Cannot set IF addr %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot set IF addr %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	memset(&ifr,0,sizeof(ifr));
@@ -435,20 +436,20 @@ void add_dev_addr(void *netdev,int instance,char *ip_addr,char *ip_mask)
 	sin->sin_family = AF_INET;
 	sin->sin_addr.s_addr = inet_addr(ip_mask);
 	if(inet_ioctl(sock,SIOCSIFNETMASK,&ifr)) {
-		printf("Cannot set IF mask %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot set IF mask %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	memset(&ifr,0,sizeof(ifr));
 	sprintf(ifr.ifr_ifrn.ifrn_name,"%s:%d",dev->name,instance);
 	ifr.ifr_flags |= IFF_UP;
 	if(inet_ioctl(sock,SIOCSIFFLAGS,&ifr)) {
-		printf("Cannot set IF flags %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot set IF flags %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	memset(&ifr,0,sizeof(ifr));
 	sprintf(ifr.ifr_ifrn.ifrn_name,"%s:%d",dev->name,instance);
 	if(inet_ioctl(sock,SIOCGIFADDR,&ifr)) {
-		printf("Cannot get IF addr %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot get IF addr %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 leave:
@@ -467,7 +468,7 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 
 	dev = (struct net_device *)netdev;
 	if(netdev == NULL) {
-		printf("netdev is NULL%s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"netdev is NULL%s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
         dev->mtu = 1500;
@@ -482,13 +483,13 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 	memset(&ifr,0,sizeof(ifr));
 	strcpy(ifr.ifr_ifrn.ifrn_name,dev->name);
 	if(sock_create_kern(AF_INET,SOCK_STREAM,0,&sock)) {
-		printf("cannot create socket %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"cannot create socket %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	sin->sin_family = AF_INET;
 	sin->sin_addr.s_addr = inet_addr(ip_addr);
 	if(inet_ioctl(sock,SIOCSIFADDR,&ifr)) {
-		printf("Cannot set IF addr %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot set IF addr %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	memset(&ifr,0,sizeof(ifr));
@@ -496,7 +497,7 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 	sin->sin_family = AF_INET;
 	sin->sin_addr.s_addr = inet_addr(ip_mask);
 	if(inet_ioctl(sock,SIOCSIFNETMASK,&ifr)) {
-		printf("Cannot set IF mask %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot set IF mask %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	eth_mac_addr(dev,&macaddr);
@@ -504,13 +505,13 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 	strcpy(ifr.ifr_ifrn.ifrn_name,dev->name);
 	ifr.ifr_flags |= IFF_UP;
 	if(inet_ioctl(sock,SIOCSIFFLAGS,&ifr)) {
-		printf("Cannot set IF flags %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot set IF flags %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	memset(&ifr,0,sizeof(ifr));
 	strcpy(ifr.ifr_ifrn.ifrn_name,dev->name);
 	if(inet_ioctl(sock,SIOCGIFADDR,&ifr)) {
-		printf("Cannot get IF addr %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot get IF addr %s %d\n",__FILE__,__LINE__);
 		goto leave;
 	}
 	IN_DEV_CONF_SET(in_dev_get(dev), FORWARDING,1);
@@ -527,7 +528,7 @@ void *create_netdev(int port_num)
     sprintf(dev_name,"dpdk_if%d",port_num);
 	netdev = alloc_netdev_mqs(sizeof(dpdk_dev_priv_t),dev_name,ether_setup,1,1);
 	if(netdev == NULL) {
-		printf("cannot allocate netdevice %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"cannot allocate netdevice %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
 	priv = netdev_priv(netdev);
@@ -544,7 +545,7 @@ void *create_netdev(int port_num)
 	netdev->vlan_features = 0;
 
 	if(register_netdev(netdev)) {
-		printf("Cannot register netdev %s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"Cannot register netdev %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
 	return netdev;
@@ -554,5 +555,5 @@ extern uint64_t transmitted;
 extern uint64_t tx_dropped;
 void dpdk_dev_print_stats()
 {
-	printf("PHY received %"PRIu64" transmitted %"PRIu64" dropped %"PRIu64"\n",received,transmitted,tx_dropped);
+	syslog(LOG_INFO,"PHY received %"PRIu64" transmitted %"PRIu64" dropped %"PRIu64"\n",received,transmitted,tx_dropped);
 }

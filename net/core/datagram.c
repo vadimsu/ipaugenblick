@@ -58,7 +58,7 @@
 #include <specific_includes/net/tcp_states.h>
 //#include <trace/events/skb.h>
 #include <specific_includes/net/busy_poll.h>
-
+#include <syslog.h>
 /*
  *	Is a socket 'connection oriented' ?
  */
@@ -329,7 +329,7 @@ int skb_copy_datagram_iovec(struct sk_buff *skb, int offset,
 	struct sk_buff *frag_iter;
 
 	if(rte_pktmbuf_adj(skb->header_mbuf,skb->data - rte_pktmbuf_mtod(skb->header_mbuf,unsigned char *)) == NULL) {
-		printf("CANNOT ADJUST MBUF %s %d %d %d %d %p %p %d\n",__FILE__,__LINE__,offset,len,rte_pktmbuf_data_len(skb->header_mbuf),
+		syslog(LOG_ERR,"CANNOT ADJUST MBUF %s %d %d %d %d %p %p %d\n",__FILE__,__LINE__,offset,len,rte_pktmbuf_data_len(skb->header_mbuf),
                         skb->header_mbuf,skb->data,rte_pktmbuf_mtod(skb->header_mbuf,unsigned char *),start);
                 exit(1);
 		goto fault;
@@ -514,10 +514,10 @@ fault:
 EXPORT_SYMBOL(skb_copy_datagram_const_iovec);
 void print_skb_iov_stats()
 {
-	printf("skb_copy_datagram_iovec_failed %"PRIu64"\n",skb_copy_datagram_iovec_failed);
-	printf("skb_copy_datagram_iovec_called %"PRIu64"\n",skb_copy_datagram_iovec_called);
-	printf("skb_copy_csum_datagram_iovec_failed %"PRIu64"\n",skb_copy_csum_datagram_iovec_failed);
-	printf("skb_copy_csum_datagram_iovec_called %"PRIu64"\n",skb_copy_csum_datagram_iovec_called);
+	syslog(LOG_INFO,"skb_copy_datagram_iovec_failed %"PRIu64"\n",skb_copy_datagram_iovec_failed);
+	syslog(LOG_INFO,"skb_copy_datagram_iovec_called %"PRIu64"\n",skb_copy_datagram_iovec_called);
+	syslog(LOG_INFO,"skb_copy_csum_datagram_iovec_failed %"PRIu64"\n",skb_copy_csum_datagram_iovec_failed);
+	syslog(LOG_INFO,"skb_copy_csum_datagram_iovec_called %"PRIu64"\n",skb_copy_csum_datagram_iovec_called);
 }
 #if 0 /* NO AF_PACKET & AF_UNIX */
 /**

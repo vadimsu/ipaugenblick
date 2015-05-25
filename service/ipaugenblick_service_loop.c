@@ -35,6 +35,7 @@
 #include "ipaugenblick_common/ipaugenblick_common.h"
 #include "ipaugenblick_service/ipaugenblick_server_side.h"
 #include "user_callbacks.h"
+#include <syslog.h>
 
 uint64_t user_on_tx_opportunity_cycles = 0;
 uint64_t user_on_tx_opportunity_called = 0;
@@ -153,31 +154,31 @@ static inline void process_commands()
         return;
     switch(cmd->cmd) {
         case IPAUGENBLICK_OPEN_SOCKET_COMMAND:
-           printf("open_sock %x %x %x %x\n",cmd->u.open_sock.family,cmd->u.open_sock.type);
+           syslog(LOG_DEBUG,"open_sock %x %x %x %x\n",cmd->u.open_sock.family,cmd->u.open_sock.type);
            sock = app_glue_create_socket(cmd->u.open_sock.family,cmd->u.open_sock.type);
            if(sock) {
-               printf("setting user data %p\n",sock);
+               syslog(LOG_DEBUG,"setting user data %p\n",sock);
                socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
                socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
 	       socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.open_sock.pid;
                app_glue_set_user_data(sock,(void *)&socket_satelite_data[cmd->ringset_idx]);
                socket_satelite_data[cmd->ringset_idx].socket = sock;
-	       printf("%d setting tx_space %d\n",__LINE__,sk_stream_wspace(sock->sk));
+	       syslog(LOG_DEBUG,"%d setting tx_space %d\n",__LINE__,sk_stream_wspace(sock->sk));
 	       user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].tx_space,sk_stream_wspace(sock->sk));
            }
-           printf("Done\n");
+           syslog(LOG_DEBUG,"Done\n");
            break;
 	case IPAUGENBLICK_SOCKET_CONNECT_BIND_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) { 
                if(cmd->u.socket_connect_bind.is_connect) {
-			printf("connect %x\n",cmd->ringset_idx);
+			syslog(LOG_DEBUG,"connect %x\n",cmd->ringset_idx);
 		       if(app_glue_v4_connect(socket_satelite_data[cmd->ringset_idx].socket,
 		   		     cmd->u.socket_connect_bind.ipaddr,
 				     cmd->u.socket_connect_bind.port)) {
-	                   printf("failed to connect socket\n");
+	                   syslog(LOG_ERR,"failed to connect socket\n");
         	       }
                	       else {
-                   	   printf("socket connected\n");
+                   	   syslog(LOG_DEBUG,"socket connected\n");
 			   len = sizeof(addr);
 			   inet_getname(socket_satelite_data[cmd->ringset_idx].socket,&addr,&len,0);
 			   g_ipaugenblick_sockets[cmd->ringset_idx].local_ipaddr = addr.sin_addr.s_addr;
@@ -185,34 +186,33 @@ static inline void process_commands()
                	       } 
 	       }
 	       else {
-			printf("bind %x\n",cmd->ringset_idx);
+			syslog(LOG_DEBUG,"bind %x\n",cmd->ringset_idx);
 		       if(app_glue_v4_bind(socket_satelite_data[cmd->ringset_idx].socket,
 		   		     cmd->u.socket_connect_bind.ipaddr,
 				     cmd->u.socket_connect_bind.port)) {
-				printf("cannot bind %x %x\n",cmd->u.socket_connect_bind.ipaddr,cmd->u.socket_connect_bind.port);
+				syslog(LOG_ERR,"cannot bind %x %x\n",cmd->u.socket_connect_bind.ipaddr,cmd->u.socket_connect_bind.port);
 			}
 	       } 
            }
            else {
-              printf("no socket to invoke command!!!\n");
+              syslog(LOG_ERR,"no socket to invoke command!!!\n");
            }
            break;
 	case IPAUGENBLICK_LISTEN_SOCKET_COMMAND:
-           printf("listen %x\n",cmd->ringset_idx);
+           syslog(LOG_DEBUG,"listen %x\n",cmd->ringset_idx);
            if(app_glue_v4_listen(socket_satelite_data[cmd->ringset_idx].socket)) {
-               printf("failed\n"); 
+               syslog(LOG_ERR,"failed listening\n"); 
            }
            break;
 
         case IPAUGENBLICK_SOCKET_CLOSE_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
-               printf("closing socket %d %p\n",cmd->ringset_idx,socket_satelite_data[cmd->ringset_idx].socket);
+               syslog(LOG_INFO,"closing socket %d %p\n",cmd->ringset_idx,socket_satelite_data[cmd->ringset_idx].socket);
                app_glue_close_socket((struct socket *)socket_satelite_data[cmd->ringset_idx].socket);
                socket_satelite_data[cmd->ringset_idx].socket = NULL;
                socket_satelite_data[cmd->ringset_idx].ringset_idx = -1;
                socket_satelite_data[cmd->ringset_idx].parent_idx = -1;
                ipaugenblick_free_socket(cmd->ringset_idx);
-               printf("%s %d\n",__FILE__,__LINE__);
            }
            break;
         case IPAUGENBLICK_SOCKET_TX_KICK_COMMAND:
@@ -230,14 +230,14 @@ static inline void process_commands()
            }
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
-           printf("%s %d %d %d %p\n",__FILE__,__LINE__,cmd->ringset_idx,cmd->parent_idx,cmd->u.set_socket_ring.socket_descr);
+           syslog(LOG_DEBUG,"%s %d %d %d %p\n",__FILE__,__LINE__,cmd->ringset_idx,cmd->parent_idx,cmd->u.set_socket_ring.socket_descr);
            socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
 	   if(cmd->parent_idx != -1)
 	           socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
 	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_ring.pid;
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,&socket_satelite_data[cmd->ringset_idx]);
            socket_satelite_data[cmd->ringset_idx].socket = cmd->u.set_socket_ring.socket_descr; 
-	   printf("setting tx space: %d connidx %d\n",sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk),g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].connection_idx);
+	   syslog(LOG_DEBUG,"setting tx space: %d connidx %d\n",sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk),g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].connection_idx);
 	   user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].tx_space,sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk));
 //           user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
@@ -245,7 +245,7 @@ static inline void process_commands()
 	   ipaugenblick_mark_readable(&socket_satelite_data[cmd->ringset_idx]);
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
-           printf("setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
+           syslog(LOG_DEBUG,"setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select;
 	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_select.pid;
 	   user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
@@ -276,13 +276,13 @@ static inline void process_commands()
 	   p_sockaddr->sin_family = AF_INET;
            p_sockaddr->sin_addr.s_addr = cmd->u.route.dest_mask;
 	   if(ip_rt_ioctl(&init_net,SIOCADDRT,&rtentry)) {
-		printf("CANNOT ADD ROUTE ENTRY %x %x %x\n",
+		syslog(LOG_ERR,"CANNOT ADD ROUTE ENTRY %x %x %x\n",
 			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
 	   }
 	   else {
-		printf("ROUTE ENTRY %x %x %x is added\n",
+		syslog(LOG_INFO,"ROUTE ENTRY %x %x %x is added\n",
 			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
@@ -300,13 +300,13 @@ static inline void process_commands()
 	   p_sockaddr->sin_family = AF_INET;
            p_sockaddr->sin_addr.s_addr = cmd->u.route.dest_mask;
 	   if(ip_rt_ioctl(&init_net,SIOCDELRT,&rtentry)) {
-		printf("CANNOT DELETE ROUTE ENTRY %x %x %x\n",
+		syslog(LOG_ERR,"CANNOT DELETE ROUTE ENTRY %x %x %x\n",
 			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
 	   }
 	   else {
-		printf("ROUTE ENTRY %x %x %x is deleted\n",
+		syslog(LOG_INFO,"ROUTE ENTRY %x %x %x is deleted\n",
 			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_genmask)->sin_addr.s_addr);
@@ -337,7 +337,7 @@ static inline void process_commands()
 	   }
 	   break;
         default:
-           printf("unknown cmd %d\n",cmd->cmd);
+           syslog(LOG_ERR,"unknown cmd %d\n",cmd->cmd);
            break;
     }
     ipaugenblick_free_command_buf(cmd);
@@ -357,7 +357,7 @@ void ipaugenblick_main_loop()
     TAILQ_INIT(&buffers_available_notification_socket_list_head);
     TAILQ_INIT(&ipaugenblick_clients_list_head);
     init_systick(rte_lcore_id());
-    printf("IPAugenblick service initialized\n");
+    syslog(LOG_INFO,"IPAugenblick service initialized\n");
     while(1) {
         process_commands();
 	app_glue_periodic(1,ports_to_poll,1);
@@ -384,18 +384,18 @@ void ipaugenblick_main_loop()
 /*this is called in non-data-path thread */
 void print_user_stats()
 {
-	printf("user_on_tx_opportunity_called %"PRIu64"\n",user_on_tx_opportunity_called);
-	printf("user_on_tx_opportunity_api_nothing_to_tx %"PRIu64"user_on_tx_opportunity_socket_full %"PRIu64" \n",
+	syslog(LOG_INFO,"user_on_tx_opportunity_called %"PRIu64"\n",user_on_tx_opportunity_called);
+	syslog(LOG_INFO,"user_on_tx_opportunity_api_nothing_to_tx %"PRIu64"user_on_tx_opportunity_socket_full %"PRIu64" \n",
                 user_on_tx_opportunity_api_nothing_to_tx,user_on_tx_opportunity_socket_full);
-        printf("user_kick_tx %"PRIu64" user_kick_rx %"PRIu64" user_kick_select_tx %"PRIu64" user_kick_select_rx %"PRIu64"\n",
+        syslog(LOG_INFO,"user_kick_tx %"PRIu64" user_kick_rx %"PRIu64" user_kick_select_tx %"PRIu64" user_kick_select_rx %"PRIu64"\n",
                 user_kick_tx,user_kick_rx,user_kick_select_tx,user_kick_select_rx);
-        printf("user_on_tx_opportunity_cannot_send %"PRIu64"\n",user_on_tx_opportunity_cannot_send);
-	printf("user_on_tx_opportunity_socket_send_error %"PRIu64"\n",user_on_tx_opportunity_socket_send_error);
-	printf("user_on_tx_opportunity_cannot_get_buff %"PRIu64"\n",user_on_tx_opportunity_cannot_get_buff);
-	printf("user_on_tx_opportunity_getbuff_called %"PRIu64"\n",user_on_tx_opportunity_getbuff_called);
-	printf("user_on_tx_opportunity_api_failed %"PRIu64"\n",	user_on_tx_opportunity_api_failed);
-	printf("user_on_rx_opportunity_called %"PRIu64"\n",user_on_rx_opportunity_called);
-	printf("user_on_rx_opportunity_called_exhausted %"PRIu64"\n",user_on_rx_opportunity_called_exhausted);
-	printf("user_rx_mbufs %"PRIu64" user_rx_ring_full %"PRIu64"\n",user_rx_mbufs,user_rx_ring_full);
-        printf("user_on_tx_opportunity_api_mbufs_sent %"PRIu64"\n",user_on_tx_opportunity_api_mbufs_sent);
+        syslog(LOG_INFO,"user_on_tx_opportunity_cannot_send %"PRIu64"\n",user_on_tx_opportunity_cannot_send);
+	syslog(LOG_INFO,"user_on_tx_opportunity_socket_send_error %"PRIu64"\n",user_on_tx_opportunity_socket_send_error);
+	syslog(LOG_INFO,"user_on_tx_opportunity_cannot_get_buff %"PRIu64"\n",user_on_tx_opportunity_cannot_get_buff);
+	syslog(LOG_INFO,"user_on_tx_opportunity_getbuff_called %"PRIu64"\n",user_on_tx_opportunity_getbuff_called);
+	syslog(LOG_INFO,"user_on_tx_opportunity_api_failed %"PRIu64"\n",	user_on_tx_opportunity_api_failed);
+	syslog(LOG_INFO,"user_on_rx_opportunity_called %"PRIu64"\n",user_on_rx_opportunity_called);
+	syslog(LOG_INFO,"user_on_rx_opportunity_called_exhausted %"PRIu64"\n",user_on_rx_opportunity_called_exhausted);
+	syslog(LOG_INFO,"user_rx_mbufs %"PRIu64" user_rx_ring_full %"PRIu64"\n",user_rx_mbufs,user_rx_ring_full);
+        syslog(LOG_INFO,"user_on_tx_opportunity_api_mbufs_sent %"PRIu64"\n",user_on_tx_opportunity_api_mbufs_sent);
 }

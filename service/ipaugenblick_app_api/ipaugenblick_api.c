@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
+#include <syslog.h>
 
 local_socket_descriptor_t local_socket_descriptors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 struct rte_mempool *free_connections_pool = NULL;
@@ -60,7 +61,7 @@ void print_stats()
 {
     while(g_print_stats_loop) {
 #if 1
-        printf("ipaugenblick_stats_receive_called %lu ipaugenblick_stats_send_called %lu \n\t\
+        syslog(LOG_INFO,"ipaugenblick_stats_receive_called %lu ipaugenblick_stats_send_called %lu \n\t\
                 ipaugenblick_stats_rx_kicks_sent %lu ipaugenblick_stats_tx_kicks_sent %lu ipaugenblick_stats_cannot_allocate_cmd %lu  \n\t\
                 ipaugenblick_stats_rx_full %lu ipaugenblick_stats_rx_dequeued %lu ipaugenblick_stats_rx_dequeued_local %lu \n\t\
                 ipaugenblick_stats_select_called %lu ipaugenblick_stats_select_returned %lu ipaugenblick_stats_tx_buf_allocation_failure %lu \n\t\
@@ -91,7 +92,7 @@ void sig_handler(int signum)
         return;
     }
 
-    printf("terminating on signal %d\n",signum);
+    syslog(LOG_INFO,"terminating on signal %d\n",signum);
 
     for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
         if(local_socket_descriptors[i].socket) {
@@ -119,29 +120,31 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
     int i;
     char ringname[1024];
 
+    openlog(NULL, 0, LOG_USER);
+
     if(rte_eal_init(argc, argv) < 0) {
-        printf("%s %d\n",__FILE__,__LINE__);
+        syslog(LOG_ERR,"cannot initialize rte_eal");
 	return -1;
     }
-    printf("EAL initialized\n");
+    syslog(LOG_INFO,"EAL initialized\n");
 
     free_clients_ring = rte_ring_lookup(FREE_CLIENTS_RING);
     if(!free_clients_ring) {
-        printf("cannot find ring %s %d\n",__FILE__,__LINE__);
+        syslog(LOG_ERR,"cannot find ring %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
 
     free_connections_ring = rte_ring_lookup(FREE_CONNECTIONS_RING);
 
     if(!free_connections_ring) {
-        printf("cannot find free connections ring\n");
+        syslog(LOG_ERR,"cannot find free connections ring\n");
         return -1;
     }
 
     free_connections_pool = rte_mempool_lookup(FREE_CONNECTIONS_POOL_NAME);
 
     if(!free_connections_pool) {
-        printf("cannot find free connections pool\n");
+        syslog(LOG_ERR,"cannot find free connections pool\n");
         return -1;
     }
 
@@ -150,25 +153,25 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
         sprintf(ringname,RX_RING_NAME_BASE"%d",i);
         local_socket_descriptors[i].rx_ring = rte_ring_lookup(ringname);
         if(!local_socket_descriptors[i].rx_ring) {
-            printf("%s %d\n",__FILE__,__LINE__);
+            syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
             exit(0);
         }
         sprintf(ringname,TX_RING_NAME_BASE"%d",i);
         local_socket_descriptors[i].tx_ring = rte_ring_lookup(ringname);
         if(!local_socket_descriptors[i].tx_ring) {
-            printf("%s %d\n",__FILE__,__LINE__);
+            syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
             exit(0);
         }
         local_socket_descriptors[i].select = -1;
         local_socket_descriptors[i].socket = NULL;
         sprintf(ringname,"lrxcache%s_%d",app_unique_id,i);
-        printf("local cache name %s\n",ringname);
+        syslog(LOG_DEBUG,"local cache name %s\n",ringname);
         local_socket_descriptors[i].local_cache = rte_ring_create(ringname, 16384,rte_socket_id(), RING_F_SC_DEQ|RING_F_SP_ENQ);
         if(!local_socket_descriptors[i].local_cache) {
-           printf("cannot create local cache\n");
+           syslog(LOG_WARNING,"cannot create local cache\n");
 	   local_socket_descriptors[i].local_cache = rte_ring_lookup(ringname);
 	   if(!local_socket_descriptors[i].local_cache) {
-		printf("and cannot find\n");
+		syslog(LOG_ERR,"and cannot find\n");
 		exit(0);
 	   } 
         }
@@ -176,24 +179,24 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
     }
     tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
     if(!tx_bufs_pool) {
-        printf("cannot find tx bufs pool\n");
+        syslog(LOG_ERR,"cannot find tx bufs pool\n");
         return -1;
     }
     
     free_command_pool = rte_mempool_lookup(FREE_COMMAND_POOL_NAME);
     if(!free_command_pool) {
-        printf("cannot find free command pool\n");
+        syslog(LOG_ERR,"cannot find free command pool\n");
         return -1;
     }
     
     command_ring = rte_ring_lookup(COMMAND_RING_NAME);
     if(!command_ring) {
-        printf("cannot find command ring\n");
+        syslog(LOG_ERR,"cannot find command ring\n");
         return -1;
     }
     rx_bufs_ring = rte_ring_lookup("rx_mbufs_ring");
     if(!rx_bufs_ring) {
-        printf("cannot find rx bufs ring\n");
+        syslog(LOG_ERR,"cannot find rx bufs ring\n");
         return -1;
     }
     selectors_ring = rte_ring_lookup(SELECTOR_RING_NAME);
@@ -202,7 +205,7 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
         sprintf(ringname,"SELECTOR_RING_NAME%d",i);
         selectors[i].ready_connections = rte_ring_lookup(ringname);
         if(!selectors[i].ready_connections) {
-            printf("cannot find ring %s %d\n",__FILE__,__LINE__);
+            syslog(LOG_ERR,"cannot find ring %s %d\n",__FILE__,__LINE__);
             exit(0);
         } 
     }
@@ -227,13 +230,13 @@ int ipaugenblick_create_client(ipaugenblick_update_cbk_t update_cbk)
     char ringname[1024];
 
     if(rte_ring_dequeue(free_clients_ring,(void **)&ringset_idx)) {
-        printf("%s %d\n",__FILE__,__LINE__);
+        syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
         return -1;
     }
     sprintf(ringname,"%s%d",FREE_CLIENTS_RING,ringset_idx);
     client_ring = rte_ring_lookup(ringname);
     if(!client_ring) {
-	printf("%s %d\n",__FILE__,__LINE__);
+	syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
         return -2;
     }
     cmd = ipaugenblick_get_free_command_buf();
@@ -259,7 +262,7 @@ int ipaugenblick_read_updates(void)
 	unsigned char cmd = 0;
 	
 	if(rte_ring_dequeue(client_ring,(void **)&mbuf)) {
-		printf("%s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
 		return -1;
 	}
 	unsigned char *p = rte_pktmbuf_mtod(mbuf, unsigned char *);
@@ -289,7 +292,7 @@ int ipaugenblick_open_select(void)
     int ringset_idx;
 
     if(rte_ring_dequeue(selectors_ring,(void **)&ringset_idx)) {
-        printf("%s %d\n",__FILE__,__LINE__);
+        syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
         return -1;
     }
     return (int)ringset_idx;
@@ -324,7 +327,7 @@ int ipaugenblick_open_socket(int family,int type,int parent)
 	ipaugenblick_cmd_t *cmd; 
 
 	if(rte_ring_dequeue(free_connections_ring,(void **)&ipaugenblick_socket)) {
-        	printf("%s %d\n",__FILE__,__LINE__);
+        	syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
         	return -1;
     	}
 
@@ -832,7 +835,7 @@ int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port)
     
     if(rte_ring_dequeue(free_connections_ring,(void **)&ipaugenblick_socket)) {
         ipaugenblick_free_command_buf(cmd);
-	printf("NO FREE CONNECTIONS\n");
+	syslog(LOG_ERR,"NO FREE CONNECTIONS\n");
         return -1;
     } 
     accepted_socket = cmd->u.accepted_socket.socket_descr;
@@ -855,7 +858,7 @@ local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port);
     cmd->u.set_socket_ring.pid = getpid();
     if(ipaugenblick_enqueue_command_buf(cmd)) {
         ipaugenblick_free_command_buf(cmd);
-        printf("CANNOT ENQUEUE SET_RING_COMMAND\n");
+        syslog(LOG_ERR,"CANNOT ENQUEUE SET_RING_COMMAND\n");
         return -2;
     }
     return ipaugenblick_socket->connection_idx;
@@ -864,10 +867,15 @@ local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port);
 void ipaugenblick_getsockname(int sock,int is_local,unsigned int *ipaddr,unsigned short *port)
 {
 	if(is_local) {
-		*ipaddr = local_socket_descriptors[sock].socket->local_ipaddr;
-		*port = local_socket_descriptors[sock].socket->local_port;
-		//*ipaddr = local_socket_descriptors[sock].local_ipaddr;
-		//*port = local_socket_descriptors[sock].local_port;
+		if (local_socket_descriptors[sock].socket->local_ipaddr) {
+			*ipaddr = local_socket_descriptors[sock].socket->local_ipaddr;
+			*port = local_socket_descriptors[sock].socket->local_port;
+		}
+		else {
+//printf("%s %d %d\n",__func__,__LINE__,sock);
+			*ipaddr = local_socket_descriptors[sock].local_ipaddr;
+			*port = local_socket_descriptors[sock].local_port;
+		}
 	}
 	else {
 		*ipaddr = local_socket_descriptors[sock].remote_ipaddr;
@@ -910,7 +918,7 @@ restart_waiting:
     ipaugenblick_stats_select_returned++;
     *mask = ringset_idx_and_ready_mask >> SOCKET_READY_SHIFT;
     if((ringset_idx_and_ready_mask & SOCKET_READY_MASK) >= IPAUGENBLICK_CONNECTION_POOL_SIZE) {
-        printf("FATAL ERROR %s %d %d\n",__FILE__,__LINE__,ringset_idx_and_ready_mask & SOCKET_READY_MASK);
+        syslog(LOG_ERR,"FATAL ERROR %s %d %d\n",__FILE__,__LINE__,ringset_idx_and_ready_mask & SOCKET_READY_MASK);
         exit(0);
     }
     local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].any_event_received = 1;

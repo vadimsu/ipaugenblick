@@ -14,6 +14,9 @@
 #include <getopt.h>
 #include <specific_includes/dpdk_drv_iface.h>
 #include <pools.h>
+#include <syslog.h>
+#include <unistd.h>
+
 #define RTE_RX_DESC_DEFAULT (4096)
 #define RTE_TX_DESC_DEFAULT 4096
 #define RX_QUEUE_PER_PORT 1
@@ -116,8 +119,8 @@ struct rte_mempool *get_direct_pool(uint16_t queue_id)
     if(queue_id < RX_QUEUE_PER_PORT) {
     	return pool_direct[queue_id];
     }
-    printf("PANIC HERE %s %d\n",__FILE__,__LINE__);
-    while(1);
+    syslog(LOG_CRIT,"PANIC HERE %s %d\n",__FILE__,__LINE__);
+    exit(1);
     return NULL;
 }
 
@@ -227,7 +230,7 @@ DUMP(argc);
 		case 'p':
 			enabled_port_mask = parse_portmask(optarg);
 			if (enabled_port_mask == 0) {
-				printf("invalid portmask\n");
+				syslog(LOG_ERR,"invalid portmask\n");
 				//l2fwd_usage(prgname);
 				return -1;
 			}
@@ -272,24 +275,22 @@ void show_mib_stats(void);
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
-#if 1
 		app_glue_print_stats();
 		show_mib_stats();
         dpdk_dev_print_stats();
 		print_user_stats();
-		printf("sk_stream_alloc_skb_failed %"PRIu64"\n",sk_stream_alloc_skb_failed);
-		printf("tcp_memory_allocated=%"PRIu64"\n",tcp_memory_allocated);
-		printf("jiffies %"PRIu64"\n",jiffies);
+		syslog(LOG_INFO,"sk_stream_alloc_skb_failed %"PRIu64"\n",sk_stream_alloc_skb_failed);
+		syslog(LOG_INFO,"tcp_memory_allocated=%"PRIu64"\n",tcp_memory_allocated);
+		syslog(LOG_INFO,"jiffies %"PRIu64"\n",jiffies);
 		dump_header_cache();
 		dump_head_cache();
 		dump_fclone_cache();
-		printf("rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
-		printf("stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
-                printf("write_sockets_queue_len %"PRIu64" read_sockets_queue_len %"PRIu64" command pool %d \n",
+		syslog(LOG_INFO,"rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
+		syslog(LOG_INFO,"stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
+                syslog(LOG_INFO,"write_sockets_queue_len %"PRIu64" read_sockets_queue_len %"PRIu64" command pool %d \n",
                        write_sockets_queue_len,read_sockets_queue_len,free_command_pool ? rte_mempool_count(free_command_pool) : -1);
-		printf("driver_tx_offload_pkts %"PRIu64" driver_tx_wo_offload_pkts %"PRIu64"\n",driver_tx_offload_pkts,driver_tx_wo_offload_pkts);
+		syslog(LOG_INFO,"driver_tx_offload_pkts %"PRIu64" driver_tx_wo_offload_pkts %"PRIu64"\n",driver_tx_offload_pkts,driver_tx_wo_offload_pkts);
 		print_skb_iov_stats();
-#endif
 		sleep(1);
 	}
 	return 0;
@@ -405,7 +406,7 @@ static int get_dpdk_ip_stack_config()
 	int i,rc;
 	p_config_file = fopen("dpdk_ip_stack_config.txt","r");
 	if(!p_config_file){
-		printf("cannot open dpdk_ip_stack_config.txt");
+		syslog(LOG_ERR,"cannot open dpdk_ip_stack_config.txt");
 		return -1;
 	}
 	for(i = 0;i < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER;i++) {
@@ -417,7 +418,7 @@ static int get_dpdk_ip_stack_config()
 		if(!rc){
 			continue;
 		}
-		printf("retrieved config entry %d %s %s\n",dpdk_dev_config[i].port_number,dpdk_dev_config[i].ip_addr_str,dpdk_dev_config[i].ip_mask_str);
+		syslog(LOG_DEBUG,"retrieved config entry %d %s %s\n",dpdk_dev_config[i].port_number,dpdk_dev_config[i].ip_addr_str,dpdk_dev_config[i].ip_mask_str);
 		i++;
 		if(i == RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
 			break;
@@ -460,8 +461,10 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	struct ether_addr mac_addr;
 	dpdk_dev_config_t *p_dpdk_dev_config;
 
+	openlog(NULL, 0, LOG_DAEMON);
+
 	if(get_dpdk_ip_stack_config() != 0){
-		printf("%s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"cannot read configuration %s %d\n",__FILE__,__LINE__);
 		return -1;
 	}
 	memset(dpdk_devices,0,sizeof(dpdk_devices));
@@ -491,7 +494,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 							   rte_pktmbuf_init, NULL,
 							   rte_socket_id(), 0);
 	if(mbufs_mempool == NULL) {
-		printf("%s %d\n",__FILE__,__LINE__);
+		syslog(LOG_ERR,"cannot allocate buffers, increase the number of huge pages %s %d\n",__FILE__,__LINE__);
 		exit(0);
 	}
 	rte_set_log_type(RTE_LOGTYPE_PMD,1);
@@ -543,11 +546,11 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
         	    	conf = get_lcore_conf(lcore_id);
         	        conf->n_rtx_port = -1;
         	        //			conf->tx_mbufs[portid].len = 0;
-        	        printf("Lcore %u: Port %u\n", lcore_id,portid);
+        	        syslog(LOG_DEBUG,"Lcore %u: Port %u\n", lcore_id,portid);
 	            }
 	    }
 	}
-	printf("MASTER LCORE %d\n",rte_get_master_lcore());
+	syslog(LOG_DEBUG,"MASTER LCORE %d\n",rte_get_master_lcore());
 
 
         nb_ports_available = nb_ports;
@@ -556,12 +559,12 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	for (portid = 0; portid < nb_ports; portid++) {
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0) {
-			printf("Skipping disabled port %u\n", (unsigned) portid);
+			syslog(LOG_WARNING,"Skipping disabled port %u\n", (unsigned) portid);
 			nb_ports_available--;
 			continue;
 		}
 		/* init port */
-		printf("Initializing port %u... ", (unsigned) portid);
+		syslog(LOG_DEBUG,"Initializing port %u... ", (unsigned) portid);
 		fflush(stdout);
 		ret = rte_eth_dev_configure(portid, RX_QUEUE_PER_PORT, TX_QUEUE_PER_PORT, &port_conf);
 		if (ret < 0)
@@ -595,7 +598,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 			rte_exit(EXIT_FAILURE, "rte_eth_dev_start:err=%d, port=%u\n",
 					ret, (unsigned) portid);
 
-		printf("done: \n");
+		syslog(LOG_DEBUG,"done: \n");
 
 //		rte_eth_promiscuous_enable(portid);
 	}
@@ -615,16 +618,16 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
                     while(sub_if_idx < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
                         p_dpdk_dev_config++;
                         if(p_dpdk_dev_config->port_number != portid) {
-                            printf("no more addressed for port %d\n",portid);
+                            syslog(LOG_DEBUG,"no more addressed for port %d\n",portid);
                             break;
                         }
-                        printf("Adding port%d address %s\n",portid,p_dpdk_dev_config->ip_addr_str);
+                        syslog(LOG_DEBUG,"Adding port%d address %s\n",portid,p_dpdk_dev_config->ip_addr_str);
                         add_dev_addr(dpdk_devices[portid],sub_if_idx - portid,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
                         sub_if_idx++;
                     }
-		    printf("%s %d\n",__FILE__,__LINE__);
 		}
 	}
+	//daemon(1,0);
 #ifdef DPDK_SW_LOOP
 	init_dpdk_sw_loop();
 #endif

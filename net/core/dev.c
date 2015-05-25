@@ -139,6 +139,7 @@
 #include <rte_config.h>
 #include <rte_common.h>
 #include <rte_malloc.h>
+#include <syslog.h>
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
@@ -2892,14 +2893,14 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 				}
 			}
 			HARD_TX_UNLOCK(dev, txq);
-			printf("Virtual device %s asks to queue packet!\n",
+			syslog(LOG_WARNING,"Virtual device %s asks to queue packet!\n",
 					     dev->name);
 		} else {
 			/* Recursion is detected! It is possible,
 			 * unfortunately
 			 */
 recursion_alert:
-			printf("Dead loop on virtual device %s, fix it urgently!\n",
+			syslog(LOG_WARNING,"Dead loop on virtual device %s, fix it urgently!\n",
 					     dev->name);
 		}
 	}

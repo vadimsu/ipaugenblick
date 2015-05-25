@@ -77,6 +77,7 @@
 #include <specific_includes/linux/errqueue.h>
 #include <specific_includes/linux/if_ether.h>
 #include <rte_mbuf.h>
+#include <syslog.h>
 struct kmem_cache *skbuff_head_cache __read_mostly;
 static struct kmem_cache *skbuff_fclone_cache __read_mostly;
 static struct kmem_cache *skbuff_data_cache;
@@ -92,15 +93,15 @@ void *get_header_cache()
 }
 void dump_fclone_cache()
 {
-	printf("skbuff_fclone_cache free count %d\n",rte_mempool_count(skbuff_fclone_cache));
+	syslog(LOG_INFO,"skbuff_fclone_cache free count %d\n",rte_mempool_count(skbuff_fclone_cache));
 }
 void dump_head_cache()
 {
-	printf("skbuff_head_cache free count %d\n",rte_mempool_count(skbuff_head_cache));
+	syslog(LOG_INFO,"skbuff_head_cache free count %d\n",rte_mempool_count(skbuff_head_cache));
 }
 void dump_header_cache()
 {
-	printf("skbuff_header_cache free count %d\n",rte_mempool_count(skbuff_header_cache));
+	syslog(LOG_INFO,"skbuff_header_cache free count %d\n",rte_mempool_count(skbuff_header_cache));
 }
 /**
  *	skb_panic - private function for out-of-line support
@@ -3381,8 +3382,8 @@ static void skbuf_debug_init(void *m)
 #else
 	skb->shinfo = kmem_cache_alloc_node(skbuff_shinfo_cache, /*gfp_mask & ~__GFP_DMA*/0, rte_socket_id());
 	if(skb->shinfo == NULL) {
-		printf("Cannot allocate shinfo %s %d\n",__FILE__,__LINE__);
-		while(1);
+		syslog(LOG_ERR,"Cannot allocate shinfo %s %d\n",__FILE__,__LINE__);
+		exit(1);
 	}
 #endif
 }

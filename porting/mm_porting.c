@@ -20,6 +20,7 @@
 #include <rte_cycles.h>
 #include <rte_hash.h>
 #include <rte_byteorder.h>
+#include <syslog.h>
 
 void vfree(void *mem)
 {
@@ -89,7 +90,7 @@ struct kmem_cache *kmem_cache_create(const char *name, size_t element_size, size
 
 void kmem_cache_destroy(struct kmem_cache *cache)
 {
-	printf("NOT IMPLEMENTED %s %d\n",__FILE__,__LINE__);
+	syslog(LOG_ERR,"NOT IMPLEMENTED %s %d\n",__FILE__,__LINE__);
 }
 
 unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
@@ -136,7 +137,7 @@ void *__init alloc_large_system_hash(const char *tablename,
     if (!table)
            panic("Failed to allocate hash table\n");
  
-    printf("%s hash table entries: %ld (order: %d, %lu bytes)\n",
+    syslog(LOG_INFO,"%s hash table entries: %ld (order: %d, %lu bytes)\n",
            tablename,
            (1UL << log2qty),
            ilog2(size) - PAGE_SHIFT,
@@ -269,7 +270,7 @@ int copy_to_user(void *dst,void *src,int size)
 int memcpy_toiovec(struct iovec *iov,struct rte_mbuf *mbuf,int offset,int len)
 {
 	if(rte_pktmbuf_adj(mbuf,offset) == NULL) {
-		printf("CANNOT ADJUST MBUF %s %d %d %d %d\n",__FILE__,__LINE__,offset,len,rte_pktmbuf_data_len(mbuf));
+		syslog(LOG_ERR,"CANNOT ADJUST MBUF %s %d %d %d %d\n",__FILE__,__LINE__,offset,len,rte_pktmbuf_data_len(mbuf));
 		return -1;
 	}
 	rte_mbuf_refcnt_update(mbuf,1);
