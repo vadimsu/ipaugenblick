@@ -25,6 +25,7 @@ make CURRENT_DIR=$(pwd)/
 %install
 mkdir -p $RPM_BUILD_ROOT/usr/lib/ipaugenblick
 mkdir -p $RPM_BUILD_ROOT/usr/bin
+mkdir -p $RPM_BUILD_ROOT/usr/include
 cd $RPM_BUILD_DIR
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_eal.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_timer.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
