@@ -463,7 +463,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	dpdk_dev_config_t *p_dpdk_dev_config;
 
 	openlog(NULL, 0, LOG_DAEMON);
-	syslog(LOG_INFO,"IPAugenblick service build  %s",IPAUGENBLICK_SERVICE_BUILD);
+	syslog(LOG_INFO,"IPAugenblick service build  %s untracked %s",IPAUGENBLICK_SERVICE_BUILD,IPAUGENBICK_SERVICE_UNTRACKED);
 
 	if(get_dpdk_ip_stack_config() != 0){
 		syslog(LOG_ERR,"cannot read configuration %s %d\n",__FILE__,__LINE__);
