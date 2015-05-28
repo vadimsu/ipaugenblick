@@ -1,3 +1,4 @@
+./build_version.sh
 cd dpdk-2.0.0
 make install T=x86_64-native-linuxapp-gcc
 cd ..

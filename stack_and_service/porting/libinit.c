@@ -14,6 +14,7 @@
 #include <getopt.h>
 #include <specific_includes/dpdk_drv_iface.h>
 #include <pools.h>
+#include <ipaugenblick_service_build.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -462,6 +463,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	dpdk_dev_config_t *p_dpdk_dev_config;
 
 	openlog(NULL, 0, LOG_DAEMON);
+	syslog(LOG_INFO,"IPAugenblick service build  %s",IPAUGENBLICK_SERVICE_BUILD);
 
 	if(get_dpdk_ip_stack_config() != 0){
 		syslog(LOG_ERR,"cannot read configuration %s %d\n",__FILE__,__LINE__);
