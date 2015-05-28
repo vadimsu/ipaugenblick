@@ -21,6 +21,7 @@ git checkout dpdk-2.0
 cd dpdk-2.0.0
 make install T=x86_64-native-linuxapp-gcc
 cd ..
+./build_version.sh
 make CURRENT_DIR=$(pwd)/
 %install
 mkdir -p $RPM_BUILD_ROOT/usr/lib/ipaugenblick
