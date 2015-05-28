@@ -25,3 +25,4 @@ stack_and_service/stack_and_service
 stack_and_service/service/stack_and_service
 stack_and_service/service/test_client/test_client_tcp_with_select
 stack_and_service/service/ipaugenblick_app_api/stack_and_service
+stack_and_service/ipaugenblick_service_build.h
