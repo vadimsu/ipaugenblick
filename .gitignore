@@ -21,8 +21,7 @@
 *.x86_64
 *.hex
 dpdk-2.0.0/x86_64-native-linuxapp-gcc
-service/build
-service/ipaugenblick_srv
-service/test_client/test_client_tcp_with_select
-service/ipaugenblick_app_api/build/
-build/
+stack_and_service/stack_and_service
+stack_and_service/service/stack_and_service
+stack_and_service/service/test_client/test_client_tcp_with_select
+stack_and_service/service/ipaugenblick_app_api/stack_and_service
