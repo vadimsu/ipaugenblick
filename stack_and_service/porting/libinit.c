@@ -405,7 +405,7 @@ static int get_dpdk_ip_stack_config()
 {
 	FILE *p_config_file;
 	int i,rc;
-	p_config_file = fopen("dpdk_ip_stack_config.txt","r");
+	p_config_file = fopen("/etc/ipaugenblick/dpdk_ip_stack_config.txt","r");
 	if(!p_config_file){
 		syslog(LOG_ERR,"cannot open dpdk_ip_stack_config.txt");
 		return -1;
