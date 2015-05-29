@@ -20,6 +20,7 @@
 *.i*86
 *.x86_64
 *.hex
+*.bin
 dpdk-2.0.0/x86_64-native-linuxapp-gcc
 stack_and_service/stack_and_service
 stack_and_service/service/stack_and_service
