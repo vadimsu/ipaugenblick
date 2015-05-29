@@ -27,6 +27,7 @@ mkdir -p $RPM_BUILD_ROOT/usr/lib/ipaugenblick
 mkdir -p $RPM_BUILD_ROOT/usr/bin
 mkdir -p $RPM_BUILD_ROOT/usr/include
 mkdir -p $RPM_BUILD_ROOT/etc/ipaugenblick
+mkdir -p $RPM_BUILD_ROOT/opt/ipaugenblick
 cd $RPM_BUILD_DIR
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_eal.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_timer.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
@@ -47,6 +48,8 @@ cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/stack_and_service/servi
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_app_api/stack_and_service/service/ipaugenblick_app_api/x86_64-native-linuxapp-gcc/libipaugenblickservice.so $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_app_api/ipaugenblick_api.h $RPM_BUILD_ROOT/usr/include/.
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/dpdk_ip_stack_config.txt $RPM_BUILD_ROOT/etc/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/test_client/*.sh $RPM_BUILD_ROOT/opt/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/test_client/*.c $RPM_BUILD_ROOT/opt/ipaugenblick/.
 %files
 %defattr(-,root,root,-)
 /usr/lib/ipaugenblick/librte_eal.so*
@@ -67,5 +70,6 @@ cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/dpdk_ip_stack_config.tx
 /usr/lib/ipaugenblick/librte_pmd_bond.so*
 /usr/bin/ipaugenblick_srv
 /usr/include/ipaugenblick_api.h
+/opt/ipaugenblick/*
 %config
 /etc/ipaugenblick/dpdk_ip_stack_config.txt
