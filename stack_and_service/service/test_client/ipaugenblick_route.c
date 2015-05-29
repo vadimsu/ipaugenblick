@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/errno.h>
-#include "../ipaugenblick_app_api/ipaugenblick_api.h"
+#include <ipaugenblick_api.h>
 #include <string.h>
 
 int main(int argc,char **argv)

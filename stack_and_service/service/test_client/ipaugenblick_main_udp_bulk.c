@@ -7,7 +7,7 @@
 #include <sys/mman.h>
 #include <sys/errno.h>
 #include <sys/socket.h>
-#include "../ipaugenblick_app_api/ipaugenblick_api.h"
+#include <ipaugenblick_api.h>
 #include <string.h>
 
 #define USE_CONNECTED 0
