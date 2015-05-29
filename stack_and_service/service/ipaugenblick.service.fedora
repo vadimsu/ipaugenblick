@@ -1,0 +1,7 @@
+[Unit]
+Description=IPAugenblick service
+After=syslog.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ipaugenblick_service.sh
