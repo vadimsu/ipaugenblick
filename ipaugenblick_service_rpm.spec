@@ -4,14 +4,12 @@ Version: 1.0
 Release: 1
 License: GPL
 Group: Applications/Networking
+AutoReq: 0
 Packager: Vadim Suraev <vadim.suraev@gmail.com>
 
 %description
 User-space full IP stack integrated with DPDK
 %prep
-echo $RPM_BUILD_ROOT
-echo $RPM_BUILD_DIR
-echo $(pwd)
 rm -rf $RPM_BUILD_ROOT/ipaugenblick
 rm -rf $RPM_BUILD_DIR/ipaugenblick
 git clone https://github.com/vadimsu/ipaugenblick
@@ -38,11 +36,17 @@ cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_malloc.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_pmd_ixgbe.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/libethdev.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_cfgfile.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_cmdline.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_hash.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_kvargs.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_meter.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_pmd_bond.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/stack_and_service/x86_64-native-linuxapp-gcc/libnetinet.so $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/stack_and_service/service/x86_64-native-linuxapp-gcc/ipaugenblick_srv $RPM_BUILD_ROOT/usr/bin/ipaugenblick_srv
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_app_api/stack_and_service/service/ipaugenblick_app_api/x86_64-native-linuxapp-gcc/libipaugenblickservice.so $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_app_api/ipaugenblick_api.h $RPM_BUILD_ROOT/usr/include/.
-cp $RPM_BUILD_DIR/stack_and_service/service/dpdk_ip_stack_config.txt $RPM_BUILD_ROOT/etc/ipaugenblick/.
+cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/dpdk_ip_stack_config.txt $RPM_BUILD_ROOT/etc/ipaugenblick/.
 %files
 %defattr(-,root,root,-)
 /usr/lib/ipaugenblick/librte_eal.so*
@@ -55,5 +59,13 @@ cp $RPM_BUILD_DIR/stack_and_service/service/dpdk_ip_stack_config.txt $RPM_BUILD_
 /usr/lib/ipaugenblick/libethdev.so*
 /usr/lib/ipaugenblick/libnetinet.so
 /usr/lib/ipaugenblick/libipaugenblickservice.so
+/usr/lib/ipaugenblick/librte_cfgfile.so*
+/usr/lib/ipaugenblick/librte_cmdline.so*
+/usr/lib/ipaugenblick/librte_hash.so*
+/usr/lib/ipaugenblick/librte_kvargs.so*
+/usr/lib/ipaugenblick/librte_meter.so*
+/usr/lib/ipaugenblick/librte_pmd_bond.so*
 /usr/bin/ipaugenblick_srv
 /usr/include/ipaugenblick_api.h
+%config
+/etc/ipaugenblick/dpdk_ip_stack_config.txt
