@@ -10,14 +10,6 @@ Packager: Vadim Suraev <vadim.suraev@gmail.com>
 %description
 User-space full IP stack integrated with DPDK
 %prep
-OS_VERSION=$(cat /proc/version)
-if [[ $OS_VERSION == *"fedora"* ]] || [[ $OS_VERSION == *"Fedora"* ]]
-then
-	OS_VERSION="Fedora"
-elif [[ $OS_VERSION == *"Ubuntu"* ]] || [[ $OS_VERSION == *"ubuntu"* ]]
-then
-	OS_VERSION="Ubuntu";
-fi
 rm -rf $RPM_BUILD_ROOT/ipaugenblick
 rm -rf $RPM_BUILD_DIR/ipaugenblick
 git clone https://github.com/vadimsu/ipaugenblick
@@ -36,15 +28,9 @@ mkdir -p $RPM_BUILD_ROOT/usr/bin
 mkdir -p $RPM_BUILD_ROOT/usr/include
 mkdir -p $RPM_BUILD_ROOT/etc/ipaugenblick
 mkdir -p $RPM_BUILD_ROOT/opt/ipaugenblick
-if [[ $OS_VERSION == "Fedora" ]]
-then
-	mkdir -p $RPM_BUILD_ROOT/lib/systemd/system
-	mkdir -p $RPM_BUILD_ROOT/etc/systemd/system/
-elif [[ $OS_VERSION == "Ubuntu" ]]
-	mkdir -p $RPM_BUILD_ROOT/etc/init.d
-then
-fi
-cd $RPM_BUILD_DIR
+mkdir -p $RPM_BUILD_ROOT/etc/init.d
+mkdir -p $RPM_BUILD_ROOT/bin
+cp /bin/sh $RPM_BUILD_ROOT/bin/.
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_eal.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_timer.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib/librte_ring.so* $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
@@ -64,18 +50,12 @@ cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/stack_and_service/servi
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_app_api/stack_and_service/service/ipaugenblick_app_api/x86_64-native-linuxapp-gcc/libipaugenblickservice.so $RPM_BUILD_ROOT/usr/lib/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_app_api/ipaugenblick_api.h $RPM_BUILD_ROOT/usr/include/.
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/dpdk_ip_stack_config.txt $RPM_BUILD_ROOT/etc/ipaugenblick/.
-if [[ $OS_VERSION == "Fedora" ]]
-then
-	cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick.service.fedora $RPM_BUILD_ROOT/lib/systemd/system/ipaugenblick.service
-	cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_service.sh $RPM_BUILD_ROOT/usr/bin/ipaugenblick_service.sh
-elif [[ $OS_VERSION == "Ubuntu" ]]
-	cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_service.sh $RPM_BUILD_ROOT/etc/init.d/ipaugenblick_service.sh
-then
-fi
+cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/ipaugenblick_service.sh $RPM_BUILD_ROOT/etc/init.d/ipaugenblick_service
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/test_client/*.sh $RPM_BUILD_ROOT/opt/ipaugenblick/.
 cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/test_client/*.c $RPM_BUILD_ROOT/opt/ipaugenblick/.
 %files
 %defattr(-,root,root,-)
+/bin/sh
 /usr/lib/ipaugenblick/librte_eal.so*
 /usr/lib/ipaugenblick/librte_timer.so*
 /usr/lib/ipaugenblick/librte_ring.so*
@@ -93,29 +73,14 @@ cp $RPM_BUILD_DIR/ipaugenblick/stack_and_service/service/test_client/*.c $RPM_BU
 /usr/lib/ipaugenblick/librte_meter.so*
 /usr/lib/ipaugenblick/librte_pmd_bond.so*
 /usr/bin/ipaugenblick_srv
-if [[ $OS_VERSION == "Fedora" ]]
-then
-	/lib/systemd/system/ipaugenblick.service
-	/usr/bin/ipaugenblick_service.sh
-elif [[ $OS_VERSION == "Ubuntu" ]]
-then
-	/etc/init.d/ipaugenblick_service.sh
-fi
+/etc/init.d/ipaugenblick_service
 /usr/include/ipaugenblick_api.h
 /opt/ipaugenblick/*
 %config
 /etc/ipaugenblick/dpdk_ip_stack_config.txt
 %post
-OS_VERSION=$(cat /proc/version)
-if [[ $OS_VERSION == *"fedora"* ]] || [[ $OS_VERSION == *"Fedora"* ]]
-then
-	cd /etc/systemd/system/
-	ln -s /lib/systemd/system/ipaugenblick.service ipaugenblick.service
-	systemctl daemon-reload
-	systemctl start ipaugenblick.service
-	systemctl enable ipaugenblick.service
-elif [[ $OS_VERSION == *"Ubuntu"* ]] || [[ $OS_VERSION == *"ubuntu"* ]]
-then
-	update-rc.d ipaugenblick_service.sh start
-	update-rc.d ipaugenblick_service.sh enable
-fi
+update-rc.d ipaugenblick_service start 20 2 3 4 5 .
+update-rc.d ipaugenblick_service enable
+%preun
+update-rc.d ipaugenblick_service stop 20 2 3 4 5 .
+update-rc.d ipaugenblick_service disable
