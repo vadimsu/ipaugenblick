@@ -276,6 +276,7 @@ void show_mib_stats(void);
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
+#if 1
 		app_glue_print_stats();
 		show_mib_stats();
         dpdk_dev_print_stats();
@@ -292,6 +293,7 @@ static int print_stats(__attribute__((unused)) void *dummy)
                        write_sockets_queue_len,read_sockets_queue_len,free_command_pool ? rte_mempool_count(free_command_pool) : -1);
 		syslog(LOG_INFO,"driver_tx_offload_pkts %"PRIu64" driver_tx_wo_offload_pkts %"PRIu64"\n",driver_tx_offload_pkts,driver_tx_wo_offload_pkts);
 		print_skb_iov_stats();
+#endif
 		sleep(1);
 	}
 	return 0;
@@ -463,9 +465,9 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	dpdk_dev_config_t *p_dpdk_dev_config;
 
 	openlog(NULL, 0, LOG_DAEMON);
-	if(daemon(1,0)) {
-		printf("cannot daemonize\n");
-	}
+//	if(daemon(1,0)) {
+//		printf("cannot daemonize\n");
+//	}
 	syslog(LOG_INFO,"IPAugenblick service build  %s untracked_and_changed %s",IPAUGENBLICK_SERVICE_BUILD,IPAUGENBLICK_SERVICE_UNTRACKED_AND_CHANGED);	
 
 	if(get_dpdk_ip_stack_config() != 0){
@@ -474,8 +476,10 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	}
 	memset(dpdk_devices,0,sizeof(dpdk_devices));
 	ret = rte_eal_init(argc, argv);
-	if (ret < 0)
+	if (ret < 0) {
+		syslog(LOG_ERR,"Invalid EAL arguments");
 		rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
+	}
 	init_lcores();
 	net_ns_init();
 	netfilter_init();
@@ -483,11 +487,13 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	skb_init();
 	inet_init();
 	app_glue_init();
-    argc -= ret;
+    	argc -= ret;
 	argv += ret;
-    ret = parse_args(argc, argv);
-	if (ret < 0)
+    	ret = parse_args(argc, argv);
+	if (ret < 0) {
+		syslog(LOG_ERR,"Invalid APP arguments");
 		rte_exit(EXIT_FAILURE, "Invalid APP arguments\n");
+	}
 	/* init RTE timer library */
 	rte_timer_subsystem_init();
 
@@ -504,19 +510,9 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	}
 	rte_set_log_type(RTE_LOGTYPE_PMD,1);
 	rte_set_log_level(RTE_LOG_DEBUG);
-#ifndef DPDK_SW_LOOP /* enable when at least one compatable NIC */
-	/* init driver(s) */
-#if 0
-	if (rte_pmd_init_all() < 0)
-		rte_exit(EXIT_FAILURE, "Cannot init pmd\n");
-
-	if (rte_eal_pci_probe() < 0)
-		rte_exit(EXIT_FAILURE, "Cannot probe PCI\n");
-#else
-#endif
 	nb_ports = rte_eth_dev_count();
 	if (nb_ports == 0)
-		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
+		goto loopback_only;
 
 	if (nb_ports > RTE_MAX_ETHPORTS)
 		nb_ports = RTE_MAX_ETHPORTS;
@@ -609,7 +605,6 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	}
 	rte_set_log_type(RTE_LOGTYPE_PMD,1);
 	rte_set_log_level(RTE_LOG_DEBUG);	
-#endif
 	for (portid = 0; portid < nb_ports; portid++) {
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0)
@@ -632,12 +627,32 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
                     }
 		}
 	}	
-#ifdef DPDK_SW_LOOP
-	init_dpdk_sw_loop();
-#endif
-#ifdef RUN_TO_COMPLETE
+	goto skip_loopback;
+loopback_only:
+	portid = 0;
+	while(1) {
+		p_dpdk_dev_config = get_dpdk_config_entry(portid);
+		if (!p_dpdk_dev_config) {
+			break;
+		}
+		dpdk_devices[portid] = init_dpdk_sw_loop(portid);
+		memset(mac_addr.addr_bytes,0,sizeof(mac_addr.addr_bytes));
+		set_dev_addr(dpdk_devices[portid],mac_addr.addr_bytes,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+		sub_if_idx = portid;
+                while(sub_if_idx < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
+                    p_dpdk_dev_config++;
+                    if(p_dpdk_dev_config->port_number != portid) {
+                        syslog(LOG_DEBUG,"no more addressed for port %d\n",portid);
+                        break;
+                    }
+                    syslog(LOG_DEBUG,"Adding port%d address %s\n",portid,p_dpdk_dev_config->ip_addr_str);
+                    add_dev_addr(dpdk_devices[portid],sub_if_idx - portid,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+                    sub_if_idx++;
+                }
+		portid++;
+	}
+skip_loopback:
 	rte_eal_remote_launch(print_stats, NULL, 1);
-#endif
 #if 0
 	rte_eal_remote_launch(print_stats, NULL, /*CALL_MASTER*/3);
 //	while(1)sleep(1000);

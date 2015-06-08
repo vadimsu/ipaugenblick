@@ -3,6 +3,7 @@
 #define __DPDK_DRV_IFACE_H__
 
 void *create_netdev(int port_num);
+void *init_dpdk_sw_loop(int port_num);
 
 void add_dev_addr(void *netdev,int instance,char *ip_addr,char *ip_mask);
 
