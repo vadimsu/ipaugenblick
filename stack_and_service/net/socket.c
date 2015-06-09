@@ -106,7 +106,7 @@
 #include <specific_includes/linux/sockios.h>
 //#include <linux/atalk.h>
 #include <specific_includes/net/busy_poll.h>
-#include <syslog.h>
+#include <ipaugenblick_log.h>
 #ifdef CONFIG_NET_RX_BUSY_POLL
 unsigned int sysctl_net_busy_read __read_mostly;
 unsigned int sysctl_net_busy_poll __read_mostly;
@@ -280,7 +280,7 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 		static int warned;
 		if (!warned) {
 			warned = 1;
-			syslog(LOG_WARNING,"uses obsolete (PF_INET,SOCK_PACKET)\n");
+			ipaugenblick_log(IPAUGENBLICK_LOG_WARNING,"uses obsolete (PF_INET,SOCK_PACKET)\n");
 		}
 		family = PF_PACKET;
 	}
@@ -390,7 +390,7 @@ int sock_register(const struct net_proto_family *ops)
 	int err;
 
 	if (ops->family >= NPROTO) {
-		syslog(LOG_ERR,"protocol %d >= NPROTO(%d)\n", ops->family,
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"protocol %d >= NPROTO(%d)\n", ops->family,
 		       NPROTO);
 		return -ENOBUFS;
 	}
@@ -405,7 +405,7 @@ int sock_register(const struct net_proto_family *ops)
 	}
 	spin_unlock(&net_family_lock);
 
-	syslog(LOG_INFO,"NET: Registered protocol family %d\n", ops->family);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"NET: Registered protocol family %d\n", ops->family);
 	return err;
 }
 EXPORT_SYMBOL(sock_register);

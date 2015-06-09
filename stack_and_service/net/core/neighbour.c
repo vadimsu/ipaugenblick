@@ -43,7 +43,7 @@
 #include <specific_includes/linux/inetdevice.h>
 //#include <net/addrconf.h>
 #include <specific_includes/linux/percpu.h>
-#include <syslog.h>
+#include <ipaugenblick_log.h>
 #define DEBUG
 #define NEIGH_DEBUG 1
 #define neigh_dbg(level, fmt, ...)		\
@@ -175,7 +175,7 @@ static void neigh_add_timer(struct neighbour *n, unsigned long when)
 {
 	neigh_hold(n);
 	if (unlikely(mod_timer(&n->timer, when))) {
-		syslog(LOG_ERR,"NEIGH: BUG, double timer add, state is %x\n",
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"NEIGH: BUG, double timer add, state is %x\n",
 		       n->nud_state);
 		dump_stack();
 	}

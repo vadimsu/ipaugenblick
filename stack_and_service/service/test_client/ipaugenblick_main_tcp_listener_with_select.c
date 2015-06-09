@@ -12,7 +12,7 @@
 #include <string.h>
 
 #define USE_TX 1
-#define LISTENERS_COUNT 2
+#define LISTENERS_COUNT 1
 #define LISTENERS_BASE 7777
 
 static inline int is_listener(int sock, int *listeners)
@@ -39,6 +39,7 @@ int main(int argc,char **argv)
     int max_total_length = 0;
     unsigned short mask;
     unsigned long received_count = 0;
+    unsigned long transmitted_count = 0;
 
     if(ipaugenblick_app_init(argc,argv,"tcp_listener") != 0) {
         printf("cannot initialize memory\n");
@@ -102,8 +103,9 @@ int main(int argc,char **argv)
                     }
                 }
 #endif
-                if(!(received_count%10000000)) {
-                    printf("received %u max_total_len %u\n",received_count,max_total_length);
+                if(!(received_count%1000)) {
+                    printf("received %u transmitted_count %u\n", received_count, transmitted_count);
+		    print_stats();
                 }
                 ipaugenblick_release_rx_buffer(porigdesc,ready_socket);
             }
@@ -141,8 +143,11 @@ int main(int argc,char **argv)
                         printf("%s %d\n",__FILE__,__LINE__);
                     }
                     else {
-//                        printf("%s %d %d\n",__FILE__,__LINE__,tx_space);
-//                        sent = 1;
+			transmitted_count++;
+			if(!(transmitted_count%1000)) {
+                    		printf("transmitted %u received_count %u\n", transmitted_count, received_count);
+				print_stats();
+                	}
                     }
             }
 #endif

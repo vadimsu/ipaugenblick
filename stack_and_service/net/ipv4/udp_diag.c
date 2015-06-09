@@ -23,6 +23,7 @@ static int sk_diag_dump(struct sock *sk, struct sk_buff *skb,
 		struct netlink_callback *cb, struct inet_diag_req_v2 *req,
 		struct nlattr *bc)
 {
+#if 0
 	if (!inet_diag_bc_sk(bc, sk))
 		return 0;
 
@@ -30,11 +31,15 @@ static int sk_diag_dump(struct sock *sk, struct sk_buff *skb,
 			sk_user_ns(NETLINK_CB(cb->skb).sk),
 			NETLINK_CB(cb->skb).portid,
 			cb->nlh->nlmsg_seq, NLM_F_MULTI, cb->nlh);
+#else
+	return 0;
+#endif
 }
 
 static int udp_dump_one(struct udp_table *tbl, struct sk_buff *in_skb,
 		const struct nlmsghdr *nlh, struct inet_diag_req_v2 *req)
 {
+#if 0
 	int err = -EINVAL;
 	struct sock *sk;
 	struct sk_buff *rep;
@@ -90,6 +95,9 @@ out:
 		sock_put(sk);
 out_nosk:
 	return err;
+#else
+	return 0;
+#endif
 }
 
 static void udp_dump(struct udp_table *table, struct sk_buff *skb, struct netlink_callback *cb,
@@ -191,7 +199,7 @@ static const struct inet_diag_handler udplite_diag_handler = {
 static int __init udp_diag_init(void)
 {
 	int err;
-
+#if 0
 	err = inet_diag_register(&udp_diag_handler);
 	if (err)
 		goto out;
@@ -203,12 +211,17 @@ out:
 out_lite:
 	inet_diag_unregister(&udp_diag_handler);
 	goto out;
+#else
+	return 0;
+#endif
 }
 
 static void __exit udp_diag_exit(void)
 {
+#if 0
 	inet_diag_unregister(&udplite_diag_handler);
 	inet_diag_unregister(&udp_diag_handler);
+#endif
 }
 
 //module_init(udp_diag_init);

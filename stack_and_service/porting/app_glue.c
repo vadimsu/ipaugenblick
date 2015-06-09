@@ -46,7 +46,7 @@
 #include "service/ipaugenblick_common/ipaugenblick_common.h"
 #include "service/ipaugenblick_service/ipaugenblick_server_side.h"
 #include <user_callbacks.h>
-#include <syslog.h>
+#include <ipaugenblick_log.h>
 
 TAILQ_HEAD(read_ready_socket_list_head, socket) read_ready_socket_list_head;
 uint64_t read_sockets_queue_len = 0;
@@ -80,7 +80,7 @@ void app_glue_sock_readable(struct sock *sk, int len)
 	}
 	if(sk->sk_socket->read_queue_present) {
 		if(read_sockets_queue_len == 0) {
-			syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
 			exit(0);
 		}
 		return;
@@ -172,7 +172,7 @@ static void app_glue_sock_wakeup(struct sock *sk)
               struct tcp_sock *tp;
               tp = tcp_sk(sk);
 	      app_glue_sock_write_space(sk);
-              //syslog(LOG_INFO,"%s %d %x %d %x %d %d \n",__FILE__,__LINE__,sk->sk_daddr,sk->sk_dport,sk->sk_rcv_saddr,sk->sk_num,tp->inet_conn.icsk_inet.inet_sport);
+              //ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %x %d %x %d %d \n",__FILE__,__LINE__,sk->sk_daddr,sk->sk_dport,sk->sk_rcv_saddr,sk->sk_num,tp->inet_conn.icsk_inet.inet_sport);
         }
 	sock_reset_flag(sk,SOCK_USE_WRITE_QUEUE);
 	sk->sk_data_ready = app_glue_sock_readable;
@@ -185,18 +185,18 @@ void *app_glue_create_socket(int family,int type)
 	struct timeval tv;
 	struct socket *sock = NULL;
 	if(sock_create_kern(family,type,0,&sock)) {
-		syslog(LOG_ERR,"cannot create socket %s %d\n",__FILE__,__LINE__);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create socket %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
 	tv.tv_sec = -1;
 	tv.tv_usec = 0;
 	if(sock_setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,(char *)&tv,sizeof(tv))) {
-		syslog(LOG_ERR,"%s %d cannot set notimeout option\n",__FILE__,__LINE__);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d cannot set notimeout option\n",__FILE__,__LINE__);
 	}
 	tv.tv_sec = -1;
 	tv.tv_usec = 0;
 	if(sock_setsockopt(sock,SOL_SOCKET,SO_SNDTIMEO,(char *)&tv,sizeof(tv))) {
-		syslog(LOG_ERR,"%s %d cannot set notimeout option\n",__FILE__,__LINE__);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d cannot set notimeout option\n",__FILE__,__LINE__);
 	}
 	if(type != SOCK_STREAM) {
 		if(sock->sk) {
@@ -232,7 +232,7 @@ int app_glue_v4_connect(struct socket *sock,unsigned int ipaddr,unsigned short p
 		sin.sin_addr.s_addr = /*my_ip_addr*/0;
 		sin.sin_port = htons(rand() & 0xffff);
 		if(kernel_bind(sock,(struct sockaddr *)&sin,sizeof(sin))) {
-			syslog(LOG_ERR,"cannot bind %s %d %d\n",__FILE__,__LINE__,sin.sin_port);
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot bind %s %d %d\n",__FILE__,__LINE__,sin.sin_port);
 			continue;
 		}
 		break;
@@ -253,10 +253,10 @@ int app_glue_v4_listen(struct socket *sock)
 		sock->sk->sk_state_change = app_glue_sock_wakeup;
 	}
 	else {
-		syslog(LOG_CRIT,"FATAL %s %d\n",__FILE__,__LINE__);exit(0);
+		ipaugenblick_log(IPAUGENBLICK_LOG_CRIT,"FATAL %s %d\n",__FILE__,__LINE__);exit(0);
 	}
 	if(kernel_listen(sock,32000)) {
-		syslog(LOG_ERR,"cannot listen %s %d\n",__FILE__,__LINE__);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot listen %s %d\n",__FILE__,__LINE__);
 		return -1;
 	}
 	return 0;
@@ -273,7 +273,7 @@ static inline void app_glue_poll(int port_num)
 	struct net_device *netdev = (struct net_device *)get_dpdk_dev_by_port_num(port_num);
 
 	if(!netdev) {
-		syslog(LOG_ERR,"Cannot get netdev %s %d\n",__FILE__,__LINE__);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"Cannot get netdev %s %d\n",__FILE__,__LINE__);
 		return;
 	}
 	netdev->netdev_ops->ndo_poll_controller(netdev);
@@ -382,7 +382,7 @@ void app_glue_init_poll_intervals(int drv_poll_interval,
 		                          int tx_ready_sockets_poll_interval,
 		                          int rx_ready_sockets_poll_interval)
 {
-	syslog(LOG_INFO,"%s %d %d %d %d %d\n",__func__,__LINE__,
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d %d %d %d\n",__func__,__LINE__,
 			drv_poll_interval,timer_poll_interval,tx_ready_sockets_poll_interval,
 			rx_ready_sockets_poll_interval);
 	float cycles_in_micro = rte_get_tsc_hz()/1000000;
@@ -390,7 +390,7 @@ void app_glue_init_poll_intervals(int drv_poll_interval,
 	app_glue_timer_poll_interval = cycles_in_micro*(float)timer_poll_interval;
 	app_glue_tx_ready_sockets_poll_interval = cycles_in_micro*(float)tx_ready_sockets_poll_interval;
 	app_glue_rx_ready_sockets_poll_interval = cycles_in_micro*(float)rx_ready_sockets_poll_interval;
-	syslog(LOG_INFO,"%s %d %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64"\n",__func__,__LINE__,
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64"\n",__func__,__LINE__,
 			app_glue_drv_poll_interval,app_glue_timer_poll_interval,
 			app_glue_tx_ready_sockets_poll_interval,app_glue_rx_ready_sockets_poll_interval);
 }
@@ -463,12 +463,12 @@ void app_glue_set_user_data(void *socket,void *data)
 	struct socket *sock = (struct socket *)socket;
 
 	if(!sock) {
-		syslog(LOG_ERR,"PANIC: socket NULL %s %d \n",__FILE__,__LINE__);while(1);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"PANIC: socket NULL %s %d \n",__FILE__,__LINE__);while(1);
 	}
 //	if(sock->sk)
 		sock->sk->sk_user_data = data;
 //	else
-//		syslog(LOG_INFO,"PANIC: socket->sk is NULL\n");while(1);
+//		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"PANIC: socket->sk is NULL\n");while(1);
 }
 /*
  * This function may be called to get attached to the socket user's data .
@@ -480,10 +480,10 @@ inline void *app_glue_get_user_data(void *socket)
 {
 	struct socket *sock = (struct socket *)socket;
 	if(!sock) {
-		syslog(LOG_ERR,"PANIC: socket NULL %s %d\n",__FILE__,__LINE__);while(1);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"PANIC: socket NULL %s %d\n",__FILE__,__LINE__);while(1);
 	}
 	if(!sock->sk) {
-		syslog(LOG_ERR,"PANIC: socket->sk NULL\n");while(1);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"PANIC: socket->sk NULL\n");while(1);
 	}
 	return sock->sk->sk_user_data;
 }
@@ -524,7 +524,7 @@ void *app_glue_get_next_writer()
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
 		if(sock->sk)
 		    return sock->sk->sk_user_data;
-  	    syslog(LOG_ERR,"PANIC: socket->sk is NULL\n");
+  	    ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"PANIC: socket->sk is NULL\n");
 	}
 	return NULL;
 }
@@ -543,7 +543,7 @@ void *app_glue_get_next_reader()
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
 		if(sock->sk)
 		    return sock->sk->sk_user_data;
-	    syslog(LOG_ERR,"PANIC: socket->sk is NULL\n");
+	    ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"PANIC: socket->sk is NULL\n");
 	}
 	return NULL;
 }
@@ -563,7 +563,7 @@ void *app_glue_get_next_listener()
 		TAILQ_REMOVE(&accept_ready_socket_list_head,sock,accept_queue_entry);
 		if(sock->sk)
 	        return sock->sk->sk_user_data;
-	    syslog(LOG_ERR,"PANIC: socket->sk is NULL\n");
+	    ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"PANIC: socket->sk is NULL\n");
 		return NULL;
 	}
 	return NULL;
@@ -650,9 +650,9 @@ void app_glue_print_stats()
 	ratio = (float)(total_cycles_stat - total_prev)/(float)(working_cycles_stat - work_prev);
 	total_prev = total_cycles_stat;
 	work_prev = working_cycles_stat;
-	syslog(LOG_INFO,"total %"PRIu64" work %"PRIu64" ratio %f\n",total_cycles_stat,working_cycles_stat,ratio);
-	syslog(LOG_INFO,"app_glue_periodic_called %"PRIu64"\n",app_glue_periodic_called);
-	syslog(LOG_INFO,"app_glue_tx_queues_process %"PRIu64"\n",app_glue_tx_queues_process);
-	syslog(LOG_INFO,"app_glue_rx_queues_process %"PRIu64"\n",app_glue_rx_queues_process);
-	syslog(LOG_INFO,"app_glue_sock_readable_called %"PRIu64" app_glue_sock_writable_called %"PRIu64"\n",app_glue_sock_readable_called, app_glue_sock_writable_called);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"total %"PRIu64" work %"PRIu64" ratio %f\n",total_cycles_stat,working_cycles_stat,ratio);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"app_glue_periodic_called %"PRIu64"\n",app_glue_periodic_called);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"app_glue_tx_queues_process %"PRIu64"\n",app_glue_tx_queues_process);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"app_glue_rx_queues_process %"PRIu64"\n",app_glue_rx_queues_process);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"app_glue_sock_readable_called %"PRIu64" app_glue_sock_writable_called %"PRIu64"\n",app_glue_sock_readable_called, app_glue_sock_writable_called);
 }

@@ -11,7 +11,7 @@
 #ifndef __USER_CALLBACKS_H_
 #define __USER_CALLBACKS_H_
 
-#include <syslog.h>
+#include <ipaugenblick_log.h>
 
 extern uint64_t user_on_tx_opportunity_cycles;
 extern uint64_t user_on_tx_opportunity_called;
@@ -35,11 +35,11 @@ static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
 {
         struct socket *sock = (struct socket *)socket;
         if(!sock) {
-                syslog(LOG_ERR,"PANIC: socket NULL %s %d\n",__FILE__,__LINE__);
+                ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"PANIC: socket NULL %s %d\n",__FILE__,__LINE__);
 		exit(1);
         }
         if(!sock->sk) {
-                syslog(LOG_ERR,"PANIC: socket->sk NULL\n");
+                ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"PANIC: socket->sk NULL\n");
 		exit(1);
         }
         return sock->sk->sk_user_data;
@@ -78,7 +78,7 @@ static inline __attribute__ ((always_inline)) void user_on_transmission_opportun
             return;
         }
         if(sock->sk->sk_state == TCP_LISTEN) {
-           syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+           ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
 	   exit(0);
         }
         
@@ -185,12 +185,12 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
     }
     socket_satelite_data = get_user_data(sock);
     if(!socket_satelite_data) {
-        syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
         return;
     }
 
     if(sock->sk->sk_state == TCP_LISTEN) {
-        syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
 	exit(0);
     }
     
@@ -214,7 +214,7 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
         } 
         
         if(ipaugenblick_submit_rx_buf(msg.msg_iov->head,socket_satelite_data)) {
-            syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);//shoud not happen!!!
+            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);//shoud not happen!!!
             rte_pktmbuf_free(msg.msg_iov->head);
             break;
         }

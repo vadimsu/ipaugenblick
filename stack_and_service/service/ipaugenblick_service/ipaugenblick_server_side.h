@@ -5,7 +5,7 @@
 //#include <signal.h>
 #define PKTMBUF_HEADROOM 128
 #define IPAUGENBLICK_BUFSIZE (PKTMBUF_HEADROOM+1448)
-#include <syslog.h>
+#include <ipaugenblick_log.h>
 
 struct ipaugenblick_clients
 {
@@ -54,18 +54,18 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 
     free_clients_ring = rte_ring_create(FREE_CLIENTS_RING,IPAUGENBLICK_CLIENTS_POOL_SIZE,rte_socket_id(), 0);
     if(!free_clients_ring) {
-        syslog(LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
 
-    syslog(LOG_INFO,"FREE CLIENTS RING CREATED\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CLIENTS RING CREATED\n");
 
     for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CLIENTS_POOL_SIZE;ringset_idx++) {
         rte_ring_enqueue(free_clients_ring,(void*)ringset_idx);
 	sprintf(ringname,"%s%d",FREE_CLIENTS_RING,ringset_idx);
 	ipaugenblick_clients[ringset_idx].client_ring = rte_ring_create(ringname, 64,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
 	if(!ipaugenblick_clients[ringset_idx].client_ring) {
-		syslog(LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
         	exit(0);
 	}
     }
@@ -76,18 +76,18 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 
     command_ring = rte_ring_create(ringname, command_bufs_count,rte_socket_id(), RING_F_SC_DEQ);
     if(!command_ring) {
-        syslog(LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
-    syslog(LOG_INFO,"COMMAND RING CREATED\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"COMMAND RING CREATED\n");
     sprintf(ringname,"rx_mbufs_ring");
 
     rx_mbufs_ring = rte_ring_create(ringname, rx_bufs_count*IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
     if(!rx_mbufs_ring) {
-        syslog(LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
-    syslog(LOG_INFO,"RX RING CREATED\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"RX RING CREATED\n");
     sprintf(ringname,FREE_COMMAND_POOL_NAME);
 
     free_command_pool = rte_mempool_create(ringname, command_bufs_count,
@@ -97,10 +97,10 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 				           NULL, NULL,
 				           rte_socket_id(), 0);
     if(!free_command_pool) {
-        syslog(LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
-    syslog(LOG_INFO,"COMMAND POOL CREATED\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"COMMAND POOL CREATED\n");
     sprintf(ringname,FREE_CONNECTIONS_POOL_NAME);
 
     free_connections_pool = rte_mempool_create(ringname, 1,
@@ -110,14 +110,14 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 				               NULL, NULL,
 				               rte_socket_id(), 0);
     if(!free_connections_pool) {
-        syslog(LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
 
-    syslog(LOG_INFO,"FREE CONNECTIONS POOL CREATED\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CONNECTIONS POOL CREATED\n");
 
     if(rte_mempool_get(free_connections_pool,(void **)&g_ipaugenblick_sockets)) {
-        syslog(LOG_ERR,"cannot get from mempool %s %d \n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot get from mempool %s %d \n",__FILE__,__LINE__);
         exit(0);
     }
 
@@ -125,11 +125,11 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 
     free_connections_ring = rte_ring_create(FREE_CONNECTIONS_RING,IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
     if(!free_connections_ring) {
-        syslog(LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
 
-    syslog(LOG_INFO,"FREE CONNECTIONS RING CREATED\n"); 
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CONNECTIONS RING CREATED\n"); 
 
     for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CONNECTION_POOL_SIZE;ringset_idx++,ipaugenblick_socket++) { 
           
@@ -142,14 +142,14 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         sprintf(ringname,TX_RING_NAME_BASE"%d",ringset_idx);
         socket_satelite_data[ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
         if(!socket_satelite_data[ringset_idx].tx_ring) {
-            syslog(LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
             exit(0);
         }
         rte_ring_set_water_mark(socket_satelite_data[ringset_idx].tx_ring,/*tx_bufs_count/10*/1);
         sprintf(ringname,RX_RING_NAME_BASE"%d",ringset_idx);
         socket_satelite_data[ringset_idx].rx_ring = rte_ring_create(ringname, rx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
         if(!socket_satelite_data[ringset_idx].rx_ring) {
-            syslog(LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
             exit(0);
         }
         rte_ring_set_water_mark(socket_satelite_data[ringset_idx].rx_ring,/*rx_bufs_count/10*/1);
@@ -158,7 +158,7 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
         socket_satelite_data[ringset_idx].socket = NULL;
 	socket_satelite_data[ringset_idx].apppid = 0;
     }
-    syslog(LOG_INFO,"CONNECTIONS Tx/Rx RINGS CREATED\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"CONNECTIONS Tx/Rx RINGS CREATED\n");
     
     sprintf(ringname,SELECTOR_POOL_NAME);
 
@@ -169,32 +169,32 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
 				               NULL, NULL,
 				               rte_socket_id(), 0);
     if(!selectors_pool) {
-        syslog(LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
         exit(0);
     }
-    syslog(LOG_INFO,"SELECTOR POOL CREATED\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR POOL CREATED\n");
     if(rte_mempool_get(selectors_pool,(void **)&g_ipaugenblick_selectors)) {
-        syslog(LOG_ERR,"cannot get from mempool %s %d \n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot get from mempool %s %d \n",__FILE__,__LINE__);
         exit(0);
     }
     selectors_ring = rte_ring_create(SELECTOR_RING_NAME,IPAUGENBLICK_SELECTOR_POOL_SIZE,rte_socket_id(), 0);
     if(!selectors_ring) {
-        syslog(LOG_ERR,"cannot create ring %s %d \n",__FILE__,__LINE__);
+        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d \n",__FILE__,__LINE__);
         exit(0);
     }
-    syslog(LOG_INFO,"SELECTOR RING CREATED\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR RING CREATED\n");
     ipaugenblick_selector = g_ipaugenblick_selectors;
     for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_SELECTOR_POOL_SIZE;ringset_idx++) {
         sprintf(ringname,"SELECTOR_RING_NAME%d",ringset_idx);
         ipaugenblick_selector[ringset_idx].ready_connections = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
         if(!ipaugenblick_selector[ringset_idx].ready_connections) {
-            syslog(LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
             exit(0);
         }
-        syslog(LOG_INFO,"SELECTOR READY RING#%d CREATED\n",ringset_idx);
+        ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR READY RING#%d CREATED\n",ringset_idx);
         rte_ring_enqueue(selectors_ring,(void*)ringset_idx);
     } 
-    syslog(LOG_INFO,"DONE\n");
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"DONE\n");
     return 0;
 }
 static inline ipaugenblick_cmd_t *ipaugenblick_dequeue_command_buf()
@@ -220,11 +220,11 @@ static inline void ipaugenblick_mark_readable(void *descriptor)
     uint32_t ringidx_ready_mask; 
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
     if(socket_satelite_data->parent_idx == -1) {
-        //syslog(LOG_INFO,"%s %d\n",__FILE__,__LINE__);
+        //ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d\n",__FILE__,__LINE__);
         return;
     }
 #if 1
-//    syslog(LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
+//    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready_to_app)) {
     //    if(socket_satelite_data->apppid)
       //     kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
@@ -241,7 +241,7 @@ static inline void ipaugenblick_mark_readable(void *descriptor)
 static inline void ipaugenblick_post_accepted(ipaugenblick_cmd_t *cmd,void *parent_descriptor)
 {
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)parent_descriptor;
-//    syslog(LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->ringset_idx);
+//    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->ringset_idx);
 //    cmd->ringset_idx = socket_satelite_data->ringset_idx;
     if(rte_ring_enqueue(socket_satelite_data->rx_ring,(void *)cmd) == -ENOBUFS) { 
         ipaugenblick_free_command_buf(cmd);
@@ -299,7 +299,7 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
     int rc;
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
     if(socket_satelite_data->parent_idx == -1) {
-//	syslog(LOG_INFO,"%s %d\n",__FILE__,__LINE__);
+//	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d\n",__FILE__,__LINE__);
         return 1;
     }
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready_to_app)) {
@@ -310,7 +310,7 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
     rc = rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
     user_kick_select_tx++;
-//    syslog(LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
+//    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
     if(socket_satelite_data->apppid)
         kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
     return (rc == -ENOBUFS);
@@ -322,12 +322,12 @@ static inline int ipaugenblick_mark_closed(void *descriptor)
     int rc;
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
     if(socket_satelite_data->parent_idx == -1) {
-//	syslog(LOG_INFO,"%s %d\n",__FILE__,__LINE__);
+//	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d\n",__FILE__,__LINE__);
         return 1;
     }
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_CLOSED_BIT << SOCKET_READY_SHIFT);
     rc = rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
-//    syslog(LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
+//    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
     if(socket_satelite_data->apppid)
         kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
     return (rc == -ENOBUFS);

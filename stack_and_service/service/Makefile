@@ -3,8 +3,8 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.vars.mk
 SRC_ROOT=$(CURRENT_DIR)
 SRCS-y :=  ipaugenblick_main.c
-#CFLAGS += -g
-CFLAGS += -Ofast  
+CFLAGS += -g
+#CFLAGS += -Ofast  
 CFLAGS += $(WERROR_FLAGS) 
 LINUX_HEADERS=$(SRC_ROOT)stack_and_service/service
 DPDK_HEADERS=$(RTE_SDK)x86_64-native-linuxapp-gcc/include

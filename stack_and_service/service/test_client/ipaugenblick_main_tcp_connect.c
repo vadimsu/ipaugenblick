@@ -27,6 +27,7 @@ int main(int argc,char **argv)
     int max_total_length = 0;
     unsigned short mask;
     unsigned long received_count = 0;
+    unsigned long transmitted_count = 0;
 
     if(ipaugenblick_app_init(argc,argv,"tcp_connect") != 0) {
         printf("cannot initialize memory\n");
@@ -46,7 +47,7 @@ int main(int argc,char **argv)
     int bufsize = 1024*1024*1000;
     ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
-    ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.62"),htons(7777),1);
+    ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),htons(7777),1);
  
     int first_time = 1;
     while(1) {  
@@ -80,6 +81,10 @@ int main(int argc,char **argv)
                     printf("received %u max_total_len %u\n",received_count,max_total_length);
                 }
 #endif
+		if(!(received_count%1000)) {
+                    printf("received %u transmitted_count %u\n", received_count, transmitted_count);
+		    print_stats();
+                }
                 ipaugenblick_release_rx_buffer(porigdesc,ready_socket);
             }
 #endif
@@ -115,8 +120,11 @@ int main(int argc,char **argv)
                         printf("%s %d\n",__FILE__,__LINE__);
                     }
                     else {
-//                        printf("%s %d %d\n",__FILE__,__LINE__,tx_space);
-//                        sent = 1;
+			transmitted_count++;
+			if(!(transmitted_count%1000)) {
+                    		printf("transmitted %u received_count %u\n",transmitted_count, received_count);
+				print_stats();
+                	}
                     }
             }
 #endif

@@ -281,7 +281,7 @@
 //#include <asm/uaccess.h>
 //#include <asm/ioctls.h>
 #include <specific_includes/net/busy_poll.h>
-#include <syslog.h>
+#include <ipaugenblick_log.h>
 int sysctl_tcp_fin_timeout __read_mostly = TCP_FIN_TIMEOUT;
 
 int sysctl_tcp_min_tso_segs __read_mostly = 2;
@@ -1775,7 +1775,7 @@ found_ok_skb:
 /*		if (len < used)
 			used = len;*/
                 if(used == 0) {
-                    syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+                    ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
                     break;
                 }
 
@@ -1820,7 +1820,7 @@ skip_copy:
 			tcp_fast_path_check(sk);
 		}
 		if (used + offset < skb->len) {
-                        syslog(LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+                        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
 			continue;
                 }
 

@@ -38,7 +38,7 @@
 #include <rte_config.h>
 #include <rte_common.h>
 #include <rte_cycles.h>
-#include <syslog.h>
+#include <ipaugenblick_log.h>
 
 typedef struct
 {
@@ -79,6 +79,12 @@ static netdev_tx_t lpbkdpdk_xmit_frame(struct sk_buff *skb,
 	mbuf = &head->next;
 	
 	copied_mbuf = rte_pktmbuf_alloc(get_direct_pool(priv->port_number));
+	if (!copied_mbuf) {
+		skb->header_mbuf = NULL;
+		kfree_skb(skb);
+		rte_pktmbuf_free(head);
+		return NETDEV_TX_OK;
+	}
 	memcpy(rte_pktmbuf_mtod(copied_mbuf,void *),rte_pktmbuf_mtod(head,void *), rte_pktmbuf_data_len(head));
 	rte_pktmbuf_data_len(copied_mbuf) = rte_pktmbuf_data_len(head);
 	network_offset = skb_network_header(skb) - skb_mac_header(skb);
@@ -201,7 +207,7 @@ void * init_dpdk_sw_loop(int portid)
     	}
     	netdev = alloc_netdev_mqs(sizeof(dpdk_dev_priv_t),ring_name,ether_setup,1,1);
 	if(netdev == NULL) {
-		syslog(LOG_ERR,"cannot allocate netdevice %s %d\n",__FILE__,__LINE__);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot allocate netdevice %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
 	priv = netdev_priv(netdev);
@@ -229,7 +235,7 @@ void * init_dpdk_sw_loop(int portid)
 		| NETIF_F_LOOPBACK;
 
 	if(register_netdev(netdev)) {
-		syslog(LOG_ERR,"Cannot register netdev %s %d\n",__FILE__,__LINE__);
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"Cannot register netdev %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
 	init_net.loopback_dev = netdev;
