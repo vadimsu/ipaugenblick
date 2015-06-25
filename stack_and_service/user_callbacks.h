@@ -202,26 +202,29 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
     
     user_rx_ring_full += !ring_free;
     while(ring_free > 0) {
-        if(unlikely(kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, ring_free*1448 /*size*/, 0 /*flags*/)) <= 0) {
+	memset(&vec,0,sizeof(vec));
+	int rc;
+        if(unlikely((rc = kernel_recvmsg(sock, &msg,&vec, 1 /*num*/, /*ring_free*1448*/-1 /*size*/, 0 /*flags*/)) <= 0)) {
             exhausted = 1;
             break;
         }
+	if(msg.msg_iov->head == NULL)
+	    printf("rc == %d %lu %lu\n",rc,ring_free,user_rx_mbufs);
         ring_free--;
         if((sock->type == SOCK_DGRAM)||(sock->type == SOCK_RAW)) {
             char *p_addr = rte_pktmbuf_mtod(msg.msg_iov->head, char *);
             p_addr -= msg.msg_namelen;
             memcpy(p_addr,msg.msg_name,msg.msg_namelen);
-        } 
-        
+        }
+	int mbufs = msg.msg_iov->head->nb_segs;
         if(ipaugenblick_submit_rx_buf(msg.msg_iov->head,socket_satelite_data)) {
             ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);//shoud not happen!!!
             rte_pktmbuf_free(msg.msg_iov->head);
             break;
         }
         else {
-            user_rx_mbufs++;
+            user_rx_mbufs+=mbufs;
         }
-        memset(&vec,0,sizeof(vec));
     }
 
     user_on_rx_opportunity_called_exhausted += exhausted; 

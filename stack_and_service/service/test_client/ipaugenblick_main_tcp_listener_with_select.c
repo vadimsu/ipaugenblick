@@ -12,6 +12,7 @@
 #include <string.h>
 
 #define USE_TX 1
+#define USE_RX 0
 #define LISTENERS_COUNT 1
 #define LISTENERS_BASE 7777
 
@@ -40,6 +41,7 @@ int main(int argc,char **argv)
     unsigned short mask;
     unsigned long received_count = 0;
     unsigned long transmitted_count = 0;
+    struct timeval tm_out, *p_timeout = NULL;
 
     if(ipaugenblick_app_init(argc,argv,"tcp_listener") != 0) {
         printf("cannot initialize memory\n");
@@ -59,21 +61,25 @@ int main(int argc,char **argv)
 
     	ipaugenblick_listen_socket(sock);
     	listeners[listeners_idx] = sock;
-        int bufsize = 1024*1024*1000;
-	ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
-        ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
+    //    int bufsize = 1024*1024*1000;
+//	ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
+  //      ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     }
     
     //    ipaugenblick_set_socket_select(sock,selector);
     while(1) {
 	mask = 0;
-        ready_socket = ipaugenblick_select(selector,&mask, NULL);
+	memset(&tm_out,0,sizeof(tm_out));
+	p_timeout = &tm_out;
+        ready_socket = ipaugenblick_select(selector,&mask, p_timeout);
+	mask= 0x3;
         if(ready_socket == -1) {
             continue;
         }
         if(is_listener(ready_socket,listeners)) {
 	    unsigned int ipaddr;
 	    unsigned short port;
+	    p_timeout = NULL;
             while((newsock = ipaugenblick_accept(ready_socket,&ipaddr,&port)) != -1) {
                 printf("socket accepted %d %d %x %d\n",newsock,selector,ipaddr,port);
                 ipaugenblick_set_socket_select(newsock,selector);
@@ -84,44 +90,61 @@ int main(int argc,char **argv)
         if(sockets_connected == 0) {
             continue;
         }
-	
+#if USE_RX	
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
 	    int first_seg_len = 0;
 	    len = /*1024*/0;
+	    p_timeout = NULL;
             while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len,&pdesc) == 0) {
-                received_count++;
-                if(len > max_total_length)
-                    max_total_length = len;
+
+		int segs = 0;
                 void *porigdesc = pdesc;
-#if 0
-                while(rxbuff) {
-                    
-                    rxbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
-                    if((rxbuff)&&(len > 0)) {
+
+#if 1
+                while(rxbuff) { 
+                    if(len > 0) {
                         /* do something */
                         /* don't release buf, release rxbuff */
                     }
+                    segs++;
+                    if(segs > 100000) {
+                        printf("segs!!!!\n");exit(0);
+                    }
+                    rxbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
                 }
-#endif
-                if(!(received_count%1000)) {
+
+                received_count+=segs;
+#else
+                received_count++;
+#endif 
+		if(!(received_count%1000)) {
                     printf("received %u transmitted_count %u\n", received_count, transmitted_count);
 		    print_stats();
                 }
                 ipaugenblick_release_rx_buffer(porigdesc,ready_socket);
+		len = 0;
             }
         }
+#endif
 #if USE_TX
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
+	    p_timeout = NULL;
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
-#if 0
+#if 1
             for(i = 0;i < tx_space;i++) {
-                buff = ipaugenblick_get_buffer(1448,ready_socket,&pdesc);
-                if(!buff) {
+                txbuff = ipaugenblick_get_buffer(1448,ready_socket,&pdesc);
+                if(!txbuff) {
                     break;
                 }
+		//strcpy(txbuff,"VADIM");
                 if(ipaugenblick_send(ready_socket,pdesc,0,1448)) { 
                     ipaugenblick_release_tx_buffer(pdesc);
                     break;
+                }
+		transmitted_count++;
+		if(!(transmitted_count%1000000)) {
+                    printf("received %u transmitted_count %u\n", received_count, transmitted_count);
+		    print_stats();
                 }
             }
 	    if(tx_space == 0)
@@ -143,7 +166,7 @@ int main(int argc,char **argv)
                         printf("%s %d\n",__FILE__,__LINE__);
                     }
                     else {
-			transmitted_count++;
+			transmitted_count += tx_space;
 			if(!(transmitted_count%1000)) {
                     		printf("transmitted %u received_count %u\n", transmitted_count, received_count);
 				print_stats();
@@ -151,10 +174,20 @@ int main(int argc,char **argv)
                     }
             }
 #endif
-            ipaugenblick_socket_kick(ready_socket);
+	    int iter = 0;
+            while(ipaugenblick_socket_kick(ready_socket) == -1) {
+		iter++;
+		if(!(iter%1000000)) {
+			printf("iter!\n");exit(0);
+		}
+	    }
         }  
 //        ipaugenblick_socket_kick(ready_socket);
 #endif
+	if (mask == 0) {
+		memset(&tm_out,0,sizeof(tm_out));
+		p_timeout = &tm_out;
+	}
     }
     return 0;
 }

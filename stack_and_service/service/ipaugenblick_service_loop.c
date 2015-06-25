@@ -131,6 +131,7 @@ void user_transmitted_callback(struct rte_mbuf *mbuf,struct socket *sock)
         if((sock)&&(last)) {
                socket_satelite_data_t *socket_satelite_data = get_user_data(sock);
                if(socket_satelite_data) {
+//printf("%s %d %p %d %d %d\n",__FILE__,__LINE__,&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx],socket_satelite_data->ringset_idx, rte_pktmbuf_data_len(mbuf),rte_mbuf_refcnt_read(mbuf));
                        user_increment_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,rte_pktmbuf_data_len(mbuf));
                }
         }
@@ -367,6 +368,7 @@ void ipaugenblick_main_loop()
                 socket_satelite_data_t *socket_data = get_user_data(sock);
 		if(socket_data->socket->type == SOCK_DGRAM)
 		   	user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_data->ringset_idx].tx_space,sk_stream_wspace(socket_data->socket->sk));
+		//printf("%s %d %d %d %d\n",__FILE__,__LINE__,socket_data->ringset_idx,g_ipaugenblick_sockets[socket_data->ringset_idx].tx_space,sk_stream_wspace(socket_data->socket->sk));
                 if(!ipaugenblick_mark_writable(socket_data)) { 
                     sock->buffers_available_notification_queue_present = 0;
                     TAILQ_REMOVE(&buffers_available_notification_socket_list_head,sock,buffers_available_notification_queue_entry); 

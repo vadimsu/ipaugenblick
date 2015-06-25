@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <sys/errno.h>
 #include <stdlib.h>
 #include <rte_atomic.h>
@@ -18,6 +19,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include "ipaugenblick_log.h"
+#include <sched.h>
 
 local_socket_descriptor_t local_socket_descriptors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
 struct rte_mempool *free_connections_pool = NULL;
@@ -52,6 +54,7 @@ uint64_t ipaugenblick_stats_recv_failure = 0;
 uint64_t ipaugenblick_stats_buffers_sent = 0;
 uint64_t ipaugenblick_stats_buffers_allocated = 0;
 uint64_t ipaugenblick_stats_cannot_allocate_cmd = 0;
+uint64_t ipaugenblick_stats_rx_returned = 0;
 pthread_t stats_thread;
 uint8_t g_print_stats_loop = 1;
 uint32_t g_client_ringset_idx = IPAUGENBLICK_CONNECTION_POOL_SIZE;
@@ -63,13 +66,14 @@ void print_stats()
                 ipaugenblick_stats_rx_kicks_sent %lu ipaugenblick_stats_tx_kicks_sent %lu ipaugenblick_stats_cannot_allocate_cmd %lu  \n\t\
                 ipaugenblick_stats_rx_full %lu ipaugenblick_stats_rx_dequeued %lu ipaugenblick_stats_rx_dequeued_local %lu \n\t\
                 ipaugenblick_stats_select_called %lu ipaugenblick_stats_select_returned %lu ipaugenblick_stats_tx_buf_allocation_failure %lu \n\t\
-                ipaugenblick_stats_send_failure %lu ipaugenblick_stats_recv_failure %lu ipaugenblick_stats_buffers_sent %lu ipaugenblick_stats_buffers_allocated %lu\n",
+                ipaugenblick_stats_send_failure %lu ipaugenblick_stats_recv_failure %lu ipaugenblick_stats_buffers_sent %lu ipaugenblick_stats_buffers_allocated %lu ipaugenblick_stats_rx_dequeued %lu\n",
                 ipaugenblick_stats_receive_called,ipaugenblick_stats_send_called,ipaugenblick_stats_rx_kicks_sent,
                 ipaugenblick_stats_tx_kicks_sent,ipaugenblick_stats_cannot_allocate_cmd,ipaugenblick_stats_rx_full,ipaugenblick_stats_rx_dequeued,
                 ipaugenblick_stats_rx_dequeued_local,ipaugenblick_stats_select_called,ipaugenblick_stats_select_returned,ipaugenblick_stats_tx_buf_allocation_failure,
                 ipaugenblick_stats_send_failure,ipaugenblick_stats_recv_failure,
                 ipaugenblick_stats_buffers_sent,
-                ipaugenblick_stats_buffers_allocated);
+                ipaugenblick_stats_buffers_allocated,
+		ipaugenblick_stats_rx_dequeued);
 }
 
 void print_stats_loop()
@@ -124,6 +128,8 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
 {
     int i;
     char ringname[1024];
+    rte_cpuset_t cpuset;
+    unsigned cpu;
 
     ipaugenblick_log_init(0);
 
@@ -224,7 +230,19 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
     signal(SIGSEGV, sig_handler);
     signal(SIGTERM, sig_handler);
     signal(SIGUSR1, sig_handler);
-//    pthread_create(&stats_thread,NULL,print_stats,NULL);
+    
+    RTE_LCORE_FOREACH(cpu) {
+	if(rte_lcore_is_enabled(cpu)) {
+		CPU_ZERO(&cpuset);
+//		memset(&cpuset,0,sizeof(cpuset));
+//		unsigned char *p = (unsigned char *)&cpuset;
+		CPU_SET(cpu,&cpuset);
+		//*p = cpu;
+		if(!rte_thread_set_affinity(&cpuset))
+			break;
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot set thread affinity for %d %s %d\n",cpu,__FILE__,__LINE__);
+	}
+    }
     return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
 }
 
@@ -453,7 +471,7 @@ int ipaugenblick_get_socket_tx_space(int sock)
 //    printf("sock %d ring space %d free bufs %d tx space %d\n",sock,ring_space,free_bufs_count,tx_space);
     if(rc > tx_space)
 	rc = tx_space;
-    if(!rc) {
+    if(rc < 10) {
 	rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
         ipaugenblick_notify_empty_tx_buffers(sock);
     }
@@ -504,6 +522,7 @@ inline int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_
     ipaugenblick_stats_buffers_sent += buffer_count;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
     rc = ipaugenblick_enqueue_tx_bufs_bulk(sock,mbufs,buffer_count);
+//printf("%s %d %p %d %d %d\n",__FILE__,__LINE__,local_socket_descriptors[sock & SOCKET_READY_MASK].socket,sock & SOCKET_READY_MASK,local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space,total_length);
     if(rc == 0)
 	rte_atomic32_sub(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space),total_length);
     ipaugenblick_stats_send_failure += (rc != 0);
@@ -640,7 +659,7 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
     /* first try to look shadow. shadow pointer saved when last mbuf delievered partially */
     mbuf = ipaugenblick_get_from_shadow(sock);
     if((mbuf)&&(*total_len > 0)) { /* total_len > 0 means user restricts total read count */
-//	printf("%s %d %d\n",__FILE__,__LINE__,*total_len);
+	printf("%s %d %d\n",__FILE__,__LINE__,*total_len);
 	int total_len2 = *total_len;
 	/* now find mbuf (if any) to be delievered partially and save it to shadown */
 	ipaugenblick_try_read_exact_amount(mbuf,sock,&total_len2,first_segment_len);
@@ -684,7 +703,7 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 	    *first_segment_len = rte_pktmbuf_data_len(mbuf);
 	    *pbuffer = rte_pktmbuf_mtod(mbuf,void *);
     	    *pdesc = mbuf;
-//	    printf("%s %d\n",__FILE__,__LINE__);
+	    printf("%s %d\n",__FILE__,__LINE__);
 	    return 0;
     }
 read_from_ring:
@@ -692,7 +711,7 @@ read_from_ring:
     mbuf = ipaugenblick_dequeue_rx_buf(sock);
     if(mbuf) {
 	if(*total_len > 0) { /* read exact */
-//		printf("%s %d %d\n",__FILE__,__LINE__,*total_len);
+		printf("%s %d %d\n",__FILE__,__LINE__,*total_len);
 		int total_len2 = *total_len;
 		ipaugenblick_try_read_exact_amount(mbuf,sock,&total_len2,first_segment_len);
 		*total_len = total_len2;
@@ -706,6 +725,7 @@ read_from_ring:
 //		printf("%s %d %d\n",__FILE__,__LINE__,mbuf->pkt.pkt_len);
 		*total_len = rte_pktmbuf_pkt_len(mbuf);
 		*first_segment_len = rte_pktmbuf_data_len(mbuf);
+		ipaugenblick_stats_rx_returned += mbuf->nb_segs;
 	}
 	*pbuffer = rte_pktmbuf_mtod(mbuf,void *);
     	*pdesc = mbuf;
@@ -815,6 +835,7 @@ int ipaugenblick_socket_kick(int sock)
     cmd = ipaugenblick_get_free_command_buf();
     if(!cmd) {
         ipaugenblick_stats_cannot_allocate_cmd++;
+	usleep(1);
         return -1;
     }
     cmd->cmd = IPAUGENBLICK_SOCKET_TX_KICK_COMMAND;

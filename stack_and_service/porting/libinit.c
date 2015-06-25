@@ -6,6 +6,7 @@
  *  Contains functions for initialization of
  *  Linux TCP/IP ported to userland and integrated with DPDK 1.6
  */
+#define _GNU_SOURCE
 #include<stdio.h>
 #include <sys/param.h>
 #include <rte_config.h>
@@ -17,6 +18,7 @@
 #include <ipaugenblick_service_build.h>
 #include <ipaugenblick_log.h>
 #include <unistd.h>
+#include <sched.h>
 
 #define RTE_RX_DESC_DEFAULT (4096)
 #define RTE_TX_DESC_DEFAULT 4096
@@ -458,9 +460,10 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	unsigned nb_ports_in_mask = 0;
 	uint8_t nb_ports_available;
 	unsigned lcore_id, core_count;
-    int rx_lcore_id = 1;
-	int tx_lcore_id = 2;
-    unsigned main_loop_lcore_id;
+	unsigned cpu;
+	unsigned afinity_reset = 0;
+	rte_cpuset_t cpuset;
+
 	struct ether_addr mac_addr;
 	dpdk_dev_config_t *p_dpdk_dev_config;
 
@@ -651,16 +654,28 @@ loopback_only:
                 }
 		portid++;
 	}
-skip_loopback:
-	rte_eal_remote_launch(print_stats, NULL, 1);
-#if 0
-	rte_eal_remote_launch(print_stats, NULL, /*CALL_MASTER*/3);
-//	while(1)sleep(1000);
-	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
-		if (rte_eal_wait_lcore(lcore_id) < 0)
-			return -1;
+skip_loopback:	
+	RTE_LCORE_FOREACH(cpu) {
+	if(rte_lcore_is_enabled(cpu)) {
+		if(!afinity_reset) {
+			CPU_ZERO(&cpuset);
+//			memset(&cpuset,0,sizeof(cpuset));
+//			unsigned char *p = (unsigned char *)&cpuset;
+			CPU_SET(cpu,&cpuset);
+//			*p = cpu;
+			if(!rte_thread_set_affinity(&cpuset)) {
+				afinity_reset = 1;
+			} else {
+				ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot set thread affinity for %d %s %d\n",cpu,__FILE__,__LINE__);
+			//	rte_eal_remote_launch(print_stats, NULL, cpu+1);
+				break;
+			}
+		} else {
+			rte_eal_remote_launch(print_stats, NULL, cpu);
+			break;
+		}
 	}
-#endif
-	return 0;
+    }	
+    return 0;
 }
 

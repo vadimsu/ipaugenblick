@@ -61,6 +61,7 @@ static int lpbkdpdk_set_mac(struct net_device *netdev, void *p)
 
 struct rte_mempool *get_direct_pool(uint16_t portid);
 
+extern uint64_t transmitted;
 static netdev_tx_t lpbkdpdk_xmit_frame(struct sk_buff *skb,
                                   struct net_device *netdev)
 {
@@ -69,20 +70,23 @@ static netdev_tx_t lpbkdpdk_xmit_frame(struct sk_buff *skb,
 	dpdk_dev_priv_t *priv = netdev_priv(netdev);
 	skb_dst_force(skb);
 	head = skb->header_mbuf;
-	rte_pktmbuf_data_len(head) = skb_headroom(skb) + skb_headlen(skb);
+	rte_pktmbuf_data_len(head) = skb_headlen(skb);
 
 	/* across all the stack, pkt.data in rte_mbuf is not moved while skb's data is.
 	 * now is the time to do that
 	 */
-	rte_pktmbuf_adj(head,skb_headroom(skb));/* now mbuf data is at eth header */
+	head->data_off = (RTE_PKTMBUF_HEADROOM <= head->buf_len) ?
+			RTE_PKTMBUF_HEADROOM : head->buf_len;
+	head->data_off +=  (skb->data - skb->head);
 	
 	mbuf = &head->next;
 	
 	copied_mbuf = rte_pktmbuf_alloc(get_direct_pool(priv->port_number));
 	if (!copied_mbuf) {
-		skb->header_mbuf = NULL;
+	//	skb->header_mbuf = NULL;
 		kfree_skb(skb);
-		rte_pktmbuf_free(head);
+	//	rte_pktmbuf_free(head);
+//printf("%s %d\n",__FILE__,__LINE__);
 		return NETDEV_TX_OK;
 	}
 	memcpy(rte_pktmbuf_mtod(copied_mbuf,void *),rte_pktmbuf_mtod(head,void *), rte_pktmbuf_data_len(head));
@@ -99,13 +103,15 @@ static netdev_tx_t lpbkdpdk_xmit_frame(struct sk_buff *skb,
 	 */
 	for (i = 0; i < (int)skb_shinfo(skb)->nr_frags; i++) {
 		*mbuf = skb_shinfo(skb)->frags[i].page.p;
-		skb_frag_ref(skb,i);	
+		skb_frag_ref(skb,i);
 		memcpy(rte_pktmbuf_mtod(copied_mbuf,char *) + offset,rte_pktmbuf_mtod((*mbuf),void *), rte_pktmbuf_data_len((*mbuf)));
 		offset += rte_pktmbuf_data_len((*mbuf));
 		rte_pktmbuf_data_len(copied_mbuf) += rte_pktmbuf_data_len((*mbuf));
 		//printf("%s %s %d %d %d\n",__FILE__,__func__,__LINE__,rte_pktmbuf_data_len(copied_mbuf), rte_pktmbuf_data_len((*mbuf)));
 		rte_pktmbuf_free_seg((*mbuf));
+		head = mbuf;
 		mbuf = &((*mbuf)->next);
+		head->next = NULL;
 	}	
         *mbuf = NULL;
 //	printf("%s %s %d %p %p %d %d %d %d\n",__FILE__,__func__,__LINE__,skb->data,skb->head,skb->len, skb->end,skb->mac_header,skb->network_header);
@@ -113,29 +119,21 @@ static netdev_tx_t lpbkdpdk_xmit_frame(struct sk_buff *skb,
 	skb = build_skb(copied_mbuf,rte_pktmbuf_data_len(copied_mbuf));
 	if(unlikely(skb == NULL)) {
 		rte_pktmbuf_free(copied_mbuf);
+printf("%s %d\n",__FILE__,__LINE__);
 		return NETDEV_TX_OK;
 	}
-
 	rte_pktmbuf_pkt_len(copied_mbuf) = offset;
 	skb->protocol = eth_type_trans(skb, netdev);
-//	skb_set_network_header(skb,network_offset);	
 	skb->len = offset;
 	skb->ip_summed = CHECKSUM_UNNECESSARY;
 	skb->dev = netdev;
 	skb_pull(skb,network_offset);
 	skb_set_transport_header(skb,transport_offset);
-#if 0
-	printf("%s %s %d %d %d\n",__FILE__,__func__,__LINE__,rte_pktmbuf_data_len(copied_mbuf), rte_pktmbuf_pkt_len(copied_mbuf));
-printf("%s %s %d %p %p %d %d %d %d\n",__FILE__,__func__,__LINE__,skb->data,skb->head,skb->len, skb->end,skb->mac_header,skb->network_header);
-{
-    for(i = 0;i < offset;i++) {
-	if(!(i%8))
-		printf("\n");
-	printf("  %x",rte_pktmbuf_mtod(copied_mbuf, unsigned char *)[i]);
-    }
-}
-#endif
+	if (copied_mbuf->next) {
+		printf("%s %d\n",__FILE__,__LINE__);exit(0);
+	}
 	rte_ring_enqueue_burst(loop_ring[priv->port_number],&skb,1);
+	transmitted++;
 	return NETDEV_TX_OK;
 }
 
@@ -143,6 +141,7 @@ printf("%s %s %d %p %p %d %d %d %d\n",__FILE__,__func__,__LINE__,skb->data,skb->
  * It constructs skb and submits it to the stack.
  * netif_receive_skb is used, we don't have HW interrupt/BH contexts here
  */
+extern uint64_t received;
 static void rx_construct_skb_and_submit(struct net_device *netdev)
 {
 	int size = MAX_PKT_BURST,ret,i;
@@ -153,18 +152,8 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
 	ret = rte_ring_dequeue_burst(loop_ring[priv->port_number],(void **)skbs,size);
 
 	for(i = 0;i < ret;i++) {
-#if 0
-printf("%s %s %d %d %d %p\n",__FILE__,__func__,__LINE__,i,ret,skbs[i]);
-{
-    int j;
-    for(j = 0;j < rte_pktmbuf_data_len(skbs[i]->header_mbuf);j++) {
-	if(!(j%8))
-		printf("\n");
-	printf("  %x",rte_pktmbuf_mtod(skbs[i]->header_mbuf, unsigned char *)[j]);
-    }
-}
-#endif
 		netif_receive_skb(skbs[i]);
+		received++;
 //printf("%s %s %d\n",__FILE__,__func__,__LINE__);
 	}
 }
