@@ -201,14 +201,16 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	struct rte_mbuf **mbuf,*head;
 	dpdk_dev_priv_t *priv = netdev_priv(netdev);
 	skb_dst_force(skb);
-
 	head = skb->header_mbuf;
-	rte_pktmbuf_data_len(head) = skb_headroom(skb) + skb_headlen(skb);
+        rte_pktmbuf_data_len(head) = skb_headlen(skb);
 
-	/* across all the stack, pkt.data in rte_mbuf is not moved while skb's data is.
-	 * now is the time to do that
-	 */
-	rte_pktmbuf_adj(head,skb_headroom(skb));/* now mbuf data is at eth header */
+        /* across all the stack, pkt.data in rte_mbuf is not moved while skb's data is.
+         * now is the time to do that
+         */
+        head->data_off = (RTE_PKTMBUF_HEADROOM <= head->buf_len) ?
+                        RTE_PKTMBUF_HEADROOM : head->buf_len;
+        head->data_off +=  (skb->data - skb->head);
+
 	pkt_len = rte_pktmbuf_data_len(head);
 
 	mbuf = &head->next;
