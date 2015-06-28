@@ -67,12 +67,12 @@ int main(int argc,char **argv)
     }
     
     //    ipaugenblick_set_socket_select(sock,selector);
+    memset(&tm_out,0,sizeof(tm_out));
+    p_timeout = &tm_out;
     while(1) {
-	mask = 0;
-	memset(&tm_out,0,sizeof(tm_out));
-	p_timeout = &tm_out;
+	mask = 0;	
         ready_socket = ipaugenblick_select(selector,&mask, p_timeout);
-	mask= 0x3;
+//	mask= 0x3;
         if(ready_socket == -1) {
             continue;
         }

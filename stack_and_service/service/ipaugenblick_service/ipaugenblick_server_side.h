@@ -226,8 +226,8 @@ static inline void ipaugenblick_mark_readable(void *descriptor)
 #if 1
 //    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
     if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready_to_app)) {
-    //    if(socket_satelite_data->apppid)
-      //     kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
+        if(socket_satelite_data->apppid)
+           kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
         return;
     }
 #endif

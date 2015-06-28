@@ -76,14 +76,23 @@ void print_stats()
 		ipaugenblick_stats_rx_dequeued);
 }
 
-void print_stats_loop()
+void print_rings_stats()
 {
-    while(g_print_stats_loop) {
-#if 1
-        print_stats(); 
-#endif
-        sleep(1);
-    }
+	int i;
+
+	for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {	
+		if(local_socket_descriptors[i].socket) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"Connection #%d\n",i);
+        		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"rx ring count %d tx ring count %d",
+				rte_ring_count(local_socket_descriptors[i].rx_ring),
+				rte_ring_count(local_socket_descriptors[i].tx_ring));
+			ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"local cache count %d",
+				rte_ring_count(local_socket_descriptors[i].local_cache));
+			ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"read_ready %d write_ready %d",
+				local_socket_descriptors[i].socket->read_ready_to_app.cnt,
+				local_socket_descriptors[i].socket->write_ready_to_app.cnt);
+		}
+        }
 }
 
 static inline void ipaugenblick_free_command_buf(ipaugenblick_cmd_t *cmd)
@@ -102,6 +111,7 @@ void sig_handler(int signum)
     }
 
     ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"terminating on signal %d\n",signum);
+    print_rings_stats();
 
     for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
         if(local_socket_descriptors[i].socket) {
@@ -120,6 +130,7 @@ void sig_handler(int signum)
 
     signal(signum,SIG_DFL);
     g_print_stats_loop = 0;
+    print_stats();
     kill(getpid(),signum);
 }
 

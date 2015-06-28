@@ -57,13 +57,15 @@ static inline int ipaugenblick_socket_tx_space(int ringset_idx)
 static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
 {
     struct rte_mbuf *mbuf = NULL,*mbufs[MAX_PKT_BURST];
-    int send_kick = 1,dequeued;
+    int dequeued;
     ipaugenblick_cmd_t *cmd;
  
-    if(rte_ring_free_count(local_socket_descriptors[ringset_idx].rx_ring) == 0) {
+    /*if(rte_ring_free_count(local_socket_descriptors[ringset_idx].rx_ring) == 0) {
         send_kick = 1;
         ipaugenblick_stats_rx_full++;
-    }
+    }*/
+    rte_ring_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf);
+
     rte_atomic16_set(&(local_socket_descriptors[ringset_idx & SOCKET_READY_MASK].socket->read_ready_to_app),0);
     if(rte_ring_count(local_socket_descriptors[ringset_idx].rx_ring) > 0) {
         dequeued = rte_ring_free_count(local_socket_descriptors[ringset_idx].local_cache) > MAX_PKT_BURST ? MAX_PKT_BURST : 
@@ -75,36 +77,19 @@ static struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
                         dequeued);
         if(dequeued > 0) {
             ipaugenblick_stats_rx_dequeued++;
-            send_kick = 1;
-            if(rte_ring_count(local_socket_descriptors[ringset_idx].local_cache) > 0) {
-                rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
-                                          (void **)mbufs,dequeued);
-            }
-            else {
-                mbuf = mbufs[0];
-                if(dequeued > 1) {
-                    rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
-                                          (void **)&mbufs[1],dequeued - 1);
-                }
-                goto skip_local;
-            }
+            
+            rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
+                                      (void **)mbufs,dequeued);
         }
     } 
-    if(rte_ring_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf)) {
-        mbuf = NULL;
-    }
-    else {
+    if(!((mbuf == NULL)&&(rte_ring_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf))))
         ipaugenblick_stats_rx_dequeued_local++;
-    }
-skip_local:
-    if(send_kick) {
-        cmd = ipaugenblick_get_free_command_buf();
-        if(cmd) {
-            cmd->cmd = IPAUGENBLICK_SOCKET_RX_KICK_COMMAND;
-            cmd->ringset_idx = ringset_idx;
-            ipaugenblick_enqueue_command_buf(cmd);
-            ipaugenblick_stats_rx_kicks_sent++;
-        }
+    cmd = ipaugenblick_get_free_command_buf();
+    if(cmd) {
+	cmd->cmd = IPAUGENBLICK_SOCKET_RX_KICK_COMMAND;
+        cmd->ringset_idx = ringset_idx;
+        ipaugenblick_enqueue_command_buf(cmd);
+        ipaugenblick_stats_rx_kicks_sent++;
     }
     return mbuf;
 }

@@ -51,15 +51,14 @@ int main(int argc,char **argv)
     ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),htons(7777),1);
  
     int first_time = 1;
+    memset(&tm_out,0,sizeof(tm_out));
+    p_timeout = &tm_out;
     while(1) {
-	memset(&tm_out,0,sizeof(tm_out));
-	p_timeout = &tm_out;
         ready_socket = ipaugenblick_select(selector,&mask, p_timeout);
-	mask = 0x3;
         if(ready_socket == -1) {
             continue;
         }
-	p_timeout = NULL;
+	
         if(first_time) {
 		ipaugenblick_socket_kick(ready_socket);
 		first_time = 0;
@@ -68,7 +67,8 @@ int main(int argc,char **argv)
         if(mask & /*SOCKET_READABLE_BIT*/0x1) {
 #if USE_RX
 	    int first_seg_len = 0;
-	    int len = 0; 
+	    int len = 0;
+	    p_timeout = NULL;
             while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len,&pdesc) == 0) {
                 int segs = 0;
 		void *porigdesc = pdesc;
@@ -101,6 +101,7 @@ int main(int argc,char **argv)
         }
 #if USE_TX
         if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
+	    p_timeout = NULL;
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket)/2;
 #if 1
             for(i = 0;i < tx_space;i++) {

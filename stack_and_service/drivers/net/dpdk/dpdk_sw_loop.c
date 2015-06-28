@@ -62,6 +62,7 @@ static int lpbkdpdk_set_mac(struct net_device *netdev, void *p)
 struct rte_mempool *get_direct_pool(uint16_t portid);
 
 extern uint64_t transmitted;
+extern uint64_t tx_dropped;
 static netdev_tx_t lpbkdpdk_xmit_frame(struct sk_buff *skb,
                                   struct net_device *netdev)
 {
@@ -87,6 +88,7 @@ static netdev_tx_t lpbkdpdk_xmit_frame(struct sk_buff *skb,
 		kfree_skb(skb);
 	//	rte_pktmbuf_free(head);
 //printf("%s %d\n",__FILE__,__LINE__);
+		tx_dropped++;
 		return NETDEV_TX_OK;
 	}
 	memcpy(rte_pktmbuf_mtod(copied_mbuf,void *),rte_pktmbuf_mtod(head,void *), rte_pktmbuf_data_len(head));
@@ -120,6 +122,7 @@ static netdev_tx_t lpbkdpdk_xmit_frame(struct sk_buff *skb,
 	if(unlikely(skb == NULL)) {
 		rte_pktmbuf_free(copied_mbuf);
 printf("%s %d\n",__FILE__,__LINE__);
+		tx_dropped++;
 		return NETDEV_TX_OK;
 	}
 	rte_pktmbuf_pkt_len(copied_mbuf) = offset;
@@ -211,14 +214,8 @@ void * init_dpdk_sw_loop(int portid)
 	netdev->type		= ARPHRD_LOOPBACK;	/* 0x0001*/
 	netdev->flags		= IFF_LOOPBACK;
 //	netdev->priv_flags	       &= ~IFF_XMIT_DST_RELEASE;
-	netdev->hw_features	= NETIF_F_ALL_TSO | NETIF_F_UFO;
+	netdev->hw_features	= 0;
 	netdev->features 		= NETIF_F_SG | NETIF_F_FRAGLIST
-		| NETIF_F_ALL_TSO
-		| NETIF_F_UFO
-		| NETIF_F_HW_CSUM
-		| NETIF_F_RXCSUM
-		| NETIF_F_HIGHDMA
-		| NETIF_F_LLTX
 		| NETIF_F_NETNS_LOCAL
 		| NETIF_F_VLAN_CHALLENGED
 		| NETIF_F_LOOPBACK;
