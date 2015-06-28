@@ -228,7 +228,7 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
     }
 
     user_on_rx_opportunity_called_exhausted += exhausted; 
-    if((!exhausted)&&(!ring_free)) { 
+    if(/*(!exhausted)&&(!ring_free)*/1) { 
         ipaugenblick_mark_readable(socket_satelite_data);
     }
 }
