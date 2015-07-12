@@ -34,7 +34,10 @@ struct rte_ring *selectors_ring = NULL;
 
 typedef struct
 {
-    struct rte_ring *ready_connections; 
+    struct rte_ring *read_ready_connections;
+    struct rte_ring *write_ready_connections;
+    TAILQ_HEAD(local_read_ready_cache, _local_socket_descriptor_) local_read_ready_cache;
+    TAILQ_HEAD(local_ready_cache, _local_socket_descriptor_) local_write_ready_cache;
 }selector_t;
 
 static selector_t selectors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
@@ -224,12 +227,20 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
     selectors_ring = rte_ring_lookup(SELECTOR_RING_NAME);
     
     for(i = 0;i < IPAUGENBLICK_SELECTOR_POOL_SIZE;i++) {
-        sprintf(ringname,"SELECTOR_RING_NAME%d",i);
-        selectors[i].ready_connections = rte_ring_lookup(ringname);
-        if(!selectors[i].ready_connections) {
+        sprintf(ringname,"SELECTOR_READ_RING_NAME%d",i);
+        selectors[i].read_ready_connections = rte_ring_lookup(ringname);
+        if(!selectors[i].read_ready_connections) {
             ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find ring %s %d\n",__FILE__,__LINE__);
             exit(0);
-        } 
+        }
+	sprintf(ringname,"SELECTOR_WRITE_RING_NAME%d",i);
+        selectors[i].write_ready_connections = rte_ring_lookup(ringname);
+        if(!selectors[i].write_ready_connections) {
+            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find ring %s %d\n",__FILE__,__LINE__);
+            exit(0);
+        }
+	TAILQ_INIT(&selectors[i].local_read_ready_cache);
+	TAILQ_INIT(&selectors[i].local_write_ready_cache);
     }
     
     signal(SIGHUP, sig_handler);
@@ -461,6 +472,8 @@ void ipaugenblick_close(int sock)
 static inline void ipaugenblick_notify_empty_tx_buffers(int sock)
 {
     ipaugenblick_cmd_t *cmd;
+    if (sock == -1) //anonimous allocation
+	return;
     cmd = ipaugenblick_get_free_command_buf();
     if(!cmd) {
         ipaugenblick_stats_cannot_allocate_cmd++;
@@ -501,7 +514,21 @@ int ipaugenblick_get_socket_tx_space_own_buffer(int sock)
     }
     return rc;
 }
-
+static void ipaugenblick_update_local_ready_cache(int selector_idx,local_socket_descriptor_t *local_socket_descr,int clear_tx)
+{
+	if (selector_idx == -1)
+		return;
+	if (clear_tx)
+		local_socket_descr->local_mask &= ~(0x2);
+	else
+		local_socket_descr->local_mask &= ~(0x1);
+	if (local_socket_descr->local_mask)
+		return;
+	if (!local_socket_descr->present_in_ready_cache) {
+		TAILQ_REMOVE(&selectors[selector_idx].local_ready_cache,local_socket_descr,local_ready_cache_entry);
+		local_socket_descr->present_in_ready_cache = 0;
+	}
+}
 /* TCP or connected UDP */
 inline int ipaugenblick_send(int sock,void *pdesc,int offset,int length)
 {
@@ -514,6 +541,8 @@ inline int ipaugenblick_send(int sock,void *pdesc,int offset,int length)
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
     if(rc == 0)
         rte_atomic32_sub(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space),length);
+    else
+	ipaugenblick_update_local_ready_cache(local_socket_descriptors[sock & SOCKET_READY_MASK].select,&local_socket_descriptors[sock & SOCKET_READY_MASK],1);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -536,6 +565,8 @@ inline int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_
 //printf("%s %d %p %d %d %d\n",__FILE__,__LINE__,local_socket_descriptors[sock & SOCKET_READY_MASK].socket,sock & SOCKET_READY_MASK,local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space,total_length);
     if(rc == 0)
 	rte_atomic32_sub(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space),total_length);
+    else
+	ipaugenblick_update_local_ready_cache(local_socket_descriptors[sock & SOCKET_READY_MASK].select,&local_socket_descriptors[sock & SOCKET_READY_MASK],1);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -558,6 +589,8 @@ inline int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length,unsign
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
     if(rc == 0)
         rte_atomic32_sub(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space),length);
+    else
+	ipaugenblick_update_local_ready_cache(local_socket_descriptors[sock & SOCKET_READY_MASK].select,&local_socket_descriptors[sock & SOCKET_READY_MASK],1);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -589,6 +622,8 @@ inline int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_an
     rc = ipaugenblick_enqueue_tx_bufs_bulk(sock,mbufs,buffer_count);
     if(rc == 0)
 	rte_atomic32_sub(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space),total_length);
+    else
+	ipaugenblick_update_local_ready_cache(local_socket_descriptors[sock & SOCKET_READY_MASK].select,&local_socket_descriptors[sock & SOCKET_READY_MASK],1);
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -742,6 +777,7 @@ read_from_ring:
     	*pdesc = mbuf;
 	return 0;
     }
+    ipaugenblick_update_local_ready_cache(local_socket_descriptors[sock & SOCKET_READY_MASK].select,&local_socket_descriptors[sock & SOCKET_READY_MASK],0);
     ipaugenblick_stats_recv_failure++;
     return -1;
 }
@@ -753,6 +789,7 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int
     ipaugenblick_stats_receive_called++;
 
     if(!mbuf) {
+	ipaugenblick_update_local_ready_cache(local_socket_descriptors[sock & SOCKET_READY_MASK].select,&local_socket_descriptors[sock & SOCKET_READY_MASK],0);
         ipaugenblick_stats_recv_failure++;
         return -1;
     }
@@ -823,7 +860,7 @@ inline void ipaugenblick_release_rx_buffer(void *pdesc,int sock)
 	       break;
 	    }
             next = mbuf->next;
-            if(likely(__rte_pktmbuf_prefree_seg(mbuf))) {
+            if(likely(__rte_pktmbuf_prefree_seg(mbuf) != NULL)) {
                 mbufs[count++] = mbuf; 
                 mbuf->next = NULL; 
             }
@@ -867,6 +904,7 @@ int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port)
 
     rte_atomic16_set(&(local_socket_descriptors[sock].socket->read_ready_to_app),0);
     if(rte_ring_dequeue(local_socket_descriptors[sock].rx_ring,(void **)&cmd)) {
+	ipaugenblick_update_local_ready_cache(local_socket_descriptors[sock & SOCKET_READY_MASK].select,&local_socket_descriptors[sock & SOCKET_READY_MASK],0);
         return -1;
     }
     
@@ -884,7 +922,7 @@ int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port)
 	local_socket_descriptors[sock].local_ipaddr;
     local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port = 
 	local_socket_descriptors[sock].local_port;
-printf("%s %d acpt sock %p listen sock %d accpt idx %d rmt ip %x port %d local ip %x port %d\n",__FILE__,__LINE__,accepted_socket,sock,ipaugenblick_socket->connection_idx,*ipaddr,*port,
+printf("%s %d acpt sock %p listen sock %d accpt idx %d rmt ip %x port %d local ip %x port %d\n",__FILE__,__LINE__,(void *)accepted_socket,sock,(int)ipaugenblick_socket->connection_idx,*ipaddr,*port,
 local_socket_descriptors[ipaugenblick_socket->connection_idx].local_ipaddr,
 local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port);
     local_socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
@@ -938,8 +976,14 @@ int ipaugenblick_select(int selector,unsigned short *mask,struct timeval* timeou
     uint32_t iterations_to_wait;
     ipaugenblick_stats_select_called++;
 restart_waiting:
+
+    if(!TAILQ_EMPTY(&selectors[selector].local_ready_cache)) {
+	local_socket_descriptor_t *local_socket_descr = TAILQ_FIRST(&selectors[selector].local_ready_cache);
+	*mask = local_socket_descr->local_mask;
+	return (local_socket_descr - &local_socket_descriptors[0])/sizeof(local_socket_descriptor_t);
+    }
     
-    if(rte_ring_dequeue(selectors[selector].ready_connections,(void **)&ringset_idx_and_ready_mask)) {
+    if(rte_ring_dequeue(selectors[selector].read_ready_connections,(void **)&ringset_idx_and_ready_mask)) {
 	if(second_pass) {
 		return -1;
 	}
@@ -947,7 +991,7 @@ restart_waiting:
             return -1;
         }
         else { /* if timeout is NULL or non-zero */
-		pselect(0, NULL, NULL, NULL, timeout, /*&sigmask*/NULL);
+		pselect(0, NULL, NULL, NULL, timeout, /*&sigmask*/(const struct timespec *)NULL);
 		second_pass = 1;
 	}
         goto restart_waiting;
@@ -957,6 +1001,13 @@ restart_waiting:
     if((ringset_idx_and_ready_mask & SOCKET_READY_MASK) >= IPAUGENBLICK_CONNECTION_POOL_SIZE) {
         ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"FATAL ERROR %s %d %d\n",__FILE__,__LINE__,ringset_idx_and_ready_mask & SOCKET_READY_MASK);
         exit(0);
+    }
+    if (!local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].present_in_ready_cache) {
+	TAILQ_INSERT_TAIL(&selectors[selector].local_ready_cache,
+			  &local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK],
+			  local_ready_cache_entry);
+	local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].present_in_ready_cache = 1;
+	local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].local_mask = *mask;
     }
     local_socket_descriptors[ringset_idx_and_ready_mask & SOCKET_READY_MASK].any_event_received = 1;
        
@@ -1042,4 +1093,16 @@ int ipaugenblick_setsockopt(int sock, int level, int optname,char *optval, unsig
         return -2;
     }
     return 0;
+}
+
+void ipaugenblick_set_buffer_data_len(void *buffer, int len)
+{
+    struct rte_mbuf *mbuf = (struct rte_mbuf *)buffer;
+    rte_pktmbuf_data_len(mbuf) = len;
+}
+
+int ipaugenblick_get_buffer_data_len(void *buffer)
+{
+    struct rte_mbuf *mbuf = (struct rte_mbuf *)buffer;
+    return rte_pktmbuf_data_len(mbuf);
 }

@@ -129,6 +129,7 @@ void app_glue_sock_write_space(struct sock *sk)
  */
 void app_glue_sock_error_report(struct sock *sk)
 {
+	printf("%s %d\n",__FILE__,__LINE__);
 	if(sk && sk->sk_socket) {
 		if(sk->sk_socket->closed_queue_present) {
 			return;
@@ -177,7 +178,8 @@ static void app_glue_sock_wakeup(struct sock *sk)
 	sock_reset_flag(sk,SOCK_USE_WRITE_QUEUE);
 	sk->sk_data_ready = app_glue_sock_readable;
 	sk->sk_write_space = app_glue_sock_write_space;
-	sk->sk_error_report = app_glue_sock_error_report; 
+	sk->sk_error_report = app_glue_sock_error_report;
+	sk->sk_destruct= app_glue_sock_error_report;
 }
 
 void *app_glue_create_socket(int family,int type)

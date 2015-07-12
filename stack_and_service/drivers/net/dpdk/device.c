@@ -41,6 +41,7 @@
 #include <rte_cycles.h>
 #include <rte_timer.h>
 #include <rte_byteorder.h>
+
 #include <ipaugenblick_log.h>
 
 typedef struct
@@ -174,6 +175,7 @@ static void rx_construct_skb_and_submit(struct net_device *netdev)
                     skb->len = skb->len - 4;
                 }
 		skb->protocol = eth_type_trans(skb, netdev);
+		//skb->ip_summed = /*CHECKSUM_UNNECESSARY*/CHECKSUM_NONE;
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 		skb->dev = netdev;
 		netif_receive_skb(skb);
@@ -228,9 +230,9 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	}
         *mbuf = NULL;
 	rte_pktmbuf_pkt_len(head) = pkt_len;
-
        if ((skb->ip_summed == CHECKSUM_PARTIAL)&&(skb->protocol == htons(ETH_P_IP))) {
-           head->ol_flags = PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+	   printf("%s %d %d\n",__FILE__,__LINE__,skb->ip_summed);sleep(10);
+	   head->ol_flags = PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
            struct iphdr *iph = ip_hdr(skb);
            iph->check = 0;
 	   head->l3_len = skb_network_header_len(skb);
@@ -278,7 +280,6 @@ __FILE__,__LINE__,pkt_len,head->l2_len,head->l3_len,head->l4_len,skb_transport_o
 	       udp_hdr(skb)->check = rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 	   } 
        }
-
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
 	kfree_skb(skb);
@@ -521,9 +522,9 @@ leave:
 	kernel_close(sock);
 }
 
-void *create_netdev(int port_num)
+void *create_netdev(int port_num,unsigned int csum_flags)
 {
-	struct net_device *netdev;
+	struct net_device *netdev;	
 	dpdk_dev_priv_t *priv;
     char dev_name[20];
 
@@ -537,14 +538,15 @@ void *create_netdev(int port_num)
 	memset(priv, 0, sizeof(dpdk_dev_priv_t));
 	priv->port_number = port_num;
 	netdev->netdev_ops = &dpdk_netdev_ops;
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"csum_flags %x\n",csum_flags);
 #ifdef OFFLOAD_NOT_YET
-        netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST|NETIF_F_V4_CSUM | NETIF_F_GSO;
+        netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST|((csum_flags & 0xE) ? NETIF_F_V4_CSUM : 0) | NETIF_F_GSO;
 #else
-	netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_V4_CSUM;
+	netdev->features = NETIF_F_SG | NETIF_F_FRAGLIST|((csum_flags & 0xE) ? NETIF_F_V4_CSUM : 0);
 #endif
 	netdev->hw_features = 0;
 
-	netdev->vlan_features = 0;
+	netdev->vlan_features = 0;	
 
 	if(register_netdev(netdev)) {
 		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"Cannot register netdev %s %d\n",__FILE__,__LINE__);

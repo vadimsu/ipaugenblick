@@ -461,4 +461,27 @@ extern void ipaugenblick_getsockname(int sock, int is_local,unsigned int *ipaddr
 */
 extern int ipaugenblick_setsockopt(int sock, int level, int optname,char *optval, unsigned int optlen);
 
+/* function:
+    void ipaugenblick_set_buffer_data_len(void *buffer, int len);
+* description:
+*	this function set a buffer's data length
+* parameters:
+*	- buffer - a buffer descriptor
+*	- len - buffer's data length
+* returns:
+*	none
+*/
+void ipaugenblick_set_buffer_data_len(void *buffer, int len);
+
+/* function:
+    int ipaugenblick_get_buffer_data_len(void *buffer);
+* description:
+*	this function set a buffer's data length
+* parameters:
+*	- buffer - a buffer descriptor
+* returns:
+*	length of the buffer
+*/
+int ipaugenblick_get_buffer_data_len(void *buffer);
+
 #endif

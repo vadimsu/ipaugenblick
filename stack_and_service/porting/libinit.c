@@ -20,8 +20,8 @@
 #include <unistd.h>
 #include <sched.h>
 
-#define RTE_RX_DESC_DEFAULT (4096)
-#define RTE_TX_DESC_DEFAULT 4096
+#define RTE_RX_DESC_DEFAULT (256)
+#define RTE_TX_DESC_DEFAULT 256
 #define RX_QUEUE_PER_PORT 1
 #define TX_QUEUE_PER_PORT 1
 
@@ -193,7 +193,7 @@ static const struct rte_eth_txconf tx_conf = {
 	.tx_free_thresh = /*0*/MAX_PKT_BURST, /* Use PMD default values */
 	.tx_rs_thresh = /*0*/MAX_PKT_BURST, /* Use PMD default values */
         .txq_flags = ((uint32_t)/*ETH_TXQ_FLAGS_NOMULTSEGS | \*/
-			    /*ETH_TXQ_FLAGS_NOOFFLOADS*/0),
+			    ETH_TXQ_FLAGS_NOOFFLOADS),
 };
 #endif
 static int parse_portmask(const char *portmask)
@@ -278,7 +278,7 @@ void show_mib_stats(void);
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
-#if 1
+#if 0
 		app_glue_print_stats();
 		show_mib_stats();
         dpdk_dev_print_stats();
@@ -456,7 +456,6 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	uint8_t portid, last_port;
     uint16_t queue_id;
 	struct lcore_conf *conf;
-	struct rte_eth_dev_info dev_info;
 	unsigned nb_ports_in_mask = 0;
 	uint8_t nb_ports_available;
 	unsigned lcore_id, core_count;
@@ -520,9 +519,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	if (nb_ports > RTE_MAX_ETHPORTS)
 		nb_ports = RTE_MAX_ETHPORTS;
 	core_count = rte_lcore_count();
-	/*
-	 * Each logical core is assigned a dedicated TX queue on each port.
-	 */
+	struct rte_eth_dev_info dev_info[nb_ports]; 
 	for (portid = 0; portid < nb_ports; portid++) {
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0)
@@ -538,21 +535,15 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		nb_ports_in_mask++;
 
 		rte_eth_dev_info_get(portid, &dev_info);
-	}
-	        
+	}      
 	/* Initialize the port/queue configuration of each logical core */
 	for (portid = 0; portid < nb_ports; portid++) {
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0)
 			continue;
-		for(lcore_id = 0;lcore_id < core_count;lcore_id++) {
-        	    if(rte_lcore_is_enabled(lcore_id)) {
-        	    	conf = get_lcore_conf(lcore_id);
-        	        conf->n_rtx_port = -1;
-        	        //			conf->tx_mbufs[portid].len = 0;
-        	        ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"Lcore %u: Port %u\n", lcore_id,portid);
-	            }
-	    }
+		
+		memset(&dev_info[port_id],0,sizeof(dev_info[port_id]));
+		rte_eth_dev_info_get(portid,&dev_info[port_id]);
 	}
 	ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"MASTER LCORE %d\n",rte_get_master_lcore());
 
@@ -579,7 +570,14 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 
 		/* init one RX queue */
 		fflush(stdout);
-        for(queue_id = 0;queue_id < RX_QUEUE_PER_PORT;queue_id++) {
+		if (!dev_info[portid].tx_offload_capa) {
+			nb_rx = nb_tx = 256;
+			tx_conf.txq_flags = ETH_TXQ_FLAGS_NOOFFLOADS;
+		} else {
+			nb_rx = nb_tx = 4096;
+			tx_conf.txq_flags = 0;
+		}
+        	for(queue_id = 0;queue_id < RX_QUEUE_PER_PORT;queue_id++) { 
 		    ret = rte_eth_rx_queue_setup(portid, queue_id, nb_rxd,
 			   		rte_eth_dev_socket_id(portid), &rx_conf,
 					get_direct_pool(queue_id));
@@ -613,8 +611,8 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		if ((enabled_port_mask & (1 << portid)) == 0)
 			continue;
 		p_dpdk_dev_config = get_dpdk_config_entry(portid);
-		if(p_dpdk_dev_config) {
-			dpdk_devices[portid] = create_netdev(portid);
+		if(p_dpdk_dev_config) {	
+			dpdk_devices[portid] = create_netdev(portid,dev_info[portid].tx_offload_capa);
 		    rte_eth_macaddr_get(portid,&mac_addr);
 		    set_dev_addr(dpdk_devices[portid],mac_addr.addr_bytes,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
                     sub_if_idx = portid;
