@@ -5,7 +5,7 @@
  * index of selector
  * parent socket (when accepted)
 */
-typedef struct 
+typedef struct _local_socket_descriptor_
 {
     struct rte_ring *tx_ring;
     struct rte_ring *rx_ring;
@@ -21,6 +21,9 @@ typedef struct
     unsigned int local_port;
     unsigned int remote_ipaddr;
     unsigned int remote_port;
+    int present_in_ready_cache;
+    int local_mask;
+    TAILQ_ENTRY(_local_socket_descriptor_) local_ready_cache_entry;
 }local_socket_descriptor_t;
 
 extern struct rte_ring *free_connections_ring;
