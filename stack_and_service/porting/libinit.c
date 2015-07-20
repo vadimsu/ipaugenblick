@@ -61,14 +61,6 @@ static uint32_t dst_ports[RTE_MAX_ETHPORTS];
 static uint32_t enabled_port_mask = 0;
 static unsigned int rx_queue_per_lcore = 1;
 
-struct lcore_conf {
-	int n_rtx_port;
-	uint16_t tx_queue_id[MAX_PORTS];
-	struct ipv4_frag_tbl *frag_tbl[RTE_MAX_LCORE];
-	//struct ipv4_frag_death_row death_row;
-	//struct mbuf_table tx_mbufs[RTE_MAX_ETHPORTS];
-	//struct tx_lcore_stat tx_stat;
-} __rte_cache_aligned;
 struct port_statistics {
 	uint64_t tx;
 	uint64_t rx;
@@ -127,16 +119,6 @@ struct rte_mempool *get_direct_pool(uint16_t queue_id)
     return NULL;
 }
 
-struct lcore_conf lcore_queue_conf[RTE_MAX_LCORE];
-
-struct lcore_conf *get_lcore_conf(uint16_t lcore_id)
-{
-    return &lcore_queue_conf[lcore_id];
-}
-struct lcore_conf *get_this_lcore_conf()
-{
-    return &lcore_queue_conf[rte_lcore_id()];
-}
 /* This function initializes the rx queue rte_mbuf pool */
 static void init_rx_queues_mempools()
 {
@@ -159,7 +141,7 @@ static void init_rx_queues_mempools()
         }
 }
 
-static const struct rte_eth_conf port_conf = {
+static struct rte_eth_conf port_conf = {
 	.rxmode = {
 		.split_hdr_size = 0,
 		.header_split   = 0, /**< Header Split disabled */
@@ -184,7 +166,7 @@ static const struct rte_eth_rxconf rx_conf = {
         .rx_drop_en = 0,
 };
 
-static const struct rte_eth_txconf tx_conf = {
+static struct rte_eth_txconf tx_conf = {
 	.tx_thresh = {
 		.pthresh = TX_PTHRESH,
 		.hthresh = TX_HTHRESH,
@@ -512,14 +494,14 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	}
 	rte_set_log_type(RTE_LOGTYPE_PMD,1);
 	rte_set_log_level(RTE_LOG_DEBUG);
-	nb_ports = rte_eth_dev_count();
-	if (nb_ports == 0)
-		goto loopback_only;
+	nb_ports = rte_eth_dev_count();	
 
 	if (nb_ports > RTE_MAX_ETHPORTS)
 		nb_ports = RTE_MAX_ETHPORTS;
 	core_count = rte_lcore_count();
 	struct rte_eth_dev_info dev_info[nb_ports]; 
+	if (nb_ports == 0)
+		goto loopback_only;
 	for (portid = 0; portid < nb_ports; portid++) {
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0)
@@ -534,17 +516,9 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 
 		nb_ports_in_mask++;
 
-		rte_eth_dev_info_get(portid, &dev_info);
+		rte_eth_dev_info_get(portid, &dev_info[portid]);
 	}      
-	/* Initialize the port/queue configuration of each logical core */
-	for (portid = 0; portid < nb_ports; portid++) {
-		/* skip ports that are not enabled */
-		if ((enabled_port_mask & (1 << portid)) == 0)
-			continue;
-		
-		memset(&dev_info[port_id],0,sizeof(dev_info[port_id]));
-		rte_eth_dev_info_get(portid,&dev_info[port_id]);
-	}
+	
 	ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"MASTER LCORE %d\n",rte_get_master_lcore());
 
 
@@ -571,10 +545,10 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		/* init one RX queue */
 		fflush(stdout);
 		if (!dev_info[portid].tx_offload_capa) {
-			nb_rx = nb_tx = 256;
+			nb_rxd = nb_txd = 256;
 			tx_conf.txq_flags = ETH_TXQ_FLAGS_NOOFFLOADS;
 		} else {
-			nb_rx = nb_tx = 4096;
+			nb_rxd = nb_txd = 4096;
 			tx_conf.txq_flags = 0;
 		}
         	for(queue_id = 0;queue_id < RX_QUEUE_PER_PORT;queue_id++) { 
