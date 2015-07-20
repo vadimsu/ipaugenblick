@@ -20,7 +20,25 @@ struct data_and_descriptor
     void *pdata;
     void *pdesc;
 };
-
+/*
+* STRUCTURE:
+*    ipaugenblick_fdset
+* DESCRIPTION:
+*    This structure contains an array of ipaugenblick socket descriptors, its masks and size
+* FIELDS:
+*    - sock_idx - an array of socket descriptors indexes and its masks
+*    - size
+*/
+struct ipaugenblick_fdset
+{
+    int mask[IPAUGENBLICK_MAX_SOCKETS];
+    int returned_mask[IPAUGENBLICK_MAX_SOCKETS];
+    int returned_idx;
+};
+void ipaugenblick_fdset(int sock,struct ipaugenblick_fdset *fdset,int mask);
+void ipaugenblick_fdclear(int sock,struct ipaugenblick_fdset *fdset,int mask);
+int ipaugenblick_fdisset(int sock,struct ipaugenblick_fdset *fdset);
+void ipaugenblick_fdzero(struct ipaugenblick_fdset *fdset,int mask);
 typedef void (*ipaugenblick_update_cbk_t)(unsigned char command,unsigned char *buffer,int len);
 
 /*
@@ -399,7 +417,11 @@ extern int ipaugenblick_is_connected(int sock);
 * RETURNS:
 *    A socket's descriptor became readable/writable, otherwise negative
 */
-extern int ipaugenblick_select(int selector,unsigned short *mask,struct timeval* timeout);
+extern int ipaugenblick_select(int selector,
+				struct ipaugenblick_fdset *readfdset,
+				struct ipaugenblick_fdset *writefdset,
+				struct ipaugenblick_fdset *excfdset,
+				struct timeval* timeout);
 
 /*
 * FUNCTION:
