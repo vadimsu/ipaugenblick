@@ -3,7 +3,7 @@
 #define __IPAUGENBLICK_API_H__
 
 #include <sys/time.h>
-
+#include <netinet/in.h>
 #define IPAUGENBLICK_MAX_SOCKETS 1000
 
 /*
@@ -36,10 +36,10 @@ struct ipaugenblick_fdset
     int returned_sockets[IPAUGENBLICK_MAX_SOCKETS];
     int returned_idx;
 };
-void ipaugenblick_fdset(int sock,struct ipaugenblick_fdset *fdset,int mask);
-void ipaugenblick_fdclear(int sock,struct ipaugenblick_fdset *fdset,int mask);
+void ipaugenblick_fdset(int sock,struct ipaugenblick_fdset *fdset, int mask);
+void ipaugenblick_fdclear(int sock,struct ipaugenblick_fdset *fdset, int mask);
 int ipaugenblick_fdisset(int sock,struct ipaugenblick_fdset *fdset);
-void ipaugenblick_fdzero(struct ipaugenblick_fdset *fdset,int mask);
+void ipaugenblick_fdzero(struct ipaugenblick_fdset *fdset, int mask);
 typedef void (*ipaugenblick_update_cbk_t)(unsigned char command,unsigned char *buffer,int len);
 
 /*
@@ -80,19 +80,31 @@ extern int ipaugenblick_open_socket(int family,int type,int parent);
 
 /*
 * FUNCTION:
-*    int ipaugenblick_v4_connect_bind_socket(int sock,unsigned int ipaddr,unsigned short port,int is_connect)
+*    int ipaugenblick_bind(int sock,unsigned int ipaddr,unsigned short port,int is_connect)
 * DESCRIPTION:
-*    This function connects/binds the socket (returned by ipaugenblick_open_socket) and connects/binds (depending to is_connect flag) to the provided address
+*    This function binds the socket (returned by ipaugenblick_open_socket) to the provided address
 * PARAMETERS:
 *    - sock - socket's descriptor, returned by ipaugenblick_open_socket
-*    - ipaddr - IPv4 address
-*    - port - port
-*    - is_connect - if 1 this function acts like POSIX connect call (connects to the provided address),
-*    otherwise it will bind to the provided address
+*    - addr - IPv4 address & port
+*    - addrlen - length of address, not used
 * RETURNS:
 *    0 if succeeded, negative if failed
 */
-extern int ipaugenblick_v4_connect_bind_socket(int sock,unsigned int ipaddr,unsigned short port,int is_connect);
+extern int ipaugenblick_bind(int sock, struct sockaddr *addr, int addrlen);
+
+/*
+* FUNCTION:
+*    int ipaugenblick_connect(int sock,unsigned int ipaddr,unsigned short port,int is_connect)
+* DESCRIPTION:
+*    This function connects the socket (returned by ipaugenblick_open_socket) to the provided address
+* PARAMETERS:
+*    - sock - socket's descriptor, returned by ipaugenblick_open_socket
+*    - addr - IPv4 address
+*    - addrlen - length of address, not used
+* RETURNS:
+*    0 if succeeded, negative if failed
+*/
+extern int ipaugenblick_connect(int sock, struct sockaddr *addr, int addrlen);
 
 /*
 * FUNCTION:

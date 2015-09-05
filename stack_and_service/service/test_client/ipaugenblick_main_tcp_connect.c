@@ -25,11 +25,12 @@ int main(int argc,char **argv)
     int ready_socket_count;
     int i,tx_space;
     int max_total_length = 0;
-    unsigned short mask;
     unsigned long received_count = 0;
     unsigned long transmitted_count = 0;
     struct timeval tm_out, *p_timeout = NULL;
     struct ipaugenblick_fdset readfdset,writefdset, excfdset;
+    struct sockaddr addr;
+    struct sockaddr_in *in_addr = (struct sockaddr_in *)&addr;
 
     ipaugenblick_fdzero(&readfdset,0x1);
     ipaugenblick_fdzero(&writefdset,0x2);
@@ -55,23 +56,17 @@ int main(int argc,char **argv)
 //    int bufsize = 1024*1024*1000;
   //  ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     //ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
-    ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),htons(7777),1);
- 
-    int first_time = 1;
+    in_addr->sin_family = AF_INET;
+    in_addr->sin_addr.s_addr = inet_addr("192.168.150.63");
+    in_addr->sin_port = htons(7777);
+    ipaugenblick_connect(sock,&addr, sizeof(addr));
     
     p_timeout = &tm_out;
     while(1) {
 	memset(&tm_out,0,sizeof(tm_out));
+	p_timeout = /*&tm_out*/NULL;
         ready_socket_count = ipaugenblick_select(selector,&readfdset,&writefdset,&excfdset, p_timeout);
-//	printf("ready_socket_count %d read cnt %d write cnt %d\n",ready_socket_count, readfdset.returned_idx, writefdset.returned_idx);
         if(ready_socket_count == -1) {
-		#if 1
-        if(first_time) {
-		ipaugenblick_socket_kick(sock);
-		first_time = 0;
-	}
-#endif
-
             continue;
         }
 	if (ready_socket_count == 0) {
@@ -100,15 +95,15 @@ int main(int argc,char **argv)
 				segs++;
 				if(segs > 100000) {
 					printf("segs!!!!\n");exit(0);
+				}
+				rxbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
 			}
-			rxbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
-		}
 
 		received_count+=segs;
 #else
 		received_count++;
 #endif
-		if(!(received_count%1000000)) {
+		if(!(received_count%10)) {
 			printf("received %u transmitted_count %u\n", received_count, transmitted_count);
 			print_stats();
 		}

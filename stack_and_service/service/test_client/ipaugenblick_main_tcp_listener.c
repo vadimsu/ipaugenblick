@@ -20,6 +20,8 @@ int main(int argc,char **argv)
     int size = 0,ringset_idx,tx_space = 0;
     int socket_connected = -1;
     int i;
+    struct sockaddr addr;
+    struct sockaddr_in *in_addr = (struct sockaddr_in *)&addr;
 
     if(ipaugenblick_app_init(argc,argv,"tcp_listener") != 0) {
         printf("cannot initialize memory\n");
@@ -30,7 +32,10 @@ int main(int argc,char **argv)
         printf("cannot open tcp client socket\n");
         return 0;
     }
-    ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),7777,0);
+    in_addr->sin_family = AF_INET;
+    in_addr->sin_addr.s_addr = inet_addr("192.168.150.63");
+    in_addr->sin_port = 7777;
+    ipaugenblick_bind(sock,&addr,sizeof(addr));
 
     ipaugenblick_listen_socket(sock);
     printf("listener socket opened\n");

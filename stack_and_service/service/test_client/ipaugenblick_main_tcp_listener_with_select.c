@@ -33,7 +33,6 @@ int main(int argc,char **argv)
     int listeners_idx;
     char *p;
     int size = 0,ringset_idx;
-    int sockets_connected = 0;
     int selector;
     int ready_socket_count;
     int i,tx_space = 0;
@@ -43,6 +42,10 @@ int main(int argc,char **argv)
     unsigned long transmitted_count = 0;
     struct timeval tm_out, *p_timeout = NULL;
     struct ipaugenblick_fdset readfdset,writefdset, excfdset;
+    struct sockaddr addr;
+    struct sockaddr_in *in_addr = (struct sockaddr_in *)&addr;
+
+   // ipaugenblick_set_log_level(0/*IPAUGENBLICK_LOG_DEBUG*/);
 
     ipaugenblick_fdzero(&readfdset,0x1);
     ipaugenblick_fdzero(&writefdset,0x2);
@@ -57,12 +60,15 @@ int main(int argc,char **argv)
     if(selector != -1) {
         printf("selector opened\n");
     }
+    in_addr->sin_family = AF_INET;
     for(listeners_idx = 0;listeners_idx < LISTENERS_COUNT;listeners_idx++) {
 	    if((sock = ipaugenblick_open_socket(AF_INET,SOCK_STREAM,selector)) < 0) {
         	printf("cannot open tcp client socket\n");
 	        return 0;
     	}
-    	ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),LISTENERS_BASE + listeners_idx,0);
+	in_addr->sin_addr.s_addr = inet_addr("192.168.150.63");
+	in_addr->sin_port = LISTENERS_BASE + listeners_idx;
+    	ipaugenblick_bind(sock,&addr, sizeof(addr));
 
     	ipaugenblick_listen_socket(sock);
     	listeners[listeners_idx] = sock;
@@ -72,19 +78,17 @@ int main(int argc,char **argv)
   //      ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     }
     
-    //    ipaugenblick_set_socket_select(sock,selector);
-    memset(&tm_out,0,sizeof(tm_out));
+    //    ipaugenblick_set_socket_select(sock,selector); 
     p_timeout = &tm_out;
     while(1) {
-	mask = 0;	
+	memset(&tm_out,0,sizeof(tm_out));
+	p_timeout = /*&tm_out*/NULL;
         ready_socket_count = ipaugenblick_select(selector,&readfdset,&writefdset,&excfdset, p_timeout);
 //	printf("ready_socket_count %d read cnt %d write cnt %d\n",ready_socket_count, readfdset.returned_idx, writefdset.returned_idx);
         if(ready_socket_count == -1) {
             continue;
         }
 	if (ready_socket_count == 0) {
-		memset(&tm_out,0,sizeof(tm_out));
-		p_timeout = &tm_out;
 		continue;
 	}
 	for (sock = 0; sock < readfdset.returned_idx; sock++) {
@@ -100,7 +104,6 @@ int main(int argc,char **argv)
 			ipaugenblick_fdset (newsock, &readfdset,0x1);
 			ipaugenblick_fdset (newsock, &writefdset,0x2);
 			ipaugenblick_fdset (newsock, &excfdset,0x4);
-        	        sockets_connected++;
             	    }
         	} else {
 		    int first_seg_len = 0;
@@ -145,6 +148,7 @@ int main(int argc,char **argv)
 			continue;
 	    p_timeout = NULL;
             tx_space = ipaugenblick_get_socket_tx_space(writefdset.returned_sockets[sock]);
+//	    printf("tx_space %d\n",tx_space);
 #if 1
             for(i = 0;i < tx_space;i++) {
                 txbuff = ipaugenblick_get_buffer(1448,writefdset.returned_sockets[sock],&pdesc);
@@ -157,13 +161,13 @@ int main(int argc,char **argv)
                     break;
                 }
 		transmitted_count++;
-		if(!(transmitted_count%1000000)) {
+		if(!(transmitted_count%1000)) {
                     printf("received %u transmitted_count %u\n", received_count, transmitted_count);
 		    print_stats();
                 }
             }
-	    if(tx_space == 0)
-		continue;
+//	    if(tx_space == 0)
+//		continue;
 #else
 	    if(tx_space == 0)
 		continue;
