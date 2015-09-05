@@ -47,9 +47,9 @@ int main(int argc,char **argv)
 
    // ipaugenblick_set_log_level(0/*IPAUGENBLICK_LOG_DEBUG*/);
 
-    ipaugenblick_fdzero(&readfdset,0x1);
-    ipaugenblick_fdzero(&writefdset,0x2);
-    ipaugenblick_fdzero(&excfdset,0x4);
+    ipaugenblick_fdzero(&readfdset);
+    ipaugenblick_fdzero(&writefdset);
+    ipaugenblick_fdzero(&excfdset);
 
     if(ipaugenblick_app_init(argc,argv,"tcp_listener") != 0) {
         printf("cannot initialize memory\n");
@@ -72,7 +72,7 @@ int main(int argc,char **argv)
 
     	ipaugenblick_listen_socket(sock);
     	listeners[listeners_idx] = sock;
-	ipaugenblick_fdset (sock, &readfdset,0x1);
+	ipaugenblick_fdset (sock, &readfdset);
     //    int bufsize = 1024*1024*1000;
 //	ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
   //      ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
@@ -101,9 +101,9 @@ int main(int argc,char **argv)
         	    while((newsock = ipaugenblick_accept(readfdset.returned_sockets[sock],&ipaddr,&port)) != -1) {
                 	printf("socket accepted %d %d %x %d\n",newsock,selector,ipaddr,port);
 	                ipaugenblick_set_socket_select(newsock,selector);
-			ipaugenblick_fdset (newsock, &readfdset,0x1);
-			ipaugenblick_fdset (newsock, &writefdset,0x2);
-			ipaugenblick_fdset (newsock, &excfdset,0x4);
+			ipaugenblick_fdset (newsock, &readfdset);
+			ipaugenblick_fdset (newsock, &writefdset);
+			ipaugenblick_fdset (newsock, &excfdset);
             	    }
         	} else {
 		    int first_seg_len = 0;
@@ -139,8 +139,6 @@ int main(int argc,char **argv)
 			len = 0;
             	    }
 		}
-		ipaugenblick_fdclear(readfdset.returned_sockets[sock],&readfdset,0x1);
-	    	ipaugenblick_fdset(readfdset.returned_sockets[sock],&readfdset,0x1);
         }
 #if USE_TX
         for (sock = 0; sock < writefdset.returned_idx; sock++) {
@@ -200,8 +198,6 @@ int main(int argc,char **argv)
 			printf("iter!\n");exit(0);
 		}
 	    }
-	    ipaugenblick_fdclear(writefdset.returned_sockets[sock],&writefdset,0x2);
-	    ipaugenblick_fdset(writefdset.returned_sockets[sock],&writefdset,0x2);
         }  
 //        ipaugenblick_socket_kick(ready_socket);
 #endif	

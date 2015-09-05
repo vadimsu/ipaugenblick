@@ -32,9 +32,9 @@ int main(int argc,char **argv)
     struct sockaddr addr;
     struct sockaddr_in *in_addr = (struct sockaddr_in *)&addr;
 
-    ipaugenblick_fdzero(&readfdset,0x1);
-    ipaugenblick_fdzero(&writefdset,0x2);
-    ipaugenblick_fdzero(&excfdset,0x4);
+    ipaugenblick_fdzero(&readfdset);
+    ipaugenblick_fdzero(&writefdset);
+    ipaugenblick_fdzero(&excfdset);
 
     if(ipaugenblick_app_init(argc,argv,"tcp_connect") != 0) {
         printf("cannot initialize memory\n");
@@ -51,8 +51,8 @@ int main(int argc,char **argv)
         return 0;
     }
     printf("opened socket %d\n",sock);
-    ipaugenblick_fdset (sock, &readfdset,0x1);
-    ipaugenblick_fdset (sock, &writefdset,0x2);
+    ipaugenblick_fdset (sock, &readfdset);
+    ipaugenblick_fdset (sock, &writefdset);
 //    int bufsize = 1024*1024*1000;
   //  ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     //ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
@@ -110,8 +110,6 @@ int main(int argc,char **argv)
 		ipaugenblick_release_rx_buffer(porigdesc,readfdset.returned_sockets[sock]);
 			len = 0;
 		}
-		ipaugenblick_fdclear(readfdset.returned_sockets[sock],&readfdset,0x1);
-	        ipaugenblick_fdset(readfdset.returned_sockets[sock],&readfdset,0x1);
 #endif
  	}
 #if USE_TX
@@ -172,8 +170,6 @@ int main(int argc,char **argv)
 			printf("iter!\n");exit(0);
 		}
 	    }
-	    ipaugenblick_fdclear(writefdset.returned_sockets[sock],&writefdset,0x2);
-	    ipaugenblick_fdset(writefdset.returned_sockets[sock],&writefdset,0x2);
         }  
 //        ipaugenblick_socket_kick(ready_socket);
 #endif	

@@ -31,15 +31,39 @@ struct data_and_descriptor
 */
 struct ipaugenblick_fdset
 {
-    int mask[IPAUGENBLICK_MAX_SOCKETS];
-    int returned_mask[IPAUGENBLICK_MAX_SOCKETS];
-    int returned_sockets[IPAUGENBLICK_MAX_SOCKETS];
-    int returned_idx;
+	uint8_t interested_flags[IPAUGENBLICK_MAX_SOCKETS];
+	uint8_t returned_flags[IPAUGENBLICK_MAX_SOCKETS];/* needed to not count same event on same socket multiple*/
+	int returned_sockets[IPAUGENBLICK_MAX_SOCKETS];
+	int returned_idx;
 };
-void ipaugenblick_fdset(int sock,struct ipaugenblick_fdset *fdset, int mask);
-void ipaugenblick_fdclear(int sock,struct ipaugenblick_fdset *fdset, int mask);
-int ipaugenblick_fdisset(int sock,struct ipaugenblick_fdset *fdset);
-void ipaugenblick_fdzero(struct ipaugenblick_fdset *fdset, int mask);
+
+void ipaugenblick_put_to_local_cache(int sock);
+
+static inline void ipaugenblick_fdset(int sock, struct ipaugenblick_fdset *fdset)
+{
+	fdset->interested_flags[sock] = 1;
+	ipaugenblick_put_to_local_cache(sock);
+}
+static inline void ipaugenblick_fdclear(int sock, struct ipaugenblick_fdset *fdset)
+{
+	fdset->interested_flags[sock] = 0;
+	fdset->returned_flags[sock] = 0;
+}
+static inline void ipaugenblick_fdzero(struct ipaugenblick_fdset *fdset)
+{
+	int idx;
+	for(idx = 0;idx < IPAUGENBLICK_MAX_SOCKETS;idx++) {
+		fdset->interested_flags[idx] = 0;
+		fdset->returned_flags[idx] = 0;
+		fdset->returned_sockets[idx] = 0;
+	}
+	fdset->returned_idx = 0;
+}
+static inline int ipaugenblick_fdisset(int sock, struct ipaugenblick_fdset *fdset)
+{
+//	return (fdset->returned_flags[fdset->returned_sockets[sock]]!= 0);
+	return 1;
+}
 typedef void (*ipaugenblick_update_cbk_t)(unsigned char command,unsigned char *buffer,int len);
 
 /*
