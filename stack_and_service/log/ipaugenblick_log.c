@@ -4,6 +4,7 @@
 #include <stdarg.h>
 
 static int g_ipaugenblick_log_dest = 0; /* 0 - stdio, 1 - syslog */
+static int g_ipaugenblick_log_level = IPAUGENBLICK_LOG_NONE;
 
 void ipaugenblick_log_init(int dest)
 {
@@ -17,9 +18,17 @@ void ipaugenblick_log_init(int dest)
 	}
 }
 
+void ipaugenblick_set_log_level(int log_level)
+{
+	g_ipaugenblick_log_level = log_level;
+}
+
 void ipaugenblick_log(int level, const char* format, ...)
 {
 	va_list argptr;
+
+	if (level < g_ipaugenblick_log_level)
+		return;
 
 	switch(g_ipaugenblick_log_dest) {
 		case 0:			
