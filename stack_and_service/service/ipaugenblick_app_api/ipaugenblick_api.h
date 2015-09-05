@@ -33,6 +33,7 @@ struct ipaugenblick_fdset
 {
     int mask[IPAUGENBLICK_MAX_SOCKETS];
     int returned_mask[IPAUGENBLICK_MAX_SOCKETS];
+    int returned_sockets[IPAUGENBLICK_MAX_SOCKETS];
     int returned_idx;
 };
 void ipaugenblick_fdset(int sock,struct ipaugenblick_fdset *fdset,int mask);
