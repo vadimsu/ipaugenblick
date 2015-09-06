@@ -97,8 +97,9 @@ int main(int argc,char **argv)
 	        if(is_listener(readfdset.returned_sockets[sock],listeners)) {
 		    unsigned int ipaddr;
 		    unsigned short port;
+		    int addrlen = sizeof(*in_addr);
 		    p_timeout = NULL;
-        	    while((newsock = ipaugenblick_accept(readfdset.returned_sockets[sock],&ipaddr,&port)) != -1) {
+        	    while((newsock = ipaugenblick_accept(readfdset.returned_sockets[sock],&addr,&addrlen)) != -1) {
                 	printf("socket accepted %d %d %x %d\n",newsock,selector,ipaddr,port);
 	                ipaugenblick_set_socket_select(newsock,selector);
 			ipaugenblick_fdset (newsock, &readfdset);

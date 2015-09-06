@@ -258,7 +258,7 @@ extern int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_
 * RETURNS:
 *    0 if succeeded, otherwise negative
 */
-extern int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length,unsigned int ipaddr,unsigned short port);
+extern int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length, struct sockaddr *addr, int addrlen);
 
 /*
 * FUNCTION:
@@ -276,7 +276,7 @@ extern int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length,unsign
 * RETURNS:
 *    0 if succeeded, otherwise negative
 */
-extern int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_and_desc,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count);
+extern int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_and_desc,int *offsets,int *lengths, struct sockaddr *addr, int addrlen,int buffer_count);
 
 /*
 * FUNCTION:
@@ -374,7 +374,7 @@ extern int ipaugenblick_receive(int sock,void **buffer,int *len,int *first_segme
 * RETURNS:
 *    0 if succeeded, otherwise negative
 */
-extern int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port,void **pdesc);
+extern int ipaugenblick_receivefrom(int sock,void **buffer,int *len,struct sockaddr *addr,int *addrlen,void **pdesc);
 
 /*
 * FUNCTION:
@@ -395,12 +395,12 @@ extern void ipaugenblick_release_tx_buffer(void *pdesc);
 *    This function accepts a new socket connected to listening
 * PARAMETERS:
 *    - sock - socket's descriptor of the listening socket
-*    - ipaddr - a pointer to accepted connection's IPv4 address
-*    - port - a pointer to accepted connection's port
+*    - addr - a pointer to accepted connection's IPv4 address & port (sockaddr_in)
+*    - addrlen - a pointer to address's length (now unused)
 * RETURNS:
 *    An accepted socket's descriptor, if succeeded. Otherwise -1
 */
-extern int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port);
+extern int ipaugenblick_accept(int sock, struct sockaddr *addr, int *addrlen);
 
 /*
 * FUNCTION:
@@ -502,7 +502,7 @@ extern int ipaugenblick_del_v4_route(unsigned int ipaddr,unsigned int mask,unsig
 * RETURNS:
 *    None
 */
-extern void ipaugenblick_getsockname(int sock, int is_local,unsigned int *ipaddr,unsigned short *port);
+extern void ipaugenblick_getsockname(int sock, int is_local, struct sockaddr *addr, int *addrlen);
 
 /*
 * FUNCTION:

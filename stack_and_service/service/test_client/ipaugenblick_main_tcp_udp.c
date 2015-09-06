@@ -28,6 +28,9 @@ int main(int argc,char **argv)
     unsigned short mask,from_port;
     unsigned int from_ip;
     unsigned long received_count = 0;
+    struct sockaddr addr;
+    struct sockaddr_in *in_addr = (struct sockaddr_in *)&addr;
+    int addrlen = sizeof(*in_addr);
 
     if(ipaugenblick_app_init(argc,argv,"tcp_udp") != 0) {
         printf("cannot initialize memory\n");
@@ -42,10 +45,14 @@ int main(int argc,char **argv)
         printf("cannot open tcp client socket\n");
         return 0;
     }
-    ipaugenblick_v4_connect_bind_socket(listener_sock, inet_addr("192.168.150.63"),7777, 0);
+    in_addr->sin_family = AF_INET;
+    in_addr->sin_addr.s_addr = inet_addr("192.168.150.63");
+    in_addr->sin_port = htons(7777);
+    ipaugenblick_bind(listener_sock, &addr, addrlen);
     int bufsize = 1024*1024*1000;
     ipaugenblick_setsockopt(listener_sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     ipaugenblick_setsockopt(listener_sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
+    ipaugenblick_fdset (listener_sock, &readfdset);
     ipaugenblick_listen_socket(listener_sock);
     printf("listener socket opened\n");
     
@@ -54,37 +61,42 @@ int main(int argc,char **argv)
             printf("cannot open UDP socket\n");
             return 0;
         }
-        ipaugenblick_v4_connect_bind_socket(sock,inet_addr("192.168.150.63"),7777+i,0);
+	in_addr->sin_family = AF_INET;
+	in_addr->sin_addr.s_addr = inet_addr("192.168.150.63");
+	in_addr->sin_port = htons(7777+i);
+        ipaugenblick_bind(sock,&addr,addrlen);
         ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
         ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));    
 #if USE_CONNECTED
         printf("connecting %d\n",sock);
 	from_ip = inet_addr("192.168.150.62");
         from_port = htons(7777);
-        ipaugenblick_v4_connect_bind_socket(sock,from_ip,from_port,1);
+	in_addr->sin_addr.s_addr = from_ip;
+	in_addr->sin_port = from_port
+        ipaugenblick_connect(sock,&addr,addrlen);
+	ipaugenblick_fdset (sock, &readfdset);
+	ipaugenblick_fdset (sock, &writefdset);
 #endif
     } 
 
     while(1) {  
-        ready_socket = ipaugenblick_select(selector,&mask,NULL);
+        ready_socket = ipaugenblick_select(selector,&readfdset,&writefdset,&excfdset,NULL);
         if(ready_socket == -1) {
             continue;
         }
-        if(ready_socket == listener_sock) {
-	    unsigned int accepted_ip;
-	    unsigned short accepted_port;
-            newsock = ipaugenblick_accept(listener_sock,&accepted_ip,&accepted_port);
-            if(newsock != -1) {
-                printf("socket accepted %d %d\n",newsock,selector);
-                ipaugenblick_set_socket_select(newsock,selector);
-                sockets_connected++;
-            }
-            continue;
-        }
-        if(sockets_connected == 0) {
-            continue;
-        }
-        if(mask & /*SOCKET_READABLE_BIT*/0x1) {
+        
+        for (ready_socket = 0; ready_socket < readfdset.returned_idx; ready_socket++) {
+	    if (!ipaugenblick_fdisset(ready_socket,&readfdset))
+		continue;
+	    if(ready_socket == listener_sock) { 
+            	newsock = ipaugenblick_accept(listener_sock,&addr,&addrlen);
+            	if(newsock != -1) {
+                	printf("socket accepted %d %d\n",newsock,selector);
+	                ipaugenblick_set_socket_select(newsock,selector);
+        	        sockets_connected++;
+            	}
+            	continue;
+       	    }
 	    int first_seg_len = 0;
             while(ipaugenblick_receive(ready_socket,&rxbuff,&len,&first_seg_len,&pdesc) == 0) {
                 received_count++;
@@ -103,7 +115,9 @@ int main(int argc,char **argv)
             }
         }
 #if USE_TX
-        if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
+        for (ready_socket = 0; ready_socket < writefdset.returned_idx; ready_socket++) {
+	    if (!ipaugenblick_fdisset(ready_socket,&writefdset))
+		continue;
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
             for(i = 0;i < tx_space;i++) {
                 txbuff = ipaugenblick_get_buffer(1448,ready_socket,&pdesc);

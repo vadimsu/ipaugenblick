@@ -43,7 +43,8 @@ int main(int argc,char **argv)
         if(socket_connected == -1) {
 	    unsigned int ipaddr;
             unsigned short port;
-            socket_connected = ipaugenblick_accept(sock,&ipaddr,&port);
+	    int addrlen = sizeof(*in_addr);
+            socket_connected = ipaugenblick_accept(sock,&addr,&addrlen);
             if(socket_connected != -1)
                 printf("socket accepted\n");
         }

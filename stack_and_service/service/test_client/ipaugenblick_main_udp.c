@@ -28,6 +28,10 @@ int main(int argc,char **argv)
     int port_to_bind, port_to_connect;
     int txflag = 0;
     struct timeval tm_out, *p_timeout = NULL;
+    struct ipaugenblick_fdset readfdset,writefdset, excfdset;
+    struct sockaddr addr;
+    struct sockaddr_in *in_addr = (struct sockaddr_in *)&addr;
+    int addrlen = sizeof(*in_addr);
 
     if(ipaugenblick_app_init(argc,argv,"udp") != 0) {
         printf("cannot initialize memory\n");
@@ -85,26 +89,40 @@ int main(int argc,char **argv)
             printf("cannot open UDP socket\n");
             return 0;
         }
-        ipaugenblick_v4_connect_bind_socket(sock,inet_addr(my_ip_addr),port_to_bind,0);
+	in_addr->sin_family = AF_INET;
+	in_addr->sin_addr.s_addr = inet_addr(my_ip_addr);
+	in_addr->sin_port = port_to_bind;
+        ipaugenblick_bind(sock,&addr,addrlen);
 #if USE_CONNECTED
 	from_ip = inet_addr(ip_addr_2_connect);
         from_port = htons(port_to_connect);
         printf("connecting %d\n",sock);
-        ipaugenblick_v4_connect_bind_socket(sock,from_ip,from_port,1);
+	in_addr->sin_addr.s_addr = from_ip;
+	in_addr->sin_port = from_port;
+        ipaugenblick_connect(sock,&addr,addrlen);
+	ipaugenblick_fdset (sock, &readfdset);
+	ipaugenblick_fdset (sock, &writefdset);
 #endif
     }
+    ipaugenblick_fdzero(&readfdset);
+    ipaugenblick_fdzero(&writefdset);
+    ipaugenblick_fdzero(&excfdset);
+
     memset(&tm_out,0,sizeof(tm_out));
     p_timeout = &tm_out;
     while(1) {
 	mask = 0;	
-        ready_socket = ipaugenblick_select(selector,&mask,p_timeout);
+        ready_socket = ipaugenblick_select(selector,&readfdset,&writefdset,&excfdset,p_timeout);
         if(ready_socket == -1) {
             continue;
         }
 //	mask = 0x3;
-        if(mask & /*SOCKET_READABLE_BIT*/0x1) {
+        for (ready_socket = 0; ready_socket < readfdset.returned_idx; ready_socket++) {
+	    if (!ipaugenblick_fdisset(ready_socket,&readfdset))
+		continue;
+
 	    p_timeout = NULL;
-            while(ipaugenblick_receivefrom(ready_socket,&rxbuff,&len,&from_ip,&from_port,&pdesc) == 0) {
+            while(ipaugenblick_receivefrom(ready_socket,&rxbuff,&len,&addr,&addrlen,&pdesc) == 0) {
                 void *porigdesc = pdesc;
 		int segs =0;
                 do { 
@@ -123,7 +141,9 @@ int main(int argc,char **argv)
         }
 	if(!txflag)
 	    continue;
-        if(mask & /*SOCKET_WRITABLE_BIT*/0x2) {
+        for (ready_socket = 0; ready_socket < writefdset.returned_idx; ready_socket++) {
+		if (!ipaugenblick_fdisset(ready_socket,&writefdset))
+			continue;
 	    p_timeout = NULL;
             tx_space = ipaugenblick_get_socket_tx_space(ready_socket);
             for(i = 0;i < tx_space;i++) {

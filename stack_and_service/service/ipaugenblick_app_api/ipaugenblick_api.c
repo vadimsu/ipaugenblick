@@ -602,19 +602,17 @@ inline int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_
 }
 
 /* UDP or RAW */
-inline int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length,unsigned int ipaddr,unsigned short port)
+inline int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length, struct sockaddr *addr, __rte_unused int addrlen)
 {
     int rc;
     struct rte_mbuf *mbuf = (struct rte_mbuf *)pdesc;
     char *p_addr = rte_pktmbuf_mtod(mbuf,char *);
-    struct sockaddr_in *p_addr_in;
+    struct sockaddr_in *p_addr_in, *in_addr = (struct sockaddr_in *)addr;
     ipaugenblick_stats_send_called++;
     rte_pktmbuf_data_len(mbuf) = length;
     p_addr -= sizeof(struct sockaddr_in);
     p_addr_in = (struct sockaddr_in *)p_addr;
-    p_addr_in->sin_family = AF_INET;
-    p_addr_in->sin_port = htons(port);
-    p_addr_in->sin_addr.s_addr = ipaddr;
+    *p_addr_in = *in_addr;
     rte_atomic16_set(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->write_ready_to_app),0);
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
     if(rc == 0)
@@ -625,10 +623,11 @@ inline int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length,unsign
     return rc;
 }
 
-inline int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_and_desc,int *offsets,int *lengths,unsigned int *ipaddrs,unsigned short *ports,int buffer_count)
+inline int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_and_desc,int *offsets,int *lengths, struct sockaddr *addr,__rte_unused int addrlen,int buffer_count)
 {
     int rc,idx,total_length = 0;
     struct rte_mbuf *mbufs[buffer_count];
+    struct sockaddr_in *in_addr;
 
     for(idx = 0;idx < buffer_count;idx++) {
         char *p_addr;
@@ -642,9 +641,9 @@ inline int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_an
         rte_pktmbuf_data_len(mbufs[idx]) = lengths[idx];
         p_addr -= sizeof(struct sockaddr_in);
         p_addr_in = (struct sockaddr_in *)p_addr;
-        p_addr_in->sin_family = AF_INET;
-        p_addr_in->sin_port = htons(ports[idx]);
-        p_addr_in->sin_addr.s_addr = ipaddrs[idx];
+	in_addr = (struct sockaddr_in *)addr;
+	*p_addr_in = *in_addr;
+	addr++;
     }
     ipaugenblick_stats_send_called++;
     ipaugenblick_stats_buffers_sent += buffer_count;
@@ -810,9 +809,10 @@ read_from_ring:
 }
 
 /* UDP or RAW */
-inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int *ipaddr,unsigned short *port,void **pdesc)
+inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,struct sockaddr *addr,__rte_unused int *addrlen, void **pdesc)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
+    struct sockaddr_in *in_addr = (struct sockaddr_in *)addr;
     ipaugenblick_stats_receive_called++;
 
     if(!mbuf) {
@@ -826,8 +826,7 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,unsigned int
     char *p_addr = rte_pktmbuf_mtod(mbuf,char *);
     p_addr -= sizeof(struct sockaddr_in);
     struct sockaddr_in *p_addr_in = (struct sockaddr_in *)p_addr;
-    *port = p_addr_in->sin_port;
-    *ipaddr = p_addr_in->sin_addr.s_addr;
+    *in_addr = *p_addr_in;
     return 0;
 }
 
@@ -923,11 +922,12 @@ int ipaugenblick_socket_kick(int sock)
     return 0;
 }
 
-int ipaugenblick_accept(int sock,unsigned int *ipaddr,unsigned short *port)
+int ipaugenblick_accept(int sock, struct sockaddr *addr, __rte_unused int *addrlen)
 {
     ipaugenblick_cmd_t *cmd;
     ipaugenblick_socket_t *ipaugenblick_socket;
     unsigned long accepted_socket;
+    struct sockaddr_in *in_addr = (struct sockaddr_in *)addr;
 ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__func__,__LINE__,sock);
     rte_atomic16_set(&(local_socket_descriptors[sock].socket->read_ready_to_app),0);
     if(rte_ring_dequeue(local_socket_descriptors[sock].rx_ring,(void **)&cmd)) {
@@ -942,15 +942,16 @@ ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__func__,__LINE__,sock);
         return -1;
     } 
     accepted_socket = cmd->u.accepted_socket.socket_descr;
-    *ipaddr = cmd->u.accepted_socket.ipaddr;
-    *port = cmd->u.accepted_socket.port;
-    local_socket_descriptors[ipaugenblick_socket->connection_idx].remote_ipaddr = *ipaddr;
-    local_socket_descriptors[ipaugenblick_socket->connection_idx].remote_port = *port;
+    in_addr->sin_family = AF_INET;
+    in_addr->sin_addr.s_addr = cmd->u.accepted_socket.ipaddr;
+    in_addr->sin_port  = cmd->u.accepted_socket.port;
+    local_socket_descriptors[ipaugenblick_socket->connection_idx].remote_ipaddr = in_addr->sin_addr.s_addr;
+    local_socket_descriptors[ipaugenblick_socket->connection_idx].remote_port = in_addr->sin_port;
     local_socket_descriptors[ipaugenblick_socket->connection_idx].local_ipaddr = 
 	local_socket_descriptors[sock].local_ipaddr;
     local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port = 
 	local_socket_descriptors[sock].local_port;
-ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d acpt sock %p listen sock %d accpt idx %d rmt ip %x port %d local ip %x port %d\n",__func__,__LINE__,(void *)accepted_socket,sock,(int)ipaugenblick_socket->connection_idx,*ipaddr,*port,
+ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d acpt sock %p listen sock %d accpt idx %d rmt ip %x port %d local ip %x port %d\n",__func__,__LINE__,(void *)accepted_socket,sock,(int)ipaugenblick_socket->connection_idx,in_addr->sin_addr.s_addr,in_addr->sin_port,
 local_socket_descriptors[ipaugenblick_socket->connection_idx].local_ipaddr,
 local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port);
     local_socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
@@ -967,22 +968,24 @@ local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port);
     return ipaugenblick_socket->connection_idx;
 }
 
-void ipaugenblick_getsockname(int sock,int is_local,unsigned int *ipaddr,unsigned short *port)
+void ipaugenblick_getsockname(int sock,int is_local, struct sockaddr *addr, __rte_unused int *addrlen)
 {
+	struct sockaddr_in *in_addr = (struct sockaddr_in *)addr;
+	in_addr->sin_family = AF_INET;
 	if(is_local) {
 		if (local_socket_descriptors[sock].socket->local_ipaddr) {
-			*ipaddr = local_socket_descriptors[sock].socket->local_ipaddr;
-			*port = local_socket_descriptors[sock].socket->local_port;
+			in_addr->sin_addr.s_addr = local_socket_descriptors[sock].socket->local_ipaddr;
+			in_addr->sin_port = local_socket_descriptors[sock].socket->local_port;
 		}
 		else {
 //printf("%s %d %d\n",__func__,__LINE__,sock);
-			*ipaddr = local_socket_descriptors[sock].local_ipaddr;
-			*port = local_socket_descriptors[sock].local_port;
+			in_addr->sin_addr.s_addr = local_socket_descriptors[sock].local_ipaddr;
+			in_addr->sin_port = local_socket_descriptors[sock].local_port;
 		}
 	}
 	else {
-		*ipaddr = local_socket_descriptors[sock].remote_ipaddr;
-		*port = local_socket_descriptors[sock].remote_port;
+		in_addr->sin_addr.s_addr = local_socket_descriptors[sock].remote_ipaddr;
+		in_addr->sin_port = local_socket_descriptors[sock].remote_port;
 	}
 }
 
