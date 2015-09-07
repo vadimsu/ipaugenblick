@@ -61,8 +61,8 @@ static inline void ipaugenblick_fdzero(struct ipaugenblick_fdset *fdset)
 }
 static inline int ipaugenblick_fdisset(int sock, struct ipaugenblick_fdset *fdset)
 {
-//	return (fdset->returned_flags[fdset->returned_sockets[sock]]!= 0);
-	return 1;
+	return (fdset->returned_flags[sock]!= 0);
+//	return 1;
 }
 typedef void (*ipaugenblick_update_cbk_t)(unsigned char command,unsigned char *buffer,int len);
 
