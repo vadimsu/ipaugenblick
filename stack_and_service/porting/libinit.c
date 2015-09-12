@@ -325,6 +325,41 @@ void *get_dpdk_dev_by_port_num(int port_num)
 extern char *get_dev_name(void *netdev);
 #define IFACE_NAME_SIZE 20
 
+static void encode_16(uint8_t *buf, uint16_t val)
+{
+	*buf = val << 8;
+	buf++;
+	*buf = val & 0xFF;
+}
+static void encode_32(uint8_t *buf, uint32_t val)
+{
+	*buf = val << 24;
+	buf++;
+	*buf = val << 16;
+	buf++;
+	*buf = val << 8;
+	buf++;
+	*buf = val;
+}
+static void encode_64(uint8_t *buf, uint64_t val)
+{
+	*buf = val << 56;
+	buf++;
+	*buf = val << 48;
+	buf++;
+	*buf = val << 40;
+	buf++;
+	*buf = val << 32;
+	buf++;
+	*buf = val << 24;
+	buf++;
+	*buf = val << 16;
+	buf++;
+	*buf = val << 8;
+	buf++;
+	*buf = val;
+}
+
 int get_all_addresses(unsigned char *buf)
 {
     uint32_t dev_idx,offset = 0,prefix;
@@ -332,12 +367,12 @@ int get_all_addresses(unsigned char *buf)
 
     for(dev_idx = 0;dev_idx < RTE_MAX_ETHPORTS;dev_idx++) {
 	if((dpdk_devices[dev_idx])&&(dpdk_dev_config[dev_idx].port_number != -1)) {
-		rte_memcpy(&buf[offset],&dev_idx,sizeof(dev_idx));
+		encode_32(&buf[offset],dev_idx);
 		offset += sizeof(dev_idx);
 		rte_memcpy(&buf[offset],&flags,sizeof(flags));
 		offset += sizeof(flags);
 		rte_memcpy(&buf[offset],&family,sizeof(family));
-		offset += sizeof(family);
+		offset += sizeof(family);	
 		prefix = inet_addr(dpdk_dev_config[dev_idx].ip_addr_str);
 		rte_memcpy(&buf[offset],&prefix,sizeof(prefix));
 		offset += sizeof(prefix);
@@ -363,19 +398,19 @@ int get_all_devices(unsigned char *buf)
 	if(dpdk_devices[dev_idx]) {		
 		rte_memcpy(&buf[offset],get_dev_name(dpdk_devices[dev_idx]),IFACE_NAME_SIZE);
 		offset += IFACE_NAME_SIZE;
-		rte_memcpy(&buf[offset],&dev_idx,sizeof(dev_idx));
+		encode_32(&buf[offset],dev_idx);
 		offset += sizeof(dev_idx);	
 		rte_memcpy(&buf[offset],&status,sizeof(status));
 		offset += sizeof(status);
-		rte_memcpy(&buf[offset],&flags,sizeof(flags));
+		encode_64(&buf[offset],flags);
 		offset += sizeof(flags);
-		rte_memcpy(&buf[offset],&metric,sizeof(metric));
+		encode_32(&buf[offset],metric);
 		offset += sizeof(metric);
-		rte_memcpy(&buf[offset],&mtu,sizeof(mtu));
+		encode_32(&buf[offset],mtu);
 		offset += sizeof(mtu);
-		rte_memcpy(&buf[offset],&mtu6,sizeof(mtu6));
+		encode_32(&buf[offset],mtu6);
 		offset += sizeof(mtu6);
-		rte_memcpy(&buf[offset],&bandwidth,sizeof(bandwidth));
+		encode_32(&buf[offset],bandwidth);
 		offset += sizeof(bandwidth);
 		hw_addr_len = htonl(hw_addr_len);
 		rte_memcpy(&buf[offset],&hw_addr_len,sizeof(hw_addr_len));
