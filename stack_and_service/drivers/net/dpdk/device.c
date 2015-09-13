@@ -229,7 +229,6 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
         *mbuf = NULL;
 	rte_pktmbuf_pkt_len(head) = pkt_len;
        if ((skb->ip_summed == CHECKSUM_PARTIAL)&&(skb->protocol == htons(ETH_P_IP))) {
-	   //printf("%s %d %d\n",__FILE__,__LINE__,skb->ip_summed);sleep(10);
 	   head->ol_flags = PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
            struct iphdr *iph = ip_hdr(skb);
            iph->check = 0;
@@ -249,17 +248,14 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 	    psd_hdr.dst_addr = iph->daddr;
 	    psd_hdr.zero = 0; 
 
-           if (/*(skb_shinfo(skb)->nr_frags)&&*/(ip_hdr(skb)->protocol == IPPROTO_TCP)) {
+           if (ip_hdr(skb)->protocol == IPPROTO_TCP) {
 	       psd_hdr.proto = IPPROTO_TCP;  
 	       head->tso_segsz =  skb_shinfo(skb)->gso_size;
 	       head->l4_len = tcp_hdrlen(skb); 
-//		if (head->nb_segs > 2)
-//printf("l3len %d l2len %d l4len %d tso %d pktlen %d datalen %d pktlen %d nbseg %d csum %x\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),rte_pktmbuf_pkt_len(head),head->nb_segs, tcp_hdr(skb)->check);
-	       if (head->tso_segsz) { /* this does not work */
+	       if (head->tso_segsz) {
 			head->ol_flags |= PKT_TX_TCP_SEG;
 			head->ol_flags |= PKT_TX_TCP_CKSUM;
 			psd_hdr.len = 0;
-//			iph->tot_len = 0;
 			driver_tx_offload_pkts++;
 	       }
 	       else {
@@ -268,19 +264,15 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
 			driver_tx_wo_offload_pkts++;
 	       }
                tcp_hdr(skb)->check =  rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
-//		if (head->nb_segs > 2)
-//			printf("recalc csum %x\n",tcp_hdr(skb)->check);
 	   }
            else if(ip_hdr(skb)->protocol == IPPROTO_UDP) {
 	       psd_hdr.proto = IPPROTO_UDP;
-	       head->l4_len = /*sizeof(struct udphdr)*/0;
+	       head->l4_len = 0;
                head->ol_flags |= PKT_TX_UDP_CKSUM;
 	       psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
-//printf("UDP l3len %d l2len %d l4len %d tso %d %d %d %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),head->nb_segs);
 	       udp_hdr(skb)->check = rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 	   } 
-       } else
-		printf("%s %d\n",__func__,__LINE__);
+       }
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
 	kfree_skb(skb);
@@ -392,16 +384,7 @@ static const struct net_device_ops dpdk_netdev_ops = {
          .ndo_fix_features       = dpdk_fix_features,
          .ndo_set_features       = dpdk_set_features,
 };
-/* void user_transmitted_callback(struct rte_mbuf *mbuf,struct socket *sock)
-{
-        if(sock) {
-               socket_satelite_data_t *socket_satelite_data = get_user_data(sock);
-               if(socket_satelite_data) {
-                       rte_atomic32_add(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].tx_space,mbuf->pkt.data_len);
-               }
-        }
-        rte_pktmbuf_free_seg(mbuf);
-} */
+
 char *get_dev_name(void *netdev)
 {
 	struct net_device *dev = (struct net_device *)netdev;
