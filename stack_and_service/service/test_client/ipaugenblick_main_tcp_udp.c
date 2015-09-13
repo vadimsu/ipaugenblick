@@ -12,7 +12,6 @@
 #include <string.h>
 #include <getopt.h>
 
-#define USE_TX 1
 #define USE_CONNECTED 0
 
 int dgram_socks[1024];
@@ -117,14 +116,13 @@ int main(int argc,char **argv)
     if(selector != -1) {
         printf("selector opened\n");
     }
-#if 0
     if((listener_sock = ipaugenblick_open_socket(AF_INET, SOCK_STREAM, selector)) < 0) {
         printf("cannot open tcp client socket\n");
         return 0;
     }
     in_addr->sin_family = AF_INET;
     in_addr->sin_addr.s_addr = inet_addr(my_ip_addr);
-    in_addr->sin_port = htons(port_to_bind);
+    in_addr->sin_port = port_to_bind;
     ipaugenblick_bind(listener_sock, &addr, addrlen);
     int bufsize = 1024*1024*1000;
     ipaugenblick_setsockopt(listener_sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
@@ -132,7 +130,6 @@ int main(int argc,char **argv)
     ipaugenblick_fdset (listener_sock, &readfdset);
     ipaugenblick_listen_socket(listener_sock);
     printf("listener socket opened\n");
-#endif
     for(i = 0;i < 1;i++) {
         if((sock = ipaugenblick_open_socket(AF_INET, SOCK_DGRAM, selector)) < 0) {
             printf("cannot open UDP socket\n");
@@ -140,8 +137,7 @@ int main(int argc,char **argv)
         }
 	in_addr->sin_family = AF_INET;
 	in_addr->sin_addr.s_addr = inet_addr(my_ip_addr);
-	in_addr->sin_port = htons(port_to_bind+i);
-printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
+	in_addr->sin_port = htons(port_to_bind+i+1);
         ipaugenblick_bind(sock,&addr,addrlen);
 //        ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
   //      ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
@@ -167,7 +163,6 @@ printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
         for (ready_socket = 0; ready_socket < readfdset.returned_idx; ready_socket++) {
 	    if (!ipaugenblick_fdisset(ipaugenblick_fd_idx2sock(&readfdset,sock),&readfdset))
                         continue;
-#if 0
             if(ipaugenblick_fd_idx2sock(&readfdset,ready_socket) == listener_sock) {
             	newsock = ipaugenblick_accept(listener_sock,&addr,&addrlen);
             	if(newsock != -1) {
@@ -178,7 +173,6 @@ printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
             	}
             	continue;
        	    }
-#endif
 	    if (is_dgram_sock(ipaugenblick_fd_idx2sock(&readfdset,ready_socket))) {
 		len = 1448;
 		while(ipaugenblick_receivefrom(ipaugenblick_fd_idx2sock(&readfdset,ready_socket),&rxbuff,&len,&addr,&addrlen, &pdesc) == 0) {
@@ -208,7 +202,6 @@ printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
             	}
 	    }
         }
-#if USE_TX
         for (ready_socket = 0; ready_socket < writefdset.returned_idx; ready_socket++) {
 	    if (!ipaugenblick_fdisset(ipaugenblick_fd_idx2sock(&writefdset,ready_socket),&writefdset))
 		continue;
@@ -223,7 +216,6 @@ printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
 			in_addr->sin_port = /*htons(port_to_connect)*/port_to_connect;
 			if(ipaugenblick_sendto(ipaugenblick_fd_idx2sock(&writefdset,ready_socket),pdesc,0,1448, &addr, addrlen)) {
 				ipaugenblick_release_tx_buffer(pdesc);
-printf("%s %d\n",__func__,__LINE__);
 	                    	break;
 			} else
 				transmitted_packets++;
@@ -249,7 +241,6 @@ printf("%s %d\n",__func__,__LINE__);
                 }
             }
         }  
-#endif
     }
     return 0;
 }

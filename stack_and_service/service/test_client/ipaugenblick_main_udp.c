@@ -27,6 +27,7 @@ int main(int argc,char **argv)
     struct sockaddr_in *in_addr = (struct sockaddr_in *)&addr;
     int addrlen = sizeof(*in_addr);
     int rxtxmask = 0x3;
+    int usebulk = 0;
 
     if(ipaugenblick_app_init(argc,argv,"udp") != 0) {
         printf("cannot initialize memory\n");
@@ -40,6 +41,7 @@ int main(int argc,char **argv)
 	  {"port2connect",    required_argument, 0, 'd'},
 	  {"notransmit", no_argument, 0, 'e' },
           {"noreceive", no_argument, 0, 'f' },
+	  {"usebulk", no_argument, 0, 'g' },
           {0, 0, 0, 0}
         };
     int opt_idx,c;
@@ -51,7 +53,7 @@ int main(int argc,char **argv)
     strcpy(my_ip_addr,"192.168.150.63");
     strcpy(ip_addr_2_connect,"192.168.150.63");
     port_to_bind = 8888;
-    port_to_connect = 7777;
+    port_to_connect = 7778;
     
     while((c = getopt_long_only(argc,argv,"",long_options,&opt_idx)) != -1) {
 	switch(c) {
@@ -76,6 +78,9 @@ int main(int argc,char **argv)
 		break;
 	case 'f':
 		rxtxmask &= ~0x1;
+		break;
+	case 'g':
+		usebulk = 1;
 		break;
 	default:
 		printf("undefined option %c\n",c);
@@ -124,18 +129,7 @@ printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
 	    len = 1448;
             while(ipaugenblick_receivefrom(ipaugenblick_fd_idx2sock(&readfdset,ready_socket),&rxbuff,&len,&addr,&addrlen,&pdesc) == 0) {
                 void *porigdesc = pdesc;
-#if 0
-		int segs =0;
-                do { 
-                    /* do something */
-                    /* don't release buf, release rxbuff */
-		    segs++;
-		    rxbuff = ipaugenblick_get_next_buffer_segment(&pdesc,&len);
-                }while(rxbuff);
-		received_packets += segs;
-#else
 		received_packets++;
-#endif
                 if(!(received_packets%1000)) {
                     printf("received %u transmitted_packets %u\n",received_packets,transmitted_packets);
 		    print_stats();
@@ -150,27 +144,58 @@ printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
 			continue;
 	    p_timeout = NULL;
             tx_space = ipaugenblick_get_socket_tx_space(ipaugenblick_fd_idx2sock(&writefdset,ready_socket));
-            for(i = 0;i < tx_space;i++) {
-                txbuff = ipaugenblick_get_buffer(DATAGRAM_SIZE,ipaugenblick_fd_idx2sock(&writefdset,ready_socket),&pdesc);
-                if(txbuff) {
+	    if (!usebulk) {
+	            for(i = 0;i < tx_space;i++) {
+        	        txbuff = ipaugenblick_get_buffer(DATAGRAM_SIZE,ipaugenblick_fd_idx2sock(&writefdset,ready_socket),&pdesc);
+                	if(txbuff) { 
 #if USE_CONNECTED
-                    if(ipaugenblick_send(ipaugenblick_fd_idx2sock(&writefdset,ready_socket),pdesc,0,DATAGRAM_SIZE)) { 
-                        ipaugenblick_release_tx_buffer(pdesc);
-                    }
-		    else
-			transmitted_packets++;
+	                    if(ipaugenblick_send(ipaugenblick_fd_idx2sock(&writefdset,ready_socket),pdesc,0,DATAGRAM_SIZE)) { 
+        	                ipaugenblick_release_tx_buffer(pdesc);
+                	    }
+			    else
+				transmitted_packets++;
 #else
-		    in_addr->sin_family = AF_INET;
-		    in_addr->sin_addr.s_addr = inet_addr(ip_addr_2_connect);
-		    in_addr->sin_port = port_to_connect;
-                    if(ipaugenblick_sendto(ipaugenblick_fd_idx2sock(&writefdset,ready_socket),pdesc,0,DATAGRAM_SIZE,&addr,addrlen)) { 
-                        ipaugenblick_release_tx_buffer(pdesc);
+			    in_addr->sin_family = AF_INET;
+			    in_addr->sin_addr.s_addr = inet_addr(ip_addr_2_connect);
+			    in_addr->sin_port = port_to_connect;
+                	    if(ipaugenblick_sendto(ipaugenblick_fd_idx2sock(&writefdset,ready_socket),pdesc,0,DATAGRAM_SIZE,&addr,addrlen)) { 
+                        	ipaugenblick_release_tx_buffer(pdesc);
+	                    }
+			    else
+				transmitted_packets++;
+#endif 
+                	} 
+            	}
+	    } else {
+		struct data_and_descriptor bulk_bufs[tx_space];
+                int offsets[tx_space];
+                int lengths[tx_space];
+		struct sockaddr addresses[tx_space];
+                if(!ipaugenblick_get_buffers_bulk(1448,ipaugenblick_fd_idx2sock(&writefdset,sock),tx_space,bulk_bufs)) {
+                        for(i = 0;i < tx_space;i++) {
+                                offsets[i] = 0;
+	                        lengths[i] = 1448;
+				in_addr = &addresses[i];
+				in_addr->sin_family = AF_INET;
+                        	in_addr->sin_addr.s_addr = inet_addr(ip_addr_2_connect);
+                        	in_addr->sin_port = port_to_connect;
+                           }
+                           if(ipaugenblick_sendto_bulk(ipaugenblick_fd_idx2sock(&writefdset,sock),
+							bulk_bufs,offsets,lengths,addresses,
+							sizeof(struct sockaddr),tx_space)) {
+                                for(i = 0;i < tx_space;i++)
+                                       	ipaugenblick_release_tx_buffer(bulk_bufs[i].pdesc);
+	                        printf("%s %d\n",__FILE__,__LINE__);
+                           }
+                           else {
+                                transmitted_packets += tx_space;
+	                        if(!(transmitted_packets%1000)) {
+        	                	printf("transmitted %u received_count %u\n", transmitted_packets, received_packets);
+                	                print_stats();
+                        	}
+                            }
                     }
-		    else
-			transmitted_packets++;
-#endif
-                } 
-            }
+	    }
 	    if(tx_space == 0)
 		continue;
 	    if(!(transmitted_packets%1000)) {

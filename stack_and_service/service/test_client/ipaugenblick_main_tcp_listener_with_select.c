@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <ipaugenblick_api.h>
 #include <string.h>
+#include <getopt.h>
 
 #define USE_TX 1
 #define USE_RX 1
@@ -42,10 +43,27 @@ int main(int argc,char **argv)
     unsigned long transmitted_count = 0;
     struct timeval tm_out, *p_timeout = NULL;
     struct ipaugenblick_fdset readfdset,writefdset, excfdset;
+    char my_ip_addr[20];
+    int port_to_bind;
     struct sockaddr addr;
+    int usebulk = 0;
     struct sockaddr_in *in_addr = (struct sockaddr_in *)&addr;
 
    // ipaugenblick_set_log_level(0/*IPAUGENBLICK_LOG_DEBUG*/);
+   int rxtxmask = 0x3; /* both */
+    static struct option long_options[] =
+        {
+          {"ip2bind",  required_argument, 0, 'a'},
+          {"port2bind",    required_argument, 0, 'c'},
+          {"notransmit", no_argument, 0, 'e' },
+          {"noreceive", no_argument, 0, 'f' },
+	  {"usebulk", no_argument, 0, 'b' },
+          {0, 0, 0, 0}
+        };
+    int opt_idx,c;
+
+    strcpy(my_ip_addr,"192.168.150.63");
+    port_to_bind = LISTENERS_BASE;
 
     ipaugenblick_fdzero(&readfdset);
     ipaugenblick_fdzero(&writefdset);
@@ -56,6 +74,29 @@ int main(int argc,char **argv)
         return 0;
     } 
     printf("memory initialized\n");
+    while((c = getopt_long_only(argc,argv,"",long_options,&opt_idx)) != -1) {
+        switch(c) {
+        case 'a':
+                strcpy(my_ip_addr,optarg);
+                printf("IP address to bind: %s\n",my_ip_addr);
+                break;
+        case 'c':
+                port_to_bind = atoi(optarg);
+                printf("Port to bind %d\n",port_to_bind);
+                break;
+        case 'e':
+                rxtxmask &= ~0x2;
+                break;
+        case 'f':
+                rxtxmask &= ~0x1;
+                break;
+	case 'b':
+		usebulk = 1;
+		break;
+        default:
+                printf("undefined option %c\n",c);
+        }
+    }
     selector = ipaugenblick_open_select();
     if(selector != -1) {
         printf("selector opened\n");
@@ -66,8 +107,8 @@ int main(int argc,char **argv)
         	printf("cannot open tcp client socket\n");
 	        return 0;
     	}
-	in_addr->sin_addr.s_addr = inet_addr("192.168.150.63");
-	in_addr->sin_port = LISTENERS_BASE + listeners_idx;
+	in_addr->sin_addr.s_addr = inet_addr(my_ip_addr);
+	in_addr->sin_port = port_to_bind + listeners_idx;
     	ipaugenblick_bind(sock,&addr, sizeof(addr));
 
     	ipaugenblick_listen_socket(sock);
@@ -84,7 +125,6 @@ int main(int argc,char **argv)
 	memset(&tm_out,0,sizeof(tm_out));
 	p_timeout = /*&tm_out*/NULL;
         ready_socket_count = ipaugenblick_select(selector,&readfdset,&writefdset,&excfdset, p_timeout);
-//	printf("ready_socket_count %d read cnt %d write cnt %d\n",ready_socket_count, readfdset.returned_idx, writefdset.returned_idx);
         if(ready_socket_count == -1) {
             continue;
         }
@@ -102,8 +142,10 @@ int main(int argc,char **argv)
         	    while((newsock = ipaugenblick_accept(ipaugenblick_fd_idx2sock(&readfdset,sock),&addr,&addrlen)) != -1) {
                 	printf("socket accepted %d %d %x %d\n",newsock,selector,ipaddr,port);
 	                ipaugenblick_set_socket_select(newsock,selector);
-			ipaugenblick_fdset (newsock, &readfdset);
-			ipaugenblick_fdset (newsock, &writefdset);
+			if (rxtxmask & 0x1)
+				ipaugenblick_fdset (newsock, &readfdset);
+			if (rxtxmask & 0x3)
+				ipaugenblick_fdset (newsock, &writefdset);
 			ipaugenblick_fdset (newsock, &excfdset);
             	    }
         	} else {
@@ -115,7 +157,6 @@ int main(int argc,char **argv)
 			int segs = 0;
 	                void *porigdesc = pdesc;
 
-#if 1
         	        while(rxbuff) { 
                 	    if(len > 0) {
                         	/* do something */
@@ -129,9 +170,6 @@ int main(int argc,char **argv)
                 	}
 
 	                received_count+=segs;
-#else
-        	        received_count++;
-#endif 
 			if(!(received_count%1000)) {
 	                    printf("received %u transmitted_count %u\n", received_count, transmitted_count);
 			    print_stats();
@@ -141,57 +179,52 @@ int main(int argc,char **argv)
             	    }
 		}
         }
-#if USE_TX
         for (sock = 0; sock < writefdset.returned_idx; sock++) {
 	    if (!ipaugenblick_fdisset(ipaugenblick_fd_idx2sock(&writefdset,sock),&writefdset))
 			continue;
 	    p_timeout = NULL;
             tx_space = ipaugenblick_get_socket_tx_space(ipaugenblick_fd_idx2sock(&writefdset,sock));
-//	    printf("tx_space %d\n",tx_space);
-#if 1
-            for(i = 0;i < tx_space;i++) {
-                txbuff = ipaugenblick_get_buffer(1448,ipaugenblick_fd_idx2sock(&writefdset,sock),&pdesc);
-                if(!txbuff) {
-                    break;
-                }
-		//strcpy(txbuff,"VADIM");
-                if(ipaugenblick_send(ipaugenblick_fd_idx2sock(&writefdset,sock),pdesc,0,1448)) { 
-                    ipaugenblick_release_tx_buffer(pdesc);
-                    break;
-                }
-		transmitted_count++;
-		if(!(transmitted_count%1000)) {
-                    printf("received %u transmitted_count %u\n", received_count, transmitted_count);
-		    print_stats();
-                }
-            }
-//	    if(tx_space == 0)
-//		continue;
-#else
-	    if(tx_space == 0)
-		continue;
-	    struct data_and_descriptor bulk_bufs[tx_space];
-            int offsets[tx_space];
-            int lengths[tx_space];
-	    if(!ipaugenblick_get_buffers_bulk(1448,ready_socket,tx_space,bulk_bufs)) {
-                    for(i = 0;i < tx_space;i++) {
-                        offsets[i] = 0;
-                        lengths[i] = 1448;
-                    }
-                    if(ipaugenblick_send_bulk(ready_socket,bulk_bufs,offsets,lengths,tx_space)) {
-			for(i = 0;i < tx_space;i++)
-                        	ipaugenblick_release_tx_buffer(bulk_bufs[i].pdesc);
-                        printf("%s %d\n",__FILE__,__LINE__);
-                    }
-                    else {
-			transmitted_count += tx_space;
-			if(!(transmitted_count%1000)) {
-                    		printf("transmitted %u received_count %u\n", transmitted_count, received_count);
-				print_stats();
+	    if (!usebulk) {
+	            for(i = 0;i < tx_space;i++) {
+        	        txbuff = ipaugenblick_get_buffer(1448,ipaugenblick_fd_idx2sock(&writefdset,sock),&pdesc);
+                	if(!txbuff) {
+	                    break;
+        	        }
+                	if(ipaugenblick_send(ipaugenblick_fd_idx2sock(&writefdset,sock),pdesc,0,1448)) { 
+	                    ipaugenblick_release_tx_buffer(pdesc);
+        	            break;
                 	}
-                    }
-            }
-#endif
+			transmitted_count++;
+			if(!(transmitted_count%1000)) {
+                	    printf("received %u transmitted_count %u\n", received_count, transmitted_count);
+			    print_stats();
+        	        }
+	            }
+	    } else {
+		    if(tx_space == 0)
+			continue;
+		    struct data_and_descriptor bulk_bufs[tx_space];
+        	    int offsets[tx_space];
+	            int lengths[tx_space];
+		    if(!ipaugenblick_get_buffers_bulk(1448,ipaugenblick_fd_idx2sock(&writefdset,sock),tx_space,bulk_bufs)) {
+                	    for(i = 0;i < tx_space;i++) {
+                        	offsets[i] = 0;
+	                        lengths[i] = 1448;
+        	            }
+	                    if(ipaugenblick_send_bulk(ipaugenblick_fd_idx2sock(&writefdset,sock),bulk_bufs,offsets,lengths,tx_space)) {
+				for(i = 0;i < tx_space;i++)
+                	        	ipaugenblick_release_tx_buffer(bulk_bufs[i].pdesc);
+                        	printf("%s %d\n",__FILE__,__LINE__);
+	                    }
+        	            else {
+				transmitted_count += tx_space;
+				if(!(transmitted_count%1000)) {
+        	            		printf("transmitted %u received_count %u\n", transmitted_count, received_count);
+					print_stats();
+                		}
+	                    }
+        	    }
+	    }
 	    int iter = 0;
             while(ipaugenblick_socket_kick(ipaugenblick_fd_idx2sock(&writefdset,sock)) == -1) {
 		iter++;
@@ -200,8 +233,6 @@ int main(int argc,char **argv)
 		}
 	    }
         }  
-//        ipaugenblick_socket_kick(ready_socket);
-#endif	
     }
     return 0;
 }
