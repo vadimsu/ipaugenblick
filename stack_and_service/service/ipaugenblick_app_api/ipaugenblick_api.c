@@ -602,7 +602,7 @@ inline int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_
 }
 
 /* UDP or RAW */
-inline int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length, struct sockaddr *addr, __rte_unused int addrlen)
+int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length, struct sockaddr *addr, __rte_unused int addrlen)
 {
     int rc;
     struct rte_mbuf *mbuf = (struct rte_mbuf *)pdesc;
@@ -809,7 +809,7 @@ read_from_ring:
 }
 
 /* UDP or RAW */
-inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,struct sockaddr *addr,__rte_unused int *addrlen, void **pdesc)
+int ipaugenblick_receivefrom(int sock,void **buffer,int *len,struct sockaddr *addr,__rte_unused int *addrlen, void **pdesc)
 {
     struct rte_mbuf *mbuf = ipaugenblick_dequeue_rx_buf(sock);
     struct sockaddr_in *in_addr = (struct sockaddr_in *)addr;
@@ -831,7 +831,7 @@ inline int ipaugenblick_receivefrom(int sock,void **buffer,int *len,struct socka
 }
 
 /* Allocate buffer to use later in *send* APIs */
-inline void *ipaugenblick_get_buffer(int length,int owner_sock,void **pdesc)
+void *ipaugenblick_get_buffer(int length,int owner_sock,void **pdesc)
 {
     struct rte_mbuf *mbuf;
     mbuf = rte_pktmbuf_alloc(tx_bufs_pool);
@@ -872,7 +872,7 @@ void ipaugenblick_release_tx_buffer(void *pdesc)
     rte_pktmbuf_free_seg(mbuf);
 }
 
-inline void ipaugenblick_release_rx_buffer(void *pdesc,int sock)
+void ipaugenblick_release_rx_buffer(void *pdesc,int sock)
 {
     struct rte_mbuf *mbuf = (struct rte_mbuf *)pdesc; 
 #if 1 /* this will work if only all mbufs are guaranteed from the same mempool */
