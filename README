@@ -1,16 +1,28 @@
 News
-18, Febrary 2015: IPAugenblick service is present in master branch. To run ipaugenblick as service, one needs:
-- To reserve huge pages, bind NIC to UIO driver
-- Run sudo ./ipaugenblick_srv -c <core mask> -n <channels number> -- -p <port mask> (ipaugenblick_srv is built under ./service/build/)
-- Select one of applications under ./service/test_client, run corresponding build script (found at the same path), then run:
-   - sudo ./<executable name> -c <core mask> -n <channels mask> --proc-type secondary
-   Note that the configuration file containing port addresses must be present under service directory. In test executables, the addresses are currently harcoded, customize as you need
-   - test applications can be executed number of times w/o restarting the service
-
-27, January 2015: IPAugenblick as Linux service is going to be released shortly. It will run as user space daemon while providing an API (as static library) to interfact the service from different applications running in other processes. At the same time it is going to upgrade the DPDK version from 1.6 to 1.8
 Intro
 
 At the end of April 2014, I started the poring of Linux TCP/IP into the user space and integrating it with DPDK, after I had done the same with FreeBSD for the company I worked for. Today, almost 5 months (or 20 weekends) later, I decided to publish it. Please feel free to contact me for any question you may have. In case you have questions/difficulties to wirk with the package, you can also ask me to schedule a skype session, if you wish. Contact me to schedule. I'll be glad to help
+
+Architecture overview
+
+IPAugenblick runs as a backgroung process. It is composed of ported to user space Linux TCP/IP stack, which interfaces using some glue logic
+the PMD at the bottom and user applications at the top. To communicate user applications, a number (equal to max supported sockets number) 
+rings are created. A user application runs as EAL secondary process which means it shares the memory and no memory is copied.
+Since the rte_rings are used, neither receive nor transmit are blocking. A user application does not interfaces the ring directly but
+using posix-like API (stack_and_service/service/ipaugenblick_app/ipaugenblick_app_api.h) which appears as a library. Once a buffer is placed in the ring by the application, it is then read by the IPAugenblick service, passed to the TCP/IP stack. Upon leaving the TCP/IP stack, the packet is placed in PMD ring for transmission. In opposite direction, IPaugenblick service pools the PMD for incoming packets. Once received, it
+is passed upper to the stack. When the TCP/IP stack decides the data is ready to be read by user, it calls a callback function, which
+checks if there is a space in the ring (between the IPaugenblick service and user application). If there is some space, the packet is read from
+the socket and is placed in the ring. The application is then kicked to notify there are data to read. The receive path is also non-blocking
+and no memory copying
+
+Using API
+The API is posix-like, however some extensions are introduced:
+- to avoid memory copying, buffer descriptor is passed as well as the pointer to the buffer's memory
+- bulk API for sending bulks of buffers
+- FD sets are designed to allow two approaches for handling:
+	- socket descriptor (integer, returned when opening socket) may be used to query whether a socket is readable or writable
+	- upon returning from select, one can iterate all readable/writable descriptors
+	Please consult the examples about how to use it
 
 Porting detailed info:
 
@@ -92,19 +104,6 @@ skb_copy_datagram_iovec and similar functions:
 
 These functions are adapted to operate the modified struct iovec
 
-Multicore branch:
-
-All (I hope) stack structures are made per-cpu. That means hash tables as well.
-
-Core equals thread.
-
-Poller: a thread which calls PMD interface (such as rte_eth_tx_burst) for both receive and transmit paths. It communicates other cores using the rte_rings - per core - for the received packets and using on designated rte_ring for the outgoing traffic.
-
-Load balancer - a primitive module which is responsible to route the received packets to cores. It keeps TCP connection sticky to a core by deriving the core number from the source port. All non-TCP traffic except ARP replies is routed to poller's core. The ARP replies must be routed to core which originated ARP request. Temporary solution is to raise per-core flag upon issuing the ARP request and testing the flags upon ARP reply arrival.
-
-Caution: if you open a listening socket, it must be open on all the cores the incomingTCP traffic may be distributed. Caution#2: currently the load balancer must be initialized with power of 2 number of cores to operate. The poller is not counted, it may be among these cores or an additional one. Caution#3: all non-TCP traffic is routed to be processed by poller thread. The exception is ARP replies which must arrive to a core which originated ARP request. Currently I use some dirty trick - raise a flag per core upon sending ARP request and test the per-core flags upon arrival of ARP reply.
-
-Hopefully, one day we'll have RSS working and get rid off this weird module.
 
 Flows:
 
@@ -140,100 +139,6 @@ Accept flow:
 - This calls driver's function which correspondingly calls the PMD driver function.
 - As a result, IP stack may receive a packet resulting in establishing a new connection.
 - app_glue_wakeup if a new connection is accepted is called. This places socket to corresponding list which is later called (when app_glue_periodic is called).
-
-Performance
-
-Since I've developed it at home, I didn't have proper lab environment.
-
-Most of the way, I worked on the setup QuadCore - 1G NIC - 4G RAM <--> 100M NIC - Quad Core - 4G RAM directly connected PCs,
-
-at the later stages I got two 10G NICs and worked with QuadCore - 10G - 4G RAM <--> DualCore - 10G NIC - 2G RAM directly connected PCs.
-
-On the first one I exhausted 100M connection(bottleneck) with 22000 connections and it was stable for days (didn't try weeks) while on the second one I reached 2GBit/s and it was stable hours (didn't try to run 24H yet),
-
-in both the cases the bottleneck was at the IPAugenblick's peer which reached almost 0% idle (almost 100% of CPU power was spread between kernel's system/soft interrupt/hard interrupt contexted). Also I observed 5 times shorted latency at the DPDK side no matter what was the load.
-
-In next days I'll try to swap the PCs and prove that x2 stronger PC (4G vs 2G RAM, 4 core vs 2 cores) will not be a bottleneck while running agains IPAugenblick
-
-Supported functionality
-
-    TCP
-
-socket open, bind, connect, listen, accept, ioctls,close
-
-tcp_sendpage
-
-(through kernel_sendpage)
-
-tcp_recvmsg
-
-(through kernel_recvmsg)
-
-most of TCP options
-
-    UDP
-
-socket open, bind, ioctls, close
-
-udp_sendmsg
-
-(through kernel_sendmsg)
-
-udp_recvmsg
-
-(through kernel_recvmsg)
-
-    RAW
-
-socket open, bind, ioctls,close
-
-raw_sendmsg
-
-(through kernel_sendmsg)
-
-raw_recvmsg
-
-(through kernel_recvmsg)
-
-Multiple NICs:
-
-I have not tried yet to work simultaneously with more than one NIC, although the code is written to support that.
-
-Multiple cores:
-
-There is a branch for multicore (master is for single-core). Please consult Kernel subsystems porting details
-
-Not supported yet:
-
-tcp_sendmsg
-
-tcp_read_sock
-
-tcp_splice*
-
-tcp_poll (no poll at all)
-
-corking
-
-skb_cow_data
-
-skb_to_sgvec
-
-skb_seq_read, sequential operations
-
-Offloading features (see roadmap)
-
-IP fragmentation/defragmentation (not tested)
-
-Multicast is not tested
-
-Known issues:
-
-- TCP sockets remain sometimes open after corresponding connection is dead
-
-- Total memory to be used by protocol is set empirically. Refer to nr_free_buffer_pages under porting/mm_porting.c Must be fixed in future versions.
-
-- MIB stats does not work in muticore (disabled currently)
 
 Please do not hesitate to report any bug you may find.
 
@@ -275,14 +180,11 @@ Then invoke tools/setup script under DPDK root directory and bind the port(s) to
 
 The following examples are provided:
 
-benchmark_app - opens TCP listening socket (on 192.168.1.1:7777, hardcoded in bm_app.c), accept connections, then sends and receives the data. On peer machine, run one of bm1* scripts.
-benchmark_app2 - opens TCP connecting socket (to 192.168.1.2:7777, hardcoded in bm_app2.c), when connected sends and receives the data. On peer machine, run bm2_test.sh script
-benchmark_app3 - opens UDP socket (on 192.168.1.1:7777), sends (to 192.168.1.2:7777, hardcoded in bm_app.c) and receives the data. On peer machine, run bm3_test.sh script
-benchmark_app4 - opens RAW socket (on 192.168.1.1, steals protocol number from OSPF - 89), sends and receives the data. On peer machine, run bm4_test.sh script
-To run, go to benchmark_app*, invoke sudo ./run.sh
-The applications are tested: single core - with core mask 0x3 (2 cores, 1 for data path, one for printing statistics), multicore - with core mask 0xF (4 cores, 1 - for printing statistics, 3 for data path from which 2 - for TCP connections handling and one for interaction with PMD and processing non-TCP. ARP is distributed between all the cores)
-
-If you need to customize memory allocations, PMD setting - look at build your app
+TCP listener with select
+TCP connecting socket
+TCP & UDP with select
+UDP
+There is an option to use bulk send API
 
 IPAugenblick interfaces IP addresses and masks are configured in dpdk_ip_stack.txt (in the same directory as the executable)
 
@@ -342,15 +244,6 @@ This function allocates an rte_mbuf from pool, allocated at the time of initiali
 
 - app_glue_get_buffer
 
-
-Roadmap:
-
-     Stabilizing the code
-    Getting RSS working, getting rid off primitive load_balancer
-     Implement offloading features
-    Ensure conntrack, netfilter, tproxy etc features work
-    Creation of eco-system (adapt various widely used utilities such as ip configuration, ip tables, tcpdump etc)
-    Get more protocols work with IPAugenblick
 
 Contribute
 
