@@ -48,7 +48,6 @@ typedef struct
 {
 	int port_number;
 }dpdk_dev_priv_t;
-
 /**
  * @internal Calculate a sum of all words in the buffer.
  * Helper routine for the rte_raw_cksum().
@@ -125,7 +124,6 @@ rte_raw_cksum(const void *buf, size_t len)
         sum = __rte_raw_cksum(buf, len, 0);
         return __rte_raw_cksum_reduce(sum);
 }
-
 /* this function polls DPDK PMD driver for the received buffers.
  * It constructs skb and submits it to the stack.
  * netif_receive_skb is used, we don't have HW interrupt/BH contexts here
@@ -231,7 +229,7 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
         *mbuf = NULL;
 	rte_pktmbuf_pkt_len(head) = pkt_len;
        if ((skb->ip_summed == CHECKSUM_PARTIAL)&&(skb->protocol == htons(ETH_P_IP))) {
-	   printf("%s %d %d\n",__FILE__,__LINE__,skb->ip_summed);sleep(10);
+	   //printf("%s %d %d\n",__FILE__,__LINE__,skb->ip_summed);sleep(10);
 	   head->ol_flags = PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
            struct iphdr *iph = ip_hdr(skb);
            iph->check = 0;
@@ -254,32 +252,35 @@ static netdev_tx_t dpdk_xmit_frame(struct sk_buff *skb,
            if (/*(skb_shinfo(skb)->nr_frags)&&*/(ip_hdr(skb)->protocol == IPPROTO_TCP)) {
 	       psd_hdr.proto = IPPROTO_TCP;  
 	       head->tso_segsz =  skb_shinfo(skb)->gso_size;
-	       head->l4_len = tcp_hdrlen(skb);
-	       head->ol_flags |= PKT_TX_TCP_CKSUM;
-//printf("l3len %d l2len %d l4len %d tso %d %d %d %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),head->nb_segs);
+	       head->l4_len = tcp_hdrlen(skb); 
+//		if (head->nb_segs > 2)
+//printf("l3len %d l2len %d l4len %d tso %d pktlen %d datalen %d pktlen %d nbseg %d csum %x\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),rte_pktmbuf_pkt_len(head),head->nb_segs, tcp_hdr(skb)->check);
 	       if (head->tso_segsz) { /* this does not work */
 			head->ol_flags |= PKT_TX_TCP_SEG;
+			head->ol_flags |= PKT_TX_TCP_CKSUM;
 			psd_hdr.len = 0;
-			iph->tot_len = 0;
+//			iph->tot_len = 0;
 			driver_tx_offload_pkts++;
-if((pkt_len - (head->l2_len + head->l3_len + head->l4_len)) != (skb->len - (skb_transport_offset(skb)+head->l4_len))) { printf("%s %d pkt_len %d l2 %d l3 %d l4 %d trnsp %d head len %d head len2 %d\n",
-__FILE__,__LINE__,pkt_len,head->l2_len,head->l3_len,head->l4_len,skb_transport_offset(skb),rte_pktmbuf_data_len(head),skb_headlen(skb)); exit(0); }
 	       }
 	       else {
+			head->ol_flags |= PKT_TX_TCP_CKSUM;
 			psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
 			driver_tx_wo_offload_pkts++;
 	       }
                tcp_hdr(skb)->check =  rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
+//		if (head->nb_segs > 2)
+//			printf("recalc csum %x\n",tcp_hdr(skb)->check);
 	   }
            else if(ip_hdr(skb)->protocol == IPPROTO_UDP) {
 	       psd_hdr.proto = IPPROTO_UDP;
-	       head->l4_len = sizeof(struct udphdr);
+	       head->l4_len = /*sizeof(struct udphdr)*/0;
                head->ol_flags |= PKT_TX_UDP_CKSUM;
 	       psd_hdr.len = rte_cpu_to_be_16((uint16_t)(rte_be_to_cpu_16(iph->tot_len) - head->l3_len));
 //printf("UDP l3len %d l2len %d l4len %d tso %d %d %d %d\n",head->l3_len, head->l2_len, head->l4_len, head->tso_segsz,pkt_len,rte_pktmbuf_data_len(head),head->nb_segs);
 	       udp_hdr(skb)->check = rte_raw_cksum(&psd_hdr, sizeof(psd_hdr));
 	   } 
-       }
+       } else
+		printf("%s %d\n",__func__,__LINE__);
 	/* this will pass the mbuf to DPDK PMD driver */
 	dpdk_dev_enqueue_for_tx(priv->port_number,head);
 	kfree_skb(skb);
@@ -476,8 +477,8 @@ void set_dev_addr(void *netdev,char *mac_addr,char *ip_addr,char *ip_mask)
 	}
         dev->mtu = 1500;
 #ifdef OFFLOAD_NOT_YET
-        dev->gso_max_segs = 4;
-        dev->gso_max_size = 8192;
+        dev->gso_max_segs = MAX_SKB_FRAGS;
+        dev->gso_max_size = MAX_SKB_FRAGS*2048;
 #else
 	dev->gso_max_segs = 1;
         dev->gso_max_size = 0;
