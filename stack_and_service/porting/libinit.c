@@ -207,7 +207,7 @@ static int parse_args(int argc, char **argv)
 DUMP(argc);
 	argvopt = argv;
 
-	while ((opt = getopt_long(argc, argvopt, "p:a:T",
+	while ((opt = getopt_long(argc, argvopt, "p:a:Tl:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
@@ -230,7 +230,9 @@ DUMP(argc);
 				//return -1;
 			//}
 			break;
-
+		case 'l':
+			ipaugenblick_set_log_level(atoi(optarg));
+			break;
 		default:
 			//l2fwd_usage(prgname);
 			return -1;
