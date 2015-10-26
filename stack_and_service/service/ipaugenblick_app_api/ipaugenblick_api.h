@@ -547,4 +547,6 @@ void ipaugenblick_set_buffer_data_len(void *buffer, int len);
 */
 int ipaugenblick_get_buffer_data_len(void *buffer);
 
+void *ipaugenblick_get_data_ptr(void *desc);
+
 #endif

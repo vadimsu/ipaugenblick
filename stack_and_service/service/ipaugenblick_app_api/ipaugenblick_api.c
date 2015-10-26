@@ -1232,3 +1232,9 @@ int ipaugenblick_get_buffer_data_len(void *buffer)
     struct rte_mbuf *mbuf = (struct rte_mbuf *)buffer;
     return rte_pktmbuf_data_len(mbuf);
 }
+
+void *ipaugenblick_get_data_ptr(void *desc)
+{
+	struct rte_mbuf *mbuf = (struct rte_mbuf *)desc;
+	return rte_pktmbuf_mtod(mbuf, void *);
+}
