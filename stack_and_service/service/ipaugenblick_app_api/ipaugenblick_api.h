@@ -549,4 +549,6 @@ int ipaugenblick_get_buffer_data_len(void *buffer);
 
 void *ipaugenblick_get_data_ptr(void *desc);
 
+void ipaugenblick_update_rfc(void *desc, signed delta);
+
 #endif

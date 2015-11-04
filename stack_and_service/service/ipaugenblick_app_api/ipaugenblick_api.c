@@ -1238,3 +1238,10 @@ void *ipaugenblick_get_data_ptr(void *desc)
 	struct rte_mbuf *mbuf = (struct rte_mbuf *)desc;
 	return rte_pktmbuf_mtod(mbuf, void *);
 }
+
+void ipaugenblick_update_rfc(void *desc, signed delta)
+{
+	struct rte_mbuf *mbuf = (struct rte_mbuf *)desc;
+	rte_mbuf_refcnt_update(mbuf, delta);
+}
+}
