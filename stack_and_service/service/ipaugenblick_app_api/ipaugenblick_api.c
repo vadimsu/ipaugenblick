@@ -1244,4 +1244,3 @@ void ipaugenblick_update_rfc(void *desc, signed delta)
 	struct rte_mbuf *mbuf = (struct rte_mbuf *)desc;
 	rte_mbuf_refcnt_update(mbuf, delta);
 }
-}
