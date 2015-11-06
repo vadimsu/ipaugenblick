@@ -129,7 +129,6 @@ void app_glue_sock_write_space(struct sock *sk)
  */
 void app_glue_sock_error_report(struct sock *sk)
 {
-	printf("%s %d\n",__FILE__,__LINE__);
 	if(sk && sk->sk_socket) {
 		if(sk->sk_socket->closed_queue_present) {
 			return;
