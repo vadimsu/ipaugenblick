@@ -98,12 +98,12 @@ int main(int argc,char **argv)
         }
 	in_addr->sin_family = AF_INET;
 	in_addr->sin_addr.s_addr = inet_addr(my_ip_addr);
-	in_addr->sin_port = htons(port_to_bind + i);
+	in_addr->sin_port = port_to_bind + i;
 printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
         ipaugenblick_bind(sock,&addr,addrlen);
  
 	in_addr->sin_addr.s_addr = inet_addr(ip_addr_2_connect);
-	in_addr->sin_port = htons(port_to_connect);
+	in_addr->sin_port = port_to_connect;
 	if (rxtxmask & 0x1)
 		ipaugenblick_fdset (sock, &readfdset);
 	if (rxtxmask & 0x2)

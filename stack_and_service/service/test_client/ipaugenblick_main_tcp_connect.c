@@ -57,8 +57,8 @@ int main(int argc,char **argv)
   //  ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     //ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
     in_addr->sin_family = AF_INET;
-    in_addr->sin_addr.s_addr = inet_addr("192.168.150.63");
-    in_addr->sin_port = htons(7777);
+    in_addr->sin_addr.s_addr = inet_addr("192.168.150.62");
+    in_addr->sin_port = 7777;
     ipaugenblick_connect(sock,&addr, sizeof(addr));
     
     p_timeout = &tm_out;
