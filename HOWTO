@@ -1,0 +1,74 @@
+1. Build ipaugenblick (build_dev.sh)
+2. Customize /etc/ipaugenblick/dpdk_ipstack_config.txt. The format is:
+<port number> <ip address> <mask>
+Note: it is possible to have several ip addresses on one port, just provide the same port number
+3. Run /usr/bin/ipaugenblick -c <core mask> -n <memory channels> -d <pmd library name> -- -p <port mask>
+4. Build you application (examples are provided at  stack_and_service/service/test_client/)
+5. Run application as following:
+<application name> -c <core mask> -n <memory channels> --proc-type secondary -- [application-specific options]
+Application line by line explanation:
+- tcp_listener_with_select
+1. ipaugenblick_app_init is called (it must be called prior any other Ipaugenblick API function, provide command line parameters (argc, argv) as passed to main and unique application ID string)
+2. A selector is open by calling ipaugenblick_open_select (to have POSIX select/epoll functionality)
+3. A number of listener sockets are created by:
+- calling ipaugenblick_open_socket
+(first two parameters are address family and socket type are the same as if you call POSIX's socket, third parameter is the selector's descriptor).
+- calling ipaugenblick_bind  to bind a listening socket (parameters are the same as for its POSIX analog)
+- socket's descriptor (returned by ipaugenblick_open_socket) is stored in listeners' array in order to distinct later the listeners from non-listeners
+- socket's descriptor is added to readfdset (this will tell later to selector on which sockets the events should be caught)
+4. Main loop
+- ipaugenblick_select is called (similar to POSIX select but FD sets are ipaugenblick_fdset). Last parameter is NULL which makes select return only if at least one socket is readable/writable
+- upon return, readfdset.returned_idx equals count of readable sockets. For each socket descriptor in the set. ipaugenblick_fd_idx2sock converts an index (in readfdset) of readable socket into a socket descriptor
+    - checks if the socket is listener. If so, calls ipaugenblick_accept till it returns an accepted socket. For each an accepted socket calls ipaugenblick_set_socket_select to associate it with the selector. A socket can be associated with only one selector at time. It also adds an accepted socket to read and write fdsets (depending whether data should be sent and/or received on the socket)
+    - Otherwise, if socket is not one of listeners, ipaugenblick_receive is called.
+       ipaugenblick_receive returns a chain of buffers which can be walked by calling ipaugenblick_get_next_buffer_segment each time. Finally ipaugenblick_release_rx_buffer is called to release the chain (not a segment in chain!!!)
+- writable sockets count is returned in writefdset.returned_idx. For each writable socket descriptor (as in case of readfdset,  ipaugenblick_fd_idx2sock converts an index of writable socket into a socket descriptor), ipaugenblick_get_socket_tx_space is called to determine a maximal amount of buffers that can be sent on the socket (this function takes into account the socket's write buffer size as well as a buffer availability in the common buffer pool), called tx space
+   - As long as tx space is not exhausted, calls ipaugenblick_get_buffer, and then ipaugenblick_send to send the buffer
+   - Alternatively, ipaugenblick_get_buffers_bulk may be called (controlled by command line) to allocate a bulk of buffers, which are then sent by calling ipaugenblick_send_bulk.
+    - Finally, for each socket descriptor returned in writefdset (regardless if something was sent or not because if not, that could mean many buffers are in socket's queue on service's side so it should be kicked), ipaugenblick_socket_kick is called until succeeded.
+- tcp_connect
+1. ipaugenblick_app_init is called (it must be called prior any other Ipaugenblick API function, provide command line parameters (argc, argv) as passed to main and unique application ID string)
+2. A selector is open by calling ipaugenblick_open_select (to have POSIX select/epoll functionality)
+3. A connecting STREAM (TCP) socket is open by:
+- calling ipaugenblick_open_socket
+(first two parameters are address family and socket type are the same as if you call POSIX's socket, third parameter is the selector's descriptor).
+- calling ipaugenblick_connect  to connect the socket (parameters are the same as for its POSIX analog)
+- socket's descriptor is added to readfdset & writefdset (this will tell later to selector on which sockets the events should be caught)
+4. Main loop
+ ipaugenblick_select is called (similar to POSIX select but FD sets are ipaugenblick_fdset). Last parameter is NULL which makes select return only if at least one socket is readable/writable
+- upon return, readfdset.returned_idx equals count of readable sockets. For each socket descriptor in the set. ipaugenblick_fd_idx2sock converts an index (in readfdset) of readable socket into a socket descriptor
+    - test the socket by calling ipaugenblick_fdisset is readable. If not, skip the rest of the loop
+    - call ipaugenblick_receive as long as returns 0
+        - for each succeeded call to ipaugenblick_receive, walk the returned chain of buffers by calling ipaugenblick_get_next_buffer_segment to get next buffer
+        - call ipaugenblick_release_rx_buffer to free whole chain of buffers
+- writable sockets count is returned in writefdset.returned_idx. For each writable socket descriptor (as in case of readfdset,  ipaugenblick_fd_idx2sock converts an index of writable socket into a socket descriptor), 
+    - test the socket by calling ipaugenblick_fdisset if writable. If not, skip the rest of the loop
+    -  ipaugenblick_get_socket_tx_space is called to determine a maximal amount of buffers that can be sent on the socket (this function takes into account the socket's write buffer size as well as a buffer availability in the common buffer pool), called tx space
+   - As long as tx space is not exhausted, calls ipaugenblick_get_buffer, and then ipaugenblick_send to send the buffer
+   - Alternatively, ipaugenblick_get_buffers_bulk may be called (controlled by command line) to allocate a bulk of buffers, which are then sent by calling ipaugenblick_send_bulk.
+    - Finally, for each socket descriptor returned in writefdset (regardless if something was sent or not because if not, that could mean many buffers are in socket's queue on service's side so it should be kicked), ipaugenblick_socket_kick is called until succeeded.
+- udp
+1. ipaugenblick_app_init is called (it must be called prior any other Ipaugenblick API function, provide command line parameters (argc, argv) as passed to main and unique application ID string)
+2. A selector is open by calling ipaugenblick_open_select (to have POSIX select/epoll functionality)
+3. A DATAGRAM socket is created by:
+- calling ipaugenblick_open_socket
+(first two parameters are address family and socket type are the same as if you call POSIX's socket, third parameter is the selector's descriptor).
+- calling ipaugenblick_bind  to bind the socket (parameters are the same as for its POSIX analog) to IP address/port according to provided in the command line/default
+- returned socket descriptor is added to readfdset and/or writefdset according to rxtxmask
+- if connected is configured, call ipaugenblick_connect (connecting UDP socket means the peer is known and the routing will be skipped so less cycles will be spent)
+4. Main loop
+ ipaugenblick_select is called (similar to POSIX select but FD sets are ipaugenblick_fdset). Last parameter is NULL which makes select return only if at least one socket is readable/writable
+- upon return, readfdset.returned_idx equals count of readable sockets. For each socket descriptor in the set. ipaugenblick_fd_idx2sock converts an index (in readfdset) of readable socket into a socket descriptor
+    - test the socket by calling ipaugenblick_fdisset is readable. If not, skip the rest of the loop
+    - call ipaugenblick_receivefrom returns while returns 0. Call ipaugenblick_release_rx_buffer for each received datagram
+- writable sockets count is returned in writefdset.returned_idx. For each writable socket descriptor (as in case of readfdset,  ipaugenblick_fd_idx2sock converts an index of writable socket into a socket descriptor), 
+    - test the socket by calling ipaugenblick_fdisset if writable. If not, skip the rest of the loop
+    - ipaugenblick_get_socket_tx_space is called to determine a maximal amount of buffers that can be sent on the socket (this function takes into account the socket's write buffer size as well as a buffer availability in the common buffer pool), called tx space
+   - As long as tx space is not exhausted, calls ipaugenblick_get_buffer, and then ipaugenblick_sendto to send the buffer
+   - Alternatively, ipaugenblick_get_buffers_bulk may be called (controlled by command line) to allocate a bulk of buffers, which are then sent by calling ipaugenblick_sendto_bulk.
+    - Finally, for each socket descriptor returned in writefdset (regardless if something was sent or not because if not, that could mean many buffers are in socket's queue on service's side so it should be kicked), ipaugenblick_socket_kick is called until succeeded.
+
+Ported projects:
+- Quagga BGP (https://github.com/vadimsu/ipaugenblick_bgp_router.git)
+- lighttpd (https://github.com/vadimsu/lighttpd_ported.git)
+
