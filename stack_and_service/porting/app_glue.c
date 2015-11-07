@@ -216,7 +216,7 @@ int app_glue_v4_bind(struct socket *sock,unsigned int ipaddr, unsigned short por
 
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = ipaddr;
-	sin.sin_port = htons(port);
+	sin.sin_port = port;
 
 	return kernel_bind(sock,(struct sockaddr *)&sin,sizeof(sin));
 }
