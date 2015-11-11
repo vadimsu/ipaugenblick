@@ -1246,3 +1246,28 @@ void ipaugenblick_update_rfc(void *desc, signed delta)
 	struct rte_mbuf *mbuf = (struct rte_mbuf *)desc;
 	rte_mbuf_refcnt_update(mbuf, delta);
 }
+
+int ipaugenblick_shutdown(int sock, int how)
+{
+	ipaugenblick_cmd_t *cmd;
+    	cmd = ipaugenblick_get_free_command_buf();
+    	if(!cmd) {
+        	ipaugenblick_stats_cannot_allocate_cmd++;
+        	return -1;
+    	}
+    	cmd->cmd = IPAUGENBLICK_SOCKET_SHUTDOWN_COMMAND;
+    	cmd->ringset_idx = sock;
+    	cmd->parent_idx = local_socket_descriptors[sock].select;
+	cmd->u.socket_shutdown.how = how;
+    	if(ipaugenblick_enqueue_command_buf(cmd)) {
+       		ipaugenblick_free_command_buf(cmd); 
+    	}
+    	if ((local_socket_descriptors[sock].select != -1)&&
+		(local_socket_descriptors[sock].present_in_ready_cache)) {
+			TAILQ_REMOVE(&selectors[local_socket_descriptors[sock].select].local_ready_cache,
+			     &local_socket_descriptors[sock],
+			     local_ready_cache_entry);
+		local_socket_descriptors[sock].present_in_ready_cache = 0;
+	}
+	return 0;
+}

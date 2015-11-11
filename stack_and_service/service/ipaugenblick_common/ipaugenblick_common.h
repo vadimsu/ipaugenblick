@@ -24,7 +24,8 @@ enum
     IPAUGENBLICK_DISCONNECT_CLIENT,
     IPAUGENBLICK_NEW_IFACES,
     IPAUGENBLICK_NEW_ADDRESSES,
-    IPAUGENBLICK_END_OF_RECORD
+    IPAUGENBLICK_END_OF_RECORD,
+    IPAUGENBLICK_SOCKET_SHUTDOWN_COMMAND
 };
 
 typedef struct
@@ -94,6 +95,11 @@ typedef struct
 
 typedef struct
 {
+    int how;
+}__attribute__((packed))ipaugenblick_socket_shutdown_t;
+
+typedef struct
+{
     int cmd;
     unsigned int ringset_idx;
     int          parent_idx;
@@ -107,6 +113,7 @@ typedef struct
         ipaugenblick_socket_connect_bind_cmd_t socket_connect_bind;
 	ipaugenblick_route_cmd_t route;
 	ipaugenblick_setsockopt_cmd_t setsockopt;
+	ipaugenblick_socket_shutdown_t socket_shutdown;
     }u;
 }__attribute__((packed))ipaugenblick_cmd_t;
 

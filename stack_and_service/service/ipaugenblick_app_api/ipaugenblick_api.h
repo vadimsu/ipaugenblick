@@ -551,4 +551,6 @@ void *ipaugenblick_get_data_ptr(void *desc);
 
 void ipaugenblick_update_rfc(void *desc, signed delta);
 
+extern int ipaugenblick_shutdown(int sock, int how);
+
 #endif

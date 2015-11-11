@@ -337,6 +337,11 @@ static inline void process_commands()
 	   	sock_setsockopt(socket_satelite_data[cmd->ringset_idx].socket, cmd->u.setsockopt.level, cmd->u.setsockopt.optname, cmd->u.setsockopt.optval, cmd->u.setsockopt.optlen);
 	   }
 	   break;
+	case IPAUGENBLICK_SOCKET_SHUTDOWN_COMMAND:
+	   if(socket_satelite_data[cmd->ringset_idx].socket) {
+		inet_shutdown(socket_satelite_data[cmd->ringset_idx].socket, cmd->u.socket_shutdown.how);
+	   }
+	   break;
         default:
            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"unknown cmd %d\n",cmd->cmd);
            break;
