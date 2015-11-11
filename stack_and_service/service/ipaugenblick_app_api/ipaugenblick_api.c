@@ -490,7 +490,7 @@ void ipaugenblick_close(int sock)
 			     &local_socket_descriptors[sock],
 			     local_ready_cache_entry);
 		local_socket_descriptors[sock].present_in_ready_cache = 0;
-	}
+    }
 }
 
 static inline void ipaugenblick_notify_empty_tx_buffers(int sock)
@@ -1210,6 +1210,8 @@ int ipaugenblick_setsockopt(int sock, int level, int optname,char *optval, unsig
         return -1;
     } 
     cmd->cmd = IPAUGENBLICK_SETSOCKOPT_COMMAND;
+    cmd->ringset_idx = sock;
+    cmd->parent_idx = local_socket_descriptors[sock].select;
     cmd->u.setsockopt.level = level;
     cmd->u.setsockopt.optname = optname;
     cmd->u.setsockopt.optlen = optlen;
