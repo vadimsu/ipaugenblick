@@ -38,6 +38,7 @@ extern ipaugenblick_socket_t *g_ipaugenblick_sockets;
 extern ipaugenblick_selector_t *g_ipaugenblick_selectors;
 extern uint64_t user_kick_select_tx;
 extern uint64_t user_kick_select_rx;
+extern uint64_t user_pending_accept;
 
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 
@@ -249,6 +250,7 @@ static inline void ipaugenblick_post_accepted(ipaugenblick_cmd_t *cmd,void *pare
     else {
         ipaugenblick_mark_readable(parent_descriptor);
     }
+    user_pending_accept++;
 }
 
 static inline struct rte_mbuf *ipaugenblick_dequeue_tx_buf(void *descriptor)
