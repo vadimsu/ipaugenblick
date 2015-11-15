@@ -196,8 +196,6 @@ printf("bind to %s %d\n",my_ip_addr,port_to_bind + i);
                             }
                     }
 	    }
-	    if(tx_space == 0)
-		continue;
 	    if(!(transmitted_packets%1000)) {
                     printf("received %u transmitted_packets %u\n",received_packets,transmitted_packets);
 		    print_stats();
