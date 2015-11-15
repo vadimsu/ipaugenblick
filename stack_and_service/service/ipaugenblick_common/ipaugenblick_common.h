@@ -25,7 +25,8 @@ enum
     IPAUGENBLICK_NEW_IFACES,
     IPAUGENBLICK_NEW_ADDRESSES,
     IPAUGENBLICK_END_OF_RECORD,
-    IPAUGENBLICK_SOCKET_SHUTDOWN_COMMAND
+    IPAUGENBLICK_SOCKET_SHUTDOWN_COMMAND,
+    IPAUGENBLICK_SOCKET_DECLINE_COMMAND
 };
 
 typedef struct
@@ -41,6 +42,11 @@ typedef struct
     unsigned int ipaddr;
     unsigned short port;
 }__attribute__((packed))ipaugenblick_open_accepted_socket_t;
+
+typedef struct
+{
+    unsigned long socket_descr;
+}__attribute__((packed))ipaugenblick_decline_accepted_socket_t;
 
 typedef struct
 {
@@ -114,6 +120,7 @@ typedef struct
 	ipaugenblick_route_cmd_t route;
 	ipaugenblick_setsockopt_cmd_t setsockopt;
 	ipaugenblick_socket_shutdown_t socket_shutdown;
+	ipaugenblick_decline_accepted_socket_t socket_decline;
     }u;
 }__attribute__((packed))ipaugenblick_cmd_t;
 

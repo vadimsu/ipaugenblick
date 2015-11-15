@@ -56,6 +56,7 @@ uint64_t ipaugenblick_stats_buffers_sent = 0;
 uint64_t ipaugenblick_stats_buffers_allocated = 0;
 uint64_t ipaugenblick_stats_cannot_allocate_cmd = 0;
 uint64_t ipaugenblick_stats_rx_returned = 0;
+uint64_t ipaugenblick_stats_accepted = 0;
 pthread_t stats_thread;
 uint8_t g_print_stats_loop = 1;
 uint32_t g_client_ringset_idx = IPAUGENBLICK_CONNECTION_POOL_SIZE;
@@ -928,7 +929,8 @@ int ipaugenblick_accept(int sock, struct sockaddr *addr, __rte_unused int *addrl
     ipaugenblick_socket_t *ipaugenblick_socket;
     unsigned long accepted_socket;
     struct sockaddr_in *in_addr = (struct sockaddr_in *)addr;
-ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__func__,__LINE__,sock);
+
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__func__,__LINE__,sock);
     rte_atomic16_set(&(local_socket_descriptors[sock].socket->read_ready_to_app),0);
     if(rte_ring_dequeue(local_socket_descriptors[sock].rx_ring,(void **)&cmd)) {
 	IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(local_socket_descriptors[sock].select,&local_socket_descriptors[sock],SOCKET_READABLE_BIT);
@@ -937,9 +939,15 @@ ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__func__,__LINE__,sock);
     }
     
     if(rte_ring_dequeue(free_connections_ring,(void **)&ipaugenblick_socket)) {
-        ipaugenblick_free_command_buf(cmd);
+        cmd->cmd = IPAUGENBLICK_SOCKET_DECLINE_COMMAND;
+	cmd->u.socket_decline.socket_descr = cmd->u.accepted_socket.socket_descr;
+	if(ipaugenblick_enqueue_command_buf(cmd)) {
+        	ipaugenblick_free_command_buf(cmd);
+	        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"CANNOT ENQUEUE SET_RING_COMMAND\n");
+	        return -4;
+    	}
 	ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"NO FREE CONNECTIONS\n");
-        return -1;
+        return -3;
     } 
     accepted_socket = cmd->u.accepted_socket.socket_descr;
     in_addr->sin_family = AF_INET;
@@ -965,6 +973,7 @@ local_socket_descriptors[ipaugenblick_socket->connection_idx].local_port);
         ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"CANNOT ENQUEUE SET_RING_COMMAND\n");
         return -2;
     }
+    ipaugenblick_stats_accepted++;
     return ipaugenblick_socket->connection_idx;
 }
 

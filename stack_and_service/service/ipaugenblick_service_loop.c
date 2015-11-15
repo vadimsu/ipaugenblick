@@ -55,6 +55,10 @@ uint64_t user_kick_select_tx = 0;
 uint64_t user_on_tx_opportunity_cannot_send = 0;
 uint64_t user_rx_ring_full = 0;
 uint64_t user_on_tx_opportunity_socket_send_error = 0;
+uint64_t user_client_app_accepted = 0;
+uint64_t user_pending_accept = 0;
+uint64_t user_sockets_closed = 0;
+uint64_t user_sockets_shutdown = 0;
 uint64_t g_last_time_transmitted = 0;
 
 struct rte_ring *command_ring = NULL;
@@ -208,12 +212,13 @@ static inline void process_commands()
 
         case IPAUGENBLICK_SOCKET_CLOSE_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
-               ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"closing socket %d %p\n",cmd->ringset_idx,socket_satelite_data[cmd->ringset_idx].socket);
+//               ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"closing socket %d %p\n",cmd->ringset_idx,socket_satelite_data[cmd->ringset_idx].socket);
                app_glue_close_socket((struct socket *)socket_satelite_data[cmd->ringset_idx].socket);
                socket_satelite_data[cmd->ringset_idx].socket = NULL;
                socket_satelite_data[cmd->ringset_idx].ringset_idx = -1;
                socket_satelite_data[cmd->ringset_idx].parent_idx = -1;
                ipaugenblick_free_socket(cmd->ringset_idx);
+	       user_sockets_closed++;
            }
            break;
         case IPAUGENBLICK_SOCKET_TX_KICK_COMMAND:
@@ -231,22 +236,23 @@ static inline void process_commands()
            }
            break;
         case IPAUGENBLICK_SET_SOCKET_RING_COMMAND:
-           ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"%s %d %d %d %p\n",__FILE__,__LINE__,cmd->ringset_idx,cmd->parent_idx,cmd->u.set_socket_ring.socket_descr);
+           //ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"%s %d %d %d %p\n",__FILE__,__LINE__,cmd->ringset_idx,cmd->parent_idx,cmd->u.set_socket_ring.socket_descr);
            socket_satelite_data[cmd->ringset_idx].ringset_idx = cmd->ringset_idx;
 	   if(cmd->parent_idx != -1)
 	           socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->parent_idx;
 	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_ring.pid;
            app_glue_set_user_data(cmd->u.set_socket_ring.socket_descr,&socket_satelite_data[cmd->ringset_idx]);
            socket_satelite_data[cmd->ringset_idx].socket = cmd->u.set_socket_ring.socket_descr; 
-	   ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"setting tx space: %d connidx %d\n",sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk),g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].connection_idx);
+	   //ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"setting tx space: %d connidx %d\n",sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk),g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].connection_idx);
 	   user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_satelite_data[cmd->ringset_idx].ringset_idx].tx_space,sk_stream_wspace(socket_satelite_data[cmd->ringset_idx].socket->sk));
 //           user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
            user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
 	   ipaugenblick_mark_writable(&socket_satelite_data[cmd->ringset_idx]);
 	   ipaugenblick_mark_readable(&socket_satelite_data[cmd->ringset_idx]);
+	   user_client_app_accepted++;
            break;
         case IPAUGENBLICK_SET_SOCKET_SELECT_COMMAND:
-           ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
+//           ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"setting selector %d for socket %d\n",cmd->u.set_socket_select.socket_select,cmd->ringset_idx);
            socket_satelite_data[cmd->ringset_idx].parent_idx = cmd->u.set_socket_select.socket_select;
 	   socket_satelite_data[cmd->ringset_idx].apppid = cmd->u.set_socket_select.pid;
 	   user_data_available_cbk(socket_satelite_data[cmd->ringset_idx].socket);
@@ -340,7 +346,12 @@ static inline void process_commands()
 	case IPAUGENBLICK_SOCKET_SHUTDOWN_COMMAND:
 	   if(socket_satelite_data[cmd->ringset_idx].socket) {
 		inet_shutdown(socket_satelite_data[cmd->ringset_idx].socket, cmd->u.socket_shutdown.how);
+		user_sockets_shutdown++;
 	   }
+	   break;
+	case IPAUGENBLICK_SOCKET_DECLINE_COMMAND:
+	   app_glue_close_socket((struct socket *)cmd->u.socket_decline.socket_descr);
+	   user_sockets_closed++;
 	   break;
         default:
            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"unknown cmd %d\n",cmd->cmd);
@@ -405,4 +416,7 @@ void print_user_stats()
 	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"user_on_rx_opportunity_called_exhausted %"PRIu64"\n",user_on_rx_opportunity_called_exhausted);
 	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"user_rx_mbufs %"PRIu64" user_rx_ring_full %"PRIu64"\n",user_rx_mbufs,user_rx_ring_full);
         ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"user_on_tx_opportunity_api_mbufs_sent %"PRIu64"\n",user_on_tx_opportunity_api_mbufs_sent);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"user_client_app_accepted %"PRIu64" user_pending_accept %"PRIu64"\n",user_client_app_accepted, user_pending_accept);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"user_sockets_closed %"PRIu64" user_sockets_shutdown %"PRIu64"\n",
+	user_sockets_closed, user_sockets_shutdown);
 }
