@@ -772,6 +772,7 @@ static inline int does_protocol_use_flat_buf(int protocol_number)
 {
 	switch(protocol_number){
 	case IPPROTO_ICMP:
+	case IPPROTO_TCP:
 		return 1;
 	default:
 		return 0;
