@@ -203,6 +203,7 @@ void sock_release(struct socket *sock)
 	}
 	sock->file = NULL;
 #endif
+	rte_free(sock);
 }
 EXPORT_SYMBOL(sock_release);
 int sock_wake_async(struct socket *sock, int how, int band)
