@@ -1280,3 +1280,22 @@ int ipaugenblick_shutdown(int sock, int how)
 	}
 	return 0;
 }
+
+void *ipaugenblick_create_mempool(const char *name, int element_size, int element_number)
+{
+	return rte_mempool_create(name, element_number, element_size,32 /*cache_size*/, 0 /*private_data_size*/,
+			   NULL /*rte_mempool_ctor_t *mp_init*/, NULL /*void *mp_init_arg*/,
+			   NULL /*rte_mempool_obj_ctor_t *obj_init*/, NULL /*void *obj_init_arg*/,
+			   SOCKET_ID_ANY, 0 /*unsigned flags*/);
+}
+
+void *ipaugenblick_mempool_alloc(void *mempool)
+{
+	void *obj = NULL;
+	return (rte_mempool_get(mempool, &obj)) ? NULL : obj;
+}
+
+void ipaugenblick_mempool_free(void *mempool, void *obj)
+{
+	rte_mempool_put(mempool, obj);
+}

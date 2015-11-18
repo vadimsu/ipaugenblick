@@ -113,6 +113,16 @@ unsigned int sysctl_net_busy_poll __read_mostly;
 #endif
 static const struct net_proto_family __rcu *net_families[NPROTO] __read_mostly;
 
+static struct kmem_cache *socket_cache = NULL;
+#ifndef NUMBER_OF_SOCKETS
+#define NUMBER_OF_SOCKETS 65535
+#endif
+void socket_pool_init()
+{
+	socket_cache =
+			kmem_cache_create("socket_cache", sizeof(struct socket), NUMBER_OF_SOCKETS, SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
+}
+
 void __sock_recv_timestamp(struct msghdr *msg, struct sock *sk,
 	struct sk_buff *skb)
 {
@@ -203,7 +213,7 @@ void sock_release(struct socket *sock)
 	}
 	sock->file = NULL;
 #endif
-	rte_free(sock);
+	kmem_cache_free(socket_cache, sock);
 }
 EXPORT_SYMBOL(sock_release);
 int sock_wake_async(struct socket *sock, int how, int band)
@@ -239,7 +249,10 @@ int sock_wake_async(struct socket *sock, int how, int band)
 static struct socket *sock_alloc(void)
 {
 //	struct inode *inode;
-	struct socket *sock = rte_zmalloc(NULL,sizeof(struct socket),CACHE_LINE_SIZE);
+	struct socket *sock = kmem_cache_alloc_node(socket_cache, 0, rte_socket_id());
+	if (!sock)
+		return NULL;
+	memset(sock, 0, sizeof(struct socket));
 
 //	inode = new_inode_pseudo(sock_mnt->mnt_sb);
 //	if (!inode)

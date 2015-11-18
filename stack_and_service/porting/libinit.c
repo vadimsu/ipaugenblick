@@ -505,6 +505,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	net_ns_init();
 	netfilter_init();
 	net_dev_init();
+	socket_pool_init();	
 	skb_init();
 	inet_init();
 	app_glue_init();

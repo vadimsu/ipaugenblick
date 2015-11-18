@@ -1820,6 +1820,9 @@ static inline void sock_orphan(struct sock *sk)
 {
 	write_lock_bh(&sk->sk_callback_lock);
 	sock_set_flag(sk, SOCK_DEAD);
+	if (sk->sk_socket) {
+		sock_release(sk->sk_socket);
+	}
 	sk_set_socket(sk, NULL);
 	sk->sk_wq  = NULL;
 	write_unlock_bh(&sk->sk_callback_lock);

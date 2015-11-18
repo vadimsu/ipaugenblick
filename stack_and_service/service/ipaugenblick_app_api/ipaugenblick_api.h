@@ -553,4 +553,10 @@ void ipaugenblick_update_rfc(void *desc, signed delta);
 
 extern int ipaugenblick_shutdown(int sock, int how);
 
+extern void *ipaugenblick_create_mempool(const char *name, int element_size, int element_number);
+
+extern void *ipaugenblick_mempool_alloc(void *mempool);
+
+extern void ipaugenblick_mempool_free(void *mempool, void *obj);
+
 #endif
