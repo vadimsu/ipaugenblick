@@ -29,6 +29,8 @@ extern uint64_t user_kick_select_rx;
 extern uint64_t user_kick_select_tx;
 extern uint64_t user_on_tx_opportunity_socket_full;
 extern uint64_t user_on_tx_opportunity_socket_send_error;
+extern uint64_t user_flush_rx_cnt;
+extern uint64_t user_flush_tx_cnt;
 extern uint64_t g_last_time_transmitted;
 
 static inline __attribute__ ((always_inline)) void *get_user_data(void *socket)
@@ -185,7 +187,7 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
     }
     socket_satelite_data = get_user_data(sock);
     if(!socket_satelite_data) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+        //ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
         return;
     }
 
@@ -232,10 +234,44 @@ static inline __attribute__ ((always_inline)) void user_data_available_cbk(struc
         ipaugenblick_mark_readable(socket_satelite_data);
     }
 }
+
+static inline void user_flush_tx(struct socket *sock)
+{
+	void *socket_satelite_data = get_user_data(sock);
+
+	if (!socket_satelite_data)
+		return;
+	struct rte_mbuf *mbuf;
+
+	while((mbuf = ipaugenblick_dequeue_tx_buf(socket_satelite_data)) != NULL) {
+		user_flush_tx_cnt += mbuf->nb_segs;
+		rte_pktmbuf_free(mbuf);
+	}
+}
+
+static inline void user_flush_rx(struct socket *sock)
+{	
+	struct rte_mbuf *mbuf;
+	socket_satelite_data_t *socket_satelite_data = get_user_data(sock);
+
+	if (!socket_satelite_data)
+		return;
+
+	while(rte_ring_dequeue(socket_satelite_data->rx_ring,&mbuf) == 0) {
+		user_flush_rx_cnt += mbuf->nb_segs;
+		rte_pktmbuf_free(mbuf);
+	}
+}
+
+static inline void user_flush_rx_tx(struct socket *sock)
+{
+	user_flush_rx(sock);
+	user_flush_tx(sock);
+}
 void user_on_closure(struct socket *sock);
 static inline __attribute__ ((always_inline)) void user_on_socket_fatal(struct socket *sock)
 {
-        user_data_available_cbk(sock);/* flush data */
+        user_flush_rx_tx(sock);/* flush data */
 	user_on_closure(sock);	
 }
 void app_glue_sock_readable(struct sock *sk, int len);

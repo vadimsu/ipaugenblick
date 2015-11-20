@@ -151,7 +151,7 @@ static void app_glue_sock_wakeup(struct sock *sk)
 {
 	struct sock *sock;
         struct tcp_sock *tp;
-        tp = tcp_sk(sk);
+	tp = tcp_sk(sk);
 
 	sock = __inet_lookup_listener(&init_net/*sk->sk_net*/,
 			&tcp_hashinfo,
@@ -169,8 +169,6 @@ static void app_glue_sock_wakeup(struct sock *sk)
 		TAILQ_INSERT_TAIL(&accept_ready_socket_list_head,sock->sk_socket,accept_queue_entry);
 	}
         else {
-              struct tcp_sock *tp;
-              tp = tcp_sk(sk);
 	      app_glue_sock_write_space(sk);
               //ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %x %d %x %d %d \n",__FILE__,__LINE__,sk->sk_daddr,sk->sk_dport,sk->sk_rcv_saddr,sk->sk_num,tp->inet_conn.icsk_inet.inet_sport);
         }
@@ -178,7 +176,7 @@ static void app_glue_sock_wakeup(struct sock *sk)
 	sk->sk_data_ready = app_glue_sock_readable;
 	sk->sk_write_space = app_glue_sock_write_space;
 	sk->sk_error_report = app_glue_sock_error_report;
-	sk->sk_destruct= app_glue_sock_error_report;
+//	sk->sk_destruct= app_glue_sock_error_report;
 }
 
 void *app_glue_create_socket(int family,int type)
@@ -569,6 +567,10 @@ void *app_glue_get_next_listener()
 	}
 	return NULL;
 }
+void sock_def_wakeup(struct sock *sk);
+void sock_def_readable(struct sock *sk, int len);
+void sock_def_error_report(struct sock *sk);
+void sock_def_write_space(struct sock *);
 /*
  * This function may be called to close socket .
  * Paramters: a pointer to socket structure
@@ -582,10 +584,12 @@ void app_glue_close_socket(void *sk)
 	if(sock->read_queue_present) {
 		TAILQ_REMOVE(&read_ready_socket_list_head,sock,read_queue_entry);
 		sock->read_queue_present = 0;
+		read_sockets_queue_len--;
 	}
 	if(sock->write_queue_present) {
 		TAILQ_REMOVE(&write_ready_socket_list_head,sock,write_queue_entry);
 		sock->write_queue_present = 0;
+		write_sockets_queue_len--;
 	}
 	if(sock->accept_queue_present) {
                 struct socket *newsock = NULL;
@@ -602,6 +606,13 @@ void app_glue_close_socket(void *sk)
 	}
 	if(sock->sk)
 		sock->sk->sk_user_data = NULL;
+	sock->sk->sk_write_space = (sock->type == SOCK_STREAM) ? sk_stream_write_space : sock_def_write_space;
+	if (sock->sk) {
+		sock->sk->sk_state_change = sock_def_wakeup;
+		sock->sk->sk_data_ready = sock_def_readable;
+		sock->sk->sk_error_report = sock_def_error_report;
+	}
+//	sock->sk->sk_destruct = (sock->sk->sk_socket->type == SOCK_STREAM) ? tcp_sock_destruct : sock_def_destruct;
 	kernel_close(sock);
 }
 /*

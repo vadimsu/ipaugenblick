@@ -59,6 +59,8 @@ uint64_t user_client_app_accepted = 0;
 uint64_t user_pending_accept = 0;
 uint64_t user_sockets_closed = 0;
 uint64_t user_sockets_shutdown = 0;
+uint64_t user_flush_tx_cnt = 0;
+uint64_t user_flush_rx_cnt = 0;
 uint64_t g_last_time_transmitted = 0;
 
 struct rte_ring *command_ring = NULL;
@@ -213,12 +215,15 @@ static inline void process_commands()
         case IPAUGENBLICK_SOCKET_CLOSE_COMMAND:
            if(socket_satelite_data[cmd->ringset_idx].socket) {
 //               ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"closing socket %d %p\n",cmd->ringset_idx,socket_satelite_data[cmd->ringset_idx].socket);
-               app_glue_close_socket((struct socket *)socket_satelite_data[cmd->ringset_idx].socket);
-               socket_satelite_data[cmd->ringset_idx].socket = NULL;
-               socket_satelite_data[cmd->ringset_idx].ringset_idx = -1;
-               socket_satelite_data[cmd->ringset_idx].parent_idx = -1;
-               ipaugenblick_free_socket(cmd->ringset_idx);
-	       user_sockets_closed++;
+//	printf("%s %d %p\n",__FILE__,__LINE__,socket_satelite_data[cmd->ringset_idx].socket);
+	//	user_on_transmission_opportunity(socket_satelite_data[cmd->ringset_idx].socket);
+		user_flush_rx_tx((struct socket *)socket_satelite_data[cmd->ringset_idx].socket);
+		app_glue_close_socket((struct socket *)socket_satelite_data[cmd->ringset_idx].socket);
+		socket_satelite_data[cmd->ringset_idx].socket = NULL;
+		socket_satelite_data[cmd->ringset_idx].ringset_idx = -1;
+		socket_satelite_data[cmd->ringset_idx].parent_idx = -1;
+		ipaugenblick_free_socket(cmd->ringset_idx);
+		user_sockets_closed++;
            }
            break;
         case IPAUGENBLICK_SOCKET_TX_KICK_COMMAND:
@@ -350,6 +355,7 @@ static inline void process_commands()
 	   }
 	   break;
 	case IPAUGENBLICK_SOCKET_DECLINE_COMMAND:
+	   user_flush_rx_tx((struct socket *)cmd->u.socket_decline.socket_descr);
 	   app_glue_close_socket((struct socket *)cmd->u.socket_decline.socket_descr);
 	   user_sockets_closed++;
 	   break;
@@ -419,4 +425,7 @@ void print_user_stats()
 	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"user_client_app_accepted %"PRIu64" user_pending_accept %"PRIu64"\n",user_client_app_accepted, user_pending_accept);
 	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"user_sockets_closed %"PRIu64" user_sockets_shutdown %"PRIu64"\n",
 	user_sockets_closed, user_sockets_shutdown);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"user_flush_rx_cnt %"PRIu64" user_flush_tx_cnt %"PRIu64"\n",
+	user_flush_rx_cnt, user_flush_tx_cnt);
+
 }

@@ -2182,7 +2182,7 @@ EXPORT_SYMBOL(sock_no_sendpage);
  *	Default Socket Callbacks
  */
 
-static void sock_def_wakeup(struct sock *sk)
+void sock_def_wakeup(struct sock *sk)
 {
 //	struct socket_wq *wq;
 
@@ -2196,7 +2196,7 @@ static void sock_def_wakeup(struct sock *sk)
 	rcu_read_unlock();
 }
 
-static void sock_def_error_report(struct sock *sk)
+void sock_def_error_report(struct sock *sk)
 {
 //	struct socket_wq *wq;
 
@@ -2208,7 +2208,7 @@ static void sock_def_error_report(struct sock *sk)
 	rcu_read_unlock();
 }
 
-static void sock_def_readable(struct sock *sk, int len)
+void sock_def_readable(struct sock *sk, int len)
 {
 //	struct socket_wq *wq;
 
@@ -2221,7 +2221,7 @@ static void sock_def_readable(struct sock *sk, int len)
 	rcu_read_unlock();
 }
 
-static void sock_def_write_space(struct sock *sk)
+void sock_def_write_space(struct sock *sk)
 {
 //	struct socket_wq *wq;
 

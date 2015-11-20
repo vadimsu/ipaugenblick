@@ -57,6 +57,8 @@ uint64_t ipaugenblick_stats_buffers_allocated = 0;
 uint64_t ipaugenblick_stats_cannot_allocate_cmd = 0;
 uint64_t ipaugenblick_stats_rx_returned = 0;
 uint64_t ipaugenblick_stats_accepted = 0;
+uint64_t ipaugenblick_stats_flush_local = 0;
+uint64_t ipaugenblick_stats_flush = 0;
 pthread_t stats_thread;
 uint8_t g_print_stats_loop = 1;
 uint32_t g_client_ringset_idx = IPAUGENBLICK_CONNECTION_POOL_SIZE;
@@ -106,12 +108,12 @@ void sig_handler(int signum)
 {
     uint32_t i;
     ipaugenblick_cmd_t *cmd;
-//printf("%s %d %d\n",__FILE__,__LINE__,signum);
+
     if(signum == SIGUSR1) {
         /* T.B.D. do something to wake up the thread */
         return;
     }
-
+    ipaugenblick_set_log_level(0);
     ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"terminating on signal %d\n",signum);
     print_rings_stats();
 
@@ -485,6 +487,7 @@ void ipaugenblick_close(int sock)
     if(ipaugenblick_enqueue_command_buf(cmd)) {
        ipaugenblick_free_command_buf(cmd); 
     }
+    ipaugenblick_flush_rx(sock);
     if ((local_socket_descriptors[sock].select != -1)&&
 	(local_socket_descriptors[sock].present_in_ready_cache)) {
 		TAILQ_REMOVE(&selectors[local_socket_descriptors[sock].select].local_ready_cache,
@@ -1176,6 +1179,7 @@ void *ipaugenblick_get_next_buffer_segment_and_detach_first(void **pdesc,int *le
    *pdesc = mbuf;
    struct rte_mbuf *orig = (struct rte_mbuf *)*pdesc;
    orig->next = NULL;
+   orig->nb_segs = 1;
    return rte_pktmbuf_mtod(mbuf,void *);
 }
 
