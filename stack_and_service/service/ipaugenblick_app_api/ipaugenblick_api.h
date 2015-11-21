@@ -44,11 +44,9 @@ static inline void ipaugenblick_fdset(int sock, struct ipaugenblick_fdset *fdset
 	fdset->interested_flags[sock] = 1;
 	ipaugenblick_put_to_local_cache(sock);
 }
-static inline void ipaugenblick_fdclear(int sock, struct ipaugenblick_fdset *fdset)
-{
-	fdset->interested_flags[sock] = 0;
-	fdset->returned_flags[sock] = 0;
-}
+
+void ipaugenblick_fdclear(int sock, struct ipaugenblick_fdset *fdset);
+
 static inline void ipaugenblick_fdzero(struct ipaugenblick_fdset *fdset)
 {
 	int idx;
