@@ -445,7 +445,7 @@ __wsum csum_partial_generic(const void *src, int len, __wsum currsum,int *src_er
      }
      REDUCE;
 finished:
-     return (~sum & 0xffff);
+     return (sum & 0xffff);
 }
 
 int __must_check kstrtoul(const char *s, unsigned int base, unsigned long *res)
