@@ -4,7 +4,7 @@
 
 #include <sys/time.h>
 #include <netinet/in.h>
-#define IPAUGENBLICK_MAX_SOCKETS 1000
+#define IPAUGENBLICK_MAX_SOCKETS 2048
 
 /*
 * STRUCTURE:
@@ -551,10 +551,14 @@ void ipaugenblick_update_rfc(void *desc, signed delta);
 
 extern int ipaugenblick_shutdown(int sock, int how);
 
-extern void *ipaugenblick_create_mempool(const char *name, int element_size, int element_number);
+extern void *ipaugenblick_create_ring(const char *name, int element_number);
 
-extern void *ipaugenblick_mempool_alloc(void *mempool);
+extern void *ipaugenblick_ring_get(void *ring);
 
-extern void ipaugenblick_mempool_free(void *mempool, void *obj);
+extern void ipaugenblick_ring_free(void *ring, void *obj);
+
+extern void *ipaugenblick_mem_get(int size);
+
+extern void ipaugenblick_mem_free(void *obj);
 
 #endif

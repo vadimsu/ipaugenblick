@@ -153,7 +153,7 @@ typedef struct
 #define FREE_ACCEPTED_POOL_NAME "free_accepted_pool"
 #define SELECTOR_POOL_NAME "selector_pool"
 #define SELECTOR_RING_NAME "selector_ring"
-#define IPAUGENBLICK_CONNECTION_POOL_SIZE 512
+#define IPAUGENBLICK_CONNECTION_POOL_SIZE 2048
 #define IPAUGENBLICK_CLIENTS_POOL_SIZE 64
 #define IPAUGENBLICK_SELECTOR_POOL_SIZE 64
 #define COMMON_NOTIFICATIONS_POOL_NAME "common_notifications_pool_name"

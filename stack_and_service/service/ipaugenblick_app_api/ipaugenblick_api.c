@@ -10,6 +10,7 @@
 #include <rte_cycles.h>
 #include <rte_ring.h>
 #include <rte_mbuf.h>
+#include <rte_malloc.h>
 #include <rte_byteorder.h>
 #include "../ipaugenblick_common/ipaugenblick_common.h"
 #include "ipaugenblick_ring_ops.h"
@@ -148,6 +149,7 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
     unsigned cpu;
 
     ipaugenblick_log_init(0);
+//    ipaugenblick_set_log_level(0);
 
     if(rte_eal_init(argc, argv) < 0) {
         ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot initialize rte_eal");
@@ -167,14 +169,14 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
         ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free connections ring\n");
         return -1;
     }
-
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"free connections ring initialized\n");
     free_connections_pool = rte_mempool_lookup(FREE_CONNECTIONS_POOL_NAME);
 
     if(!free_connections_pool) {
         ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free connections pool\n");
         return -1;
     }
-
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"free connections pool initialized\n");
     memset(local_socket_descriptors,0,sizeof(local_socket_descriptors));
     for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
         sprintf(ringname,RX_RING_NAME_BASE"%d",i);
@@ -193,7 +195,7 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
         local_socket_descriptors[i].socket = NULL;
         sprintf(ringname,"lrxcache%s_%d",app_unique_id,i);
         ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"local cache name %s\n",ringname);
-        local_socket_descriptors[i].local_cache = rte_ring_create(ringname, 16384,rte_socket_id(), RING_F_SC_DEQ|RING_F_SP_ENQ);
+        local_socket_descriptors[i].local_cache = rte_ring_create(ringname, 64, rte_socket_id(), RING_F_SC_DEQ|RING_F_SP_ENQ);
         if(!local_socket_descriptors[i].local_cache) {
            ipaugenblick_log(IPAUGENBLICK_LOG_WARNING,"cannot create local cache\n");
 	   local_socket_descriptors[i].local_cache = rte_ring_lookup(ringname);
@@ -209,7 +211,7 @@ int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
         ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find tx bufs pool\n");
         return -1;
     }
-    
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"mbufs pool initialized\n"); 
     free_command_pool = rte_mempool_lookup(FREE_COMMAND_POOL_NAME);
     if(!free_command_pool) {
         ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free command pool\n");
@@ -557,7 +559,7 @@ int ipaugenblick_get_socket_tx_space(int sock)
     int free_bufs_count = rte_mempool_count(tx_bufs_pool);
     int rc = (ring_space > free_bufs_count) ? (free_bufs_count > 0 ? free_bufs_count : 0)  : ring_space;
     int tx_space = rte_atomic32_read(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space))/1448;
-//    printf("sock %d ring space %d free bufs %d tx space %d\n",sock,ring_space,free_bufs_count,tx_space);
+    
     if(rc > tx_space)
 	rc = tx_space;
     if(rc < 10) {
@@ -630,7 +632,7 @@ inline int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_
     ipaugenblick_stats_buffers_sent += buffer_count;
     rte_atomic16_set(&(local_socket_descriptors[sock].socket->write_ready_to_app),0);
     rc = ipaugenblick_enqueue_tx_bufs_bulk(sock,mbufs,buffer_count);
-//printf("%s %d %p %d %d %d\n",__FILE__,__LINE__,local_socket_descriptors[sock & SOCKET_READY_MASK].socket,sock & SOCKET_READY_MASK,local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space,total_length);
+
     if(rc == 0)
 	rte_atomic32_sub(&(local_socket_descriptors[sock].socket->tx_space),total_length);
     else
@@ -722,12 +724,10 @@ static inline void ipaugenblick_try_read_exact_amount(struct rte_mbuf *mbuf,int 
 	int curr_len = 0;
 	while((tmp)&&((rte_pktmbuf_data_len(tmp) + curr_len) < *total_len)) {
 		curr_len += rte_pktmbuf_data_len(tmp);
-//		printf("%s %d %d\n",__FILE__,__LINE__,rte_pktmbuf_data_len(tmp));
 		prev = tmp;
 		tmp = tmp->next;
 	}
 	if(tmp) {
-//		printf("%s %d %d\n",__FILE__,__LINE__,rte_pktmbuf_data_len(tmp));
 		if((curr_len + rte_pktmbuf_data_len(tmp)) > *total_len) { /* more data remains */
 			local_socket_descriptors[sock].shadow = tmp;
 			local_socket_descriptors[sock].shadow_next = tmp->next;
@@ -778,11 +778,9 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 	*pbuffer = rte_pktmbuf_mtod(mbuf,void *);
     	*pdesc = mbuf;
 	if((total_len2 > 0)&&(total_len2 < *total_len)) { /* read less than user requested, try ring */
-//		printf("%s %d %d\n",__FILE__,__LINE__,total_len2);
 		struct rte_mbuf *mbuf2 = ipaugenblick_dequeue_rx_buf(sock);
 		if(!mbuf2) { /* ring is empty */
 			*total_len = total_len2;
-//			printf("%s %d\n",__FILE__,__LINE__);
 		}
 		else { /* now try to find an mbuf to be delievered partially in the chain */
 			int total_len3 = *total_len - total_len2;
@@ -791,11 +789,9 @@ int ipaugenblick_receive(int sock,void **pbuffer,int *total_len,int *first_segme
 			struct rte_mbuf *last_mbuf = rte_pktmbuf_lastseg(mbuf);
 			last_mbuf->next = mbuf2;
 			*total_len = total_len2 + total_len3;
-//			printf("%s %d %d\n",__FILE__,__LINE__,total_len3);
 		}
 	}
 	else {
-//		printf("%s %d %d\n",__FILE__,__LINE__,*total_len);
 		//goto read_from_ring;
 	}
 	if(local_socket_descriptors[sock].shadow) {
@@ -832,7 +828,6 @@ read_from_ring:
 		}
 	}
 	else {
-//		printf("%s %d %d\n",__FILE__,__LINE__,mbuf->pkt.pkt_len);
 		*total_len = rte_pktmbuf_pkt_len(mbuf);
 		*first_segment_len = rte_pktmbuf_data_len(mbuf);
 		ipaugenblick_stats_rx_returned += mbuf->nb_segs;
@@ -889,7 +884,7 @@ int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,struct dat
     int idx;
     if(rte_mempool_get_bulk(tx_bufs_pool,mbufs,count)) {
         ipaugenblick_notify_empty_tx_buffers(owner_sock); 
-        ipaugenblick_stats_tx_buf_allocation_failure++; 
+        ipaugenblick_stats_tx_buf_allocation_failure++;
         return 1;
     }
     for(idx = 0;idx < count;idx++) {
@@ -897,7 +892,7 @@ int ipaugenblick_get_buffers_bulk(int length,int owner_sock,int count,struct dat
         rte_pktmbuf_refcnt_update(mbufs[idx],1);
         bufs_and_desc[idx].pdata = rte_pktmbuf_mtod(mbufs[idx],void *);
 	bufs_and_desc[idx].pdesc = mbufs[idx];
-    } 
+    }
     ipaugenblick_stats_buffers_allocated += count;
     return 0;
 }
@@ -917,7 +912,7 @@ void ipaugenblick_release_rx_buffer(void *pdesc,int sock)
     struct rte_mbuf *next;
     void *mbufs[MAX_PKT_BURST];
     int count;
-    while(mbuf) {	
+    while(mbuf) {
         for(count = 0;(count < MAX_PKT_BURST)&&(mbuf);) {
 	    if(mbuf == local_socket_descriptors[sock].shadow) {
 	       mbuf = NULL; /* to stop the outer loop after freeing */
@@ -930,8 +925,9 @@ void ipaugenblick_release_rx_buffer(void *pdesc,int sock)
             }
             mbuf = next;
         }
-        if(count > 0)
+        if(count > 0) {
             rte_mempool_put_bulk(((struct rte_mbuf *)mbufs[0])->pool,mbufs,count);
+	}
     }
 #else
     rte_pktmbuf_free(mbuf); 
@@ -1027,7 +1023,6 @@ void ipaugenblick_getsockname(int sock,int is_local, struct sockaddr *addr, __rt
 			in_addr->sin_port = local_socket_descriptors[sock].socket->local_port;
 		}
 		else {
-//printf("%s %d %d\n",__func__,__LINE__,sock);
 			in_addr->sin_addr.s_addr = local_socket_descriptors[sock].local_ipaddr;
 			in_addr->sin_port = local_socket_descriptors[sock].local_port;
 		}
@@ -1310,21 +1305,34 @@ int ipaugenblick_shutdown(int sock, int how)
 	return 0;
 }
 
-void *ipaugenblick_create_mempool(const char *name, int element_size, int element_number)
+void *ipaugenblick_create_ring(const char *name, int element_number)
 {
-	return rte_mempool_create(name, element_number, element_size,32 /*cache_size*/, 0 /*private_data_size*/,
-			   NULL /*rte_mempool_ctor_t *mp_init*/, NULL /*void *mp_init_arg*/,
-			   NULL /*rte_mempool_obj_ctor_t *obj_init*/, NULL /*void *obj_init_arg*/,
-			   SOCKET_ID_ANY, 0 /*unsigned flags*/);
+	struct rte_ring *pring = rte_ring_lookup(name);
+
+	if (pring)
+		return pring;
+	return rte_ring_create(name, element_number,rte_socket_id(), RING_F_SC_DEQ | RING_F_SP_ENQ);
 }
 
-void *ipaugenblick_mempool_alloc(void *mempool)
+void *ipaugenblick_ring_get(void *ring)
 {
 	void *obj = NULL;
-	return (rte_mempool_get(mempool, &obj)) ? NULL : obj;
+
+	rte_ring_dequeue(ring, &obj);
+	return obj;
 }
 
-void ipaugenblick_mempool_free(void *mempool, void *obj)
+void ipaugenblick_ring_free(void *ring, void *obj)
 {
-	rte_mempool_put(mempool, obj);
+	rte_ring_enqueue(ring, obj);
+}
+
+void *ipaugenblick_mem_get(int size)
+{
+	return rte_zmalloc("", size, 0);
+}
+
+void ipaugenblick_mem_free(void *obj)
+{
+	rte_free(obj);
 }
