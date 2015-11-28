@@ -2,7 +2,8 @@
 2. Customize /etc/ipaugenblick/dpdk_ipstack_config.txt. The format is:
 <port number> <ip address> <mask>
 Note: it is possible to have several ip addresses on one port, just provide the same port number
-3. Run /usr/bin/ipaugenblick -c <core mask> -n <memory channels> -d <pmd library name> -- -p <port mask>
+3. Run /usr/bin/ipaugenblick -c <core mask> -n <memory channels> -d <pmd library name> -- -p <port mask> 
+(IMPORTANT: look at ./dpdk-2.0.0/x86_64-native-linuxapp-gcc/lib or /usr/lib/ipaugenblick for pmd libraries corresponding your NIC(s). The libraries are named librte_pmd_*.so where * is a NIC family name)
 4. Build you application (examples are provided at  stack_and_service/service/test_client/)
 5. Run application as following:
 <application name> -c <core mask> -n <memory channels> --proc-type secondary -- [application-specific options]
