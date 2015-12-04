@@ -1043,7 +1043,7 @@ int ipaugenblick_is_connected(int sock)
     return local_socket_descriptors[sock].any_event_received;
 }
 
-static inline void ipaugenblick_put_to_local_cache(int sock)
+void ipaugenblick_put_to_local_cache(int sock)
 {
 	if (!local_socket_descriptors[sock].local_mask)
 		return;
