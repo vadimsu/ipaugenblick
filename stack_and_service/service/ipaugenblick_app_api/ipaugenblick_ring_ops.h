@@ -21,9 +21,11 @@ typedef struct _local_socket_descriptor_
     unsigned int local_port;
     unsigned int remote_ipaddr;
     unsigned int remote_port;
+#ifdef USE_LOCAL_READY_CACHE
     int present_in_ready_cache;
     int local_mask;
     TAILQ_ENTRY(_local_socket_descriptor_) local_ready_cache_entry;
+#endif
 }local_socket_descriptor_t;
 
 extern struct rte_ring *free_connections_ring;
@@ -61,7 +63,7 @@ static inline int ipaugenblick_socket_tx_space(int ringset_idx)
 
 static inline struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
 {
-    struct rte_mbuf *mbuf = NULL,*mbufs[MAX_PKT_BURST];
+    struct rte_mbuf *mbuf = NULL;
     int dequeued;
     ipaugenblick_cmd_t *cmd;
  
@@ -69,26 +71,28 @@ static inline struct rte_mbuf *ipaugenblick_dequeue_rx_buf(int ringset_idx)
         send_kick = 1;
         ipaugenblick_stats_rx_full++;
     }*/
-    rte_ring_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf);
+    rte_ring_sc_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf);
 
     rte_atomic16_set(&(local_socket_descriptors[ringset_idx & SOCKET_READY_MASK].socket->read_ready_to_app),0);
     if(rte_ring_count(local_socket_descriptors[ringset_idx].rx_ring) > 0) {
         dequeued = rte_ring_free_count(local_socket_descriptors[ringset_idx].local_cache) > MAX_PKT_BURST ? MAX_PKT_BURST : 
                      rte_ring_free_count(local_socket_descriptors[ringset_idx].local_cache);
-        if(dequeued > 0) 
-            dequeued = rte_ring_sc_dequeue_burst(
-                        local_socket_descriptors[ringset_idx].rx_ring,
-                        (void **)mbufs,
-                        dequeued);
         if(dequeued > 0) {
-            ipaugenblick_stats_rx_dequeued++;
+		    struct rte_mbuf *mbufs[dequeued];
+	            dequeued = rte_ring_sc_dequeue_burst(
+        	                local_socket_descriptors[ringset_idx].rx_ring,
+                	        (void **)mbufs,
+                        	dequeued);
+	            if(dequeued > 0) {
+        	    	ipaugenblick_stats_rx_dequeued++;
             
-            rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
-                                      (void **)mbufs,dequeued);
+	            	rte_ring_sp_enqueue_burst(local_socket_descriptors[ringset_idx].local_cache,
+        	                              (void **)mbufs,dequeued);
+	 	   }
         }
     } 
     if(mbuf == NULL) {
-	if(rte_ring_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf) == 0)
+	if(rte_ring_sc_dequeue(local_socket_descriptors[ringset_idx].local_cache,(void **)&mbuf) == 0)
         	ipaugenblick_stats_rx_dequeued_local += mbuf->nb_segs;
     } else {
 	    ipaugenblick_stats_rx_dequeued_local += mbuf->nb_segs;

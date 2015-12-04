@@ -36,13 +36,15 @@ struct ipaugenblick_fdset
 	int returned_sockets[IPAUGENBLICK_MAX_SOCKETS];
 	int returned_idx;
 };
-
+#ifdef USE_LOCAL_READY_CACHE
 void ipaugenblick_put_to_local_cache(int sock);
-
+#endif
 static inline void ipaugenblick_fdset(int sock, struct ipaugenblick_fdset *fdset)
 {
 	fdset->interested_flags[sock] = 1;
+#ifdef USE_LOCAL_READY_CACHE
 	ipaugenblick_put_to_local_cache(sock);
+#endif
 }
 
 void ipaugenblick_fdclear(int sock, struct ipaugenblick_fdset *fdset);
