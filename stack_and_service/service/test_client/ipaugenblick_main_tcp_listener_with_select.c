@@ -14,7 +14,7 @@
 
 #define USE_TX 1
 #define USE_RX 1
-#define LISTENERS_COUNT 1
+#define LISTENERS_COUNT 4
 #define LISTENERS_BASE 7777
 
 static inline int is_listener(int sock, int *listeners)
@@ -108,7 +108,7 @@ int main(int argc,char **argv)
 	        return 0;
     	}
 	in_addr->sin_addr.s_addr = inet_addr(my_ip_addr);
-	in_addr->sin_port = port_to_bind + listeners_idx;
+	in_addr->sin_port = htons(port_to_bind + listeners_idx);
     	ipaugenblick_bind(sock,&addr, sizeof(addr));
 
     	ipaugenblick_listen_socket(sock);

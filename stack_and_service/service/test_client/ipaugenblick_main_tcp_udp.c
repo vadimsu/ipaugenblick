@@ -122,7 +122,7 @@ int main(int argc,char **argv)
     }
     in_addr->sin_family = AF_INET;
     in_addr->sin_addr.s_addr = inet_addr(my_ip_addr);
-    in_addr->sin_port = port_to_bind;
+    in_addr->sin_port = htons(port_to_bind);
     ipaugenblick_bind(listener_sock, &addr, addrlen);
     int bufsize = 1024*1024*1000;
     ipaugenblick_setsockopt(listener_sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
@@ -137,13 +137,13 @@ int main(int argc,char **argv)
         }
 	in_addr->sin_family = AF_INET;
 	in_addr->sin_addr.s_addr = inet_addr(my_ip_addr);
-	in_addr->sin_port = port_to_bind+i+1;
+	in_addr->sin_port = htons(port_to_bind+i+1);
         ipaugenblick_bind(sock,&addr,addrlen);
 //        ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_SNDBUFFORCE,(char *)&bufsize,sizeof(bufsize));
   //      ipaugenblick_setsockopt(sock, SOL_SOCKET,SO_RCVBUFFORCE,(char *)&bufsize,sizeof(bufsize));
 	dgram_socks[dgram_socks_count++] = sock;
 	in_addr->sin_addr.s_addr = inet_addr(ip_addr_2_connect);
-	in_addr->sin_port = port_to_connect;
+	in_addr->sin_port = htons(port_to_connect);
 	if (rxtxmask & 0x1)
 		ipaugenblick_fdset (sock, &readfdset);
 	if (rxtxmask & 0x2)
@@ -213,7 +213,7 @@ int main(int argc,char **argv)
 		if (is_dgram_sock(ipaugenblick_fd_idx2sock(&writefdset,ready_socket))) {
 			in_addr->sin_family = AF_INET;
 			in_addr->sin_addr.s_addr = inet_addr(ip_addr_2_connect);
-			in_addr->sin_port = /*htons(port_to_connect)*/port_to_connect;
+			in_addr->sin_port = htons(port_to_connect);
 			if(ipaugenblick_sendto(ipaugenblick_fd_idx2sock(&writefdset,ready_socket),pdesc,0,1448, &addr, addrlen)) {
 				ipaugenblick_release_tx_buffer(pdesc);
 	                    	break;
