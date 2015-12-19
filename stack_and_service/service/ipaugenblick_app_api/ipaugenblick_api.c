@@ -38,9 +38,10 @@ typedef struct
     struct rte_ring *ready_connections;
     TAILQ_HEAD(local_read_ready_cache, _local_socket_descriptor_) local_ready_cache;
     int queue_length;
+    int level_mode;
 }selector_t;
 
-static selector_t selectors[IPAUGENBLICK_CONNECTION_POOL_SIZE];
+static selector_t selectors[IPAUGENBLICK_SELECTOR_POOL_SIZE];
 
 uint64_t ipaugenblick_stats_receive_called = 0;
 uint64_t ipaugenblick_stats_send_called = 0;
@@ -342,6 +343,13 @@ int ipaugenblick_open_select(void)
     return (int)ringset_idx;
 }
 
+void ipaugenblick_set_selector_mode(int select, int mode)
+{
+	if (select >= IPAUGENBLICK_SELECTOR_POOL_SIZE)
+		return;
+	selectors[select].level_mode = mode;
+}
+
 int ipaugenblick_set_socket_select(int sock,int select)
 {
    ipaugenblick_cmd_t *cmd;
@@ -365,35 +373,32 @@ int ipaugenblick_set_socket_select(int sock,int select)
    }
    local_socket_descriptors[sock].select = select;
 }
-#ifdef USE_LOCAL_READY_CACHE
 static inline void _ipaugenblick_remove_socket_from_cache(local_socket_descriptor_t *local_socket_descr,
 							  int select)
 {
-	ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d %d\n",__FILE__,__LINE__, local_socket_descr->present_in_ready_cache);
+	ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d %d %d %d %d\n",__FILE__,__LINE__, 
+	select, local_socket_descr->select,local_socket_descr->present_in_ready_cache,selectors[local_socket_descr->select].queue_length);
 	if ((local_socket_descr->select != -1)&&(local_socket_descr->present_in_ready_cache)) {
-		TAILQ_REMOVE(&selectors[local_socket_descr->select].local_ready_cache,
-			     local_socket_descr,
-			     local_ready_cache_entry);
-		local_socket_descr->present_in_ready_cache = 0;
-		selectors[local_socket_descr->select].queue_length--;
+		if (selectors[local_socket_descr->select].level_mode) {
+			TAILQ_REMOVE(&selectors[local_socket_descr->select].local_ready_cache,
+				     local_socket_descr,
+				     local_ready_cache_entry);
+			local_socket_descr->present_in_ready_cache = 0;
+			selectors[local_socket_descr->select].queue_length--;
+		}
 	}
 }
 
 static inline void ipaugenblick_remove_socket_from_cache(local_socket_descriptor_t *local_socket_descr)
 {
-	ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d %p\n",__FILE__,__LINE__, local_socket_descr);
-	ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d %d\n",__FILE__,__LINE__, local_socket_descr->select);
 	_ipaugenblick_remove_socket_from_cache(local_socket_descr,local_socket_descr->select);	
 }
-#endif
 void ipaugenblick_fdclear(int sock, struct ipaugenblick_fdset *fdset)
 {
 	fdset->interested_flags[sock] = 0;
 	fdset->returned_flags[sock] = 0;
 	ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d %d\n",__FILE__,__LINE__, sock);
-#ifdef USE_LOCAL_READY_CACHE
 	ipaugenblick_remove_socket_from_cache(&local_socket_descriptors[sock]);
-#endif
 }
 
 static inline void ipaugenblick_reset_local_descriptor(int connection_idx)
@@ -402,13 +407,11 @@ static inline void ipaugenblick_reset_local_descriptor(int connection_idx)
 	local_socket_descriptors[connection_idx].shadow_len_remainder = 0;
 	local_socket_descriptors[connection_idx].shadow = NULL;
 	local_socket_descriptors[connection_idx].shadow_next = NULL;
-#ifdef USE_LOCAL_READY_CACHE
 	local_socket_descriptors[connection_idx].present_in_ready_cache = 0;
 	local_socket_descriptors[connection_idx].local_mask = 0;
 	memset(&local_socket_descriptors[connection_idx].local_ready_cache_entry, 
 		0, 
 		sizeof(local_socket_descriptors[connection_idx].local_ready_cache_entry));
-#endif
 }
 int ipaugenblick_open_socket(int family,int type,int parent)
 {
@@ -439,8 +442,7 @@ int ipaugenblick_open_socket(int family,int type,int parent)
     	}
 	ipaugenblick_reset_local_descriptor(ipaugenblick_socket->connection_idx);
     	local_socket_descriptors[ipaugenblick_socket->connection_idx].socket = ipaugenblick_socket;
-	if(parent != -1)
-		local_socket_descriptors[ipaugenblick_socket->connection_idx].select = parent;
+	local_socket_descriptors[ipaugenblick_socket->connection_idx].select = parent;
 
     	return ipaugenblick_socket->connection_idx;
 }
@@ -526,6 +528,9 @@ int ipaugenblick_listen_socket(int sock)
 void ipaugenblick_close(int sock)
 {
     ipaugenblick_cmd_t *cmd;
+
+    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__func__,__LINE__,sock);
+
     cmd = ipaugenblick_get_free_command_buf();
     if(!cmd) {
         ipaugenblick_stats_cannot_allocate_cmd++;
@@ -538,9 +543,8 @@ void ipaugenblick_close(int sock)
        ipaugenblick_free_command_buf(cmd); 
     }
     ipaugenblick_flush_rx(sock);
-#ifdef USE_LOCAL_READY_CACHE
     ipaugenblick_remove_socket_from_cache(&local_socket_descriptors[sock]);
-#endif
+    local_socket_descriptors[sock].select = -1;
 }
 
 static inline void ipaugenblick_notify_empty_tx_buffers(int sock)
@@ -587,7 +591,6 @@ int ipaugenblick_get_socket_tx_space_own_buffer(int sock)
     }
     return rc;
 }
-#ifdef USE_LOCAL_READY_CACHE
 #ifdef DEBUG_SOCKET_SELECTOR
 #define IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(a,b,c) ipaugenblick_update_local_ready_cache(a,b,c,__func__,__LINE__)
 static inline void ipaugenblick_update_local_ready_cache(int selector_idx,local_socket_descriptor_t *local_socket_descr,int bit,char *func,int line)
@@ -600,13 +603,11 @@ static inline void ipaugenblick_update_local_ready_cache(int selector_idx,local_
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d\n",__func__,__LINE__);
 		return;
 	}
-	//ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %x %x %d %p %s %d\n",__func__,__LINE__,local_socket_descr->local_mask,bit,local_socket_descr->present_in_ready_cache,local_socket_descr,func, line);
 	local_socket_descr->local_mask &= ~(bit);
 	if (local_socket_descr->local_mask)
 		return;
 	_ipaugenblick_remove_socket_from_cache(local_socket_descr, selector_idx);
 }
-#endif
 /* TCP or connected UDP */
 inline int ipaugenblick_send(int sock,void *pdesc,int offset,int length)
 {
@@ -619,10 +620,8 @@ inline int ipaugenblick_send(int sock,void *pdesc,int offset,int length)
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
     if(rc == 0)
         rte_atomic32_sub(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space),length);
-#ifdef USE_LOCAL_READY_CACHE
     else
 	IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(local_socket_descriptors[sock].select,&local_socket_descriptors[sock],SOCKET_WRITABLE_BIT);
-#endif
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -645,10 +644,8 @@ inline int ipaugenblick_send_bulk(int sock,struct data_and_descriptor *bufs_and_
 
     if(rc == 0)
 	rte_atomic32_sub(&(local_socket_descriptors[sock].socket->tx_space),total_length);
-#ifdef USE_LOCAL_READY_CACHE
     else
 	IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(local_socket_descriptors[sock].select,&local_socket_descriptors[sock],SOCKET_WRITABLE_BIT);
-#endif
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -669,10 +666,8 @@ int ipaugenblick_sendto(int sock,void *pdesc,int offset,int length, struct socka
     rc = ipaugenblick_enqueue_tx_buf(sock,mbuf);
     if(rc == 0)
         rte_atomic32_sub(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space),length);
-#ifdef USE_LOCAL_READY_CACHE
     else
 	IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(local_socket_descriptors[sock].select,&local_socket_descriptors[sock],SOCKET_WRITABLE_BIT);
-#endif
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -705,10 +700,8 @@ inline int ipaugenblick_sendto_bulk(int sock,struct data_and_descriptor *bufs_an
     rc = ipaugenblick_enqueue_tx_bufs_bulk(sock,mbufs,buffer_count);
     if(rc == 0)
 	rte_atomic32_sub(&(local_socket_descriptors[sock & SOCKET_READY_MASK].socket->tx_space),total_length);
-#ifdef USE_LOCAL_READY_CACHE
     else
 	IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(local_socket_descriptors[sock].select,&local_socket_descriptors[sock],SOCKET_WRITABLE_BIT);
-#endif
     ipaugenblick_stats_send_failure += (rc != 0);
     return rc;
 }
@@ -852,9 +845,7 @@ read_from_ring:
     	*pdesc = mbuf;
 	return 0;
     }
-#ifdef USE_LOCAL_READY_CACHE
     IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(local_socket_descriptors[sock & SOCKET_READY_MASK].select,&local_socket_descriptors[sock & SOCKET_READY_MASK],SOCKET_READABLE_BIT);
-#endif
     ipaugenblick_stats_recv_failure++;
     return -1;
 }
@@ -867,9 +858,7 @@ int ipaugenblick_receivefrom(int sock,void **buffer,int *len,struct sockaddr *ad
     ipaugenblick_stats_receive_called++;
 
     if(!mbuf) {
-#ifdef USE_LOCAL_READY_CACHE
 	IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(local_socket_descriptors[sock].select,&local_socket_descriptors[sock],SOCKET_READABLE_BIT);
-#endif
         ipaugenblick_stats_recv_failure++;
         return -1;
     }
@@ -986,9 +975,7 @@ int ipaugenblick_accept(int sock, struct sockaddr *addr, __rte_unused int *addrl
     ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__func__,__LINE__,sock);
     rte_atomic16_set(&(local_socket_descriptors[sock].socket->read_ready_to_app),0);
     if(rte_ring_dequeue(local_socket_descriptors[sock].rx_ring,(void **)&cmd)) {
-#ifdef USE_LOCAL_READY_CACHE
 	IPAUGENBLICK_UPDATE_LOCAL_READY_CACHE(local_socket_descriptors[sock].select,&local_socket_descriptors[sock],SOCKET_READABLE_BIT);
-#endif
 	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__func__,__LINE__,sock);
         return -1;
     }
@@ -1047,7 +1034,7 @@ void ipaugenblick_getsockname(int sock,int is_local, struct sockaddr *addr, __rt
 		else {
 			in_addr->sin_addr.s_addr = local_socket_descriptors[sock].local_ipaddr;
 			in_addr->sin_port = local_socket_descriptors[sock].local_port;
-		}
+			}
 	}
 	else {
 		in_addr->sin_addr.s_addr = local_socket_descriptors[sock].remote_ipaddr;
@@ -1064,23 +1051,26 @@ int ipaugenblick_is_connected(int sock)
 {
     return local_socket_descriptors[sock].any_event_received;
 }
-#ifdef USE_LOCAL_READY_CACHE
+
 void ipaugenblick_put_to_local_cache(int sock)
 {
 	if (!local_socket_descriptors[sock].local_mask)
 		return;
-	if (!local_socket_descriptors[sock].present_in_ready_cache) { 
-		TAILQ_INSERT_TAIL(&selectors[local_socket_descriptors[sock].select].local_ready_cache,
-		  &local_socket_descriptors[sock],
-		  local_ready_cache_entry);
-		local_socket_descriptors[sock].present_in_ready_cache = 1;
-		selectors[local_socket_descriptors[sock].select].queue_length++;
+	if (!local_socket_descriptors[sock].present_in_ready_cache) {
+		if (selectors[local_socket_descriptors[sock].select].level_mode) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d %d\n",__FILE__,__LINE__,sock);
+			TAILQ_INSERT_TAIL(&selectors[local_socket_descriptors[sock].select].local_ready_cache,
+			  &local_socket_descriptors[sock],
+			  local_ready_cache_entry);
+			local_socket_descriptors[sock].present_in_ready_cache = 1;
+			selectors[local_socket_descriptors[sock].select].queue_length++;
+		}
 	}
 }
-#endif
+
 static inline int ipaugenblick_update_fdset(int idx, struct ipaugenblick_fdset *fdset)
 {
-	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d \n",
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d %d %d\n",
 		__func__,__LINE__,idx, fdset->interested_flags[idx], fdset->returned_flags[idx]);
 	if (fdset->interested_flags[idx]) {
 		if (!(fdset->returned_flags[idx])) {
@@ -1104,9 +1094,7 @@ int ipaugenblick_select(int selector,
     int exit_after_check = 0;
     int ret = 0,fd_updated,i;
     int iterations_limit = selectors[selector].queue_length;
-#ifdef USE_LOCAL_READY_CACHE
     local_socket_descriptor_t *local_socket_descr = TAILQ_FIRST(&selectors[selector].local_ready_cache), *next;
-#endif
 
     if (readfdset) {
 	for(i = 0; i < readfdset->returned_idx; i++)
@@ -1129,15 +1117,13 @@ int ipaugenblick_select(int selector,
     ipaugenblick_stats_select_called++;
 
     fd_updated = 0;
-#ifdef USE_LOCAL_READY_CACHE
     while ((local_socket_descr != NULL)&&(iterations_limit--)) {
 	int idx = ((unsigned char *)local_socket_descr - (unsigned char *)&local_socket_descriptors[0])/sizeof(local_socket_descriptor_t);
-	ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"%s %d sock %d mask %x readfdset mask %x writefdset mask %x\n",
-			__func__,__LINE__,idx,local_socket_descr->local_mask,readfdset ? readfdset->interested_flags[idx] : 0,writefdset ? writefdset->interested_flags[idx] : 0);
 	if ((local_socket_descr->local_mask & SOCKET_READABLE_BIT)&&(readfdset)&&(readfdset->interested_flags[idx])) {
 		fd_updated |= ipaugenblick_update_fdset(idx, readfdset);
 	}
 	if ((local_socket_descr->local_mask & SOCKET_WRITABLE_BIT)&&(writefdset)&&(writefdset->interested_flags[idx])) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d %p\n",__func__,__LINE__,idx,local_socket_descr);
 		fd_updated |= ipaugenblick_update_fdset(idx, writefdset);
 	}
 	if ((local_socket_descr->local_mask & SOCKET_CLOSED_BIT)&&(excfdset)&&(excfdset->interested_flags[idx])) {	
@@ -1145,14 +1131,9 @@ int ipaugenblick_select(int selector,
 		fd_updated |= ipaugenblick_update_fdset(idx, excfdset);
 	}
 	next = TAILQ_NEXT(local_socket_descr, local_ready_cache_entry);
-	if (fd_updated) {
-		ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"%s %d present_in_ready_cache %d\n",
-		__func__,__LINE__,local_socket_descr->present_in_ready_cache);
-		_ipaugenblick_remove_socket_from_cache(local_socket_descr, selector);
-	}
+	
 	local_socket_descr = next;
     }
-#endif
 
 restart_waiting:
 
@@ -1163,8 +1144,6 @@ restart_waiting:
     }
     int ready_count = rte_ring_count(selectors[selector].ready_connections);
     if (unlikely(ready_count == 0)) {
-	ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"%s %d exit_after_check %x timeout %x\n",
-		__func__,__LINE__,exit_after_check,((timeout)&&(timeout->tv_sec == 0)&&(timeout->tv_usec == 0)));
 	if (exit_after_check) {
 		return -1;
 	}
@@ -1199,16 +1178,16 @@ restart_waiting:
 	    if(unlikely((ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK) >= IPAUGENBLICK_CONNECTION_POOL_SIZE)) {
         	ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"FATAL ERROR %s %d %d\n",__FILE__,__LINE__,ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK);
 	        exit(0);
-	    } 
+	    }
+	    if (local_socket_descriptors[ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK].select == -1)
+		continue;
 	    local_socket_descriptors[ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK].any_event_received = 1;
-#ifdef USE_LOCAL_READY_CACHE
 	    ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"%s %d sock %d mask %x local_mask %x\n",
 		__func__,__LINE__,ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK, ringset_idx_and_ready_mask[i] >>SOCKET_READY_SHIFT,
 		local_socket_descriptors[ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK]);
 	    local_socket_descriptors[ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK].local_mask |= 
 			ringset_idx_and_ready_mask[i] >> SOCKET_READY_SHIFT;
 	    ipaugenblick_put_to_local_cache(ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK);
-#endif
 	    fd_updated = 0;
 	    if (((ringset_idx_and_ready_mask[i] >> SOCKET_READY_SHIFT) & SOCKET_READABLE_BIT)&&(readfdset))
 	    	fd_updated |= ipaugenblick_update_fdset(ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK, readfdset);
@@ -1216,17 +1195,6 @@ restart_waiting:
 	    	fd_updated |= ipaugenblick_update_fdset(ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK, excfdset);
 	    else if (((ringset_idx_and_ready_mask[i] >> SOCKET_READY_SHIFT) & SOCKET_WRITABLE_BIT)&&(writefdset))
 	    	fd_updated |= ipaugenblick_update_fdset(ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK, writefdset);
-#ifdef USE_LOCAL_READY_CACHE
-	    if (fd_updated) {
-		    ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"%s %d present_in_ready_cache %d\n",
-			__func__,__LINE__,local_socket_descriptors[ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK].present_in_ready_cache);
-
-		    _ipaugenblick_remove_socket_from_cache(&local_socket_descriptors[ringset_idx_and_ready_mask[i] & SOCKET_READY_MASK], selector);
-	/*	    if ((ringset_idx_and_ready_mask >> SOCKET_READY_SHIFT) & SOCKET_CLOSED_BIT) {
-			ipaugenblick_close(ringset_idx_and_ready_mask & SOCKET_READY_MASK);
-		    }*/
-    	    }
-#endif
     }
     goto restart_waiting;
 }
@@ -1354,9 +1322,7 @@ int ipaugenblick_shutdown(int sock, int how)
     	if(ipaugenblick_enqueue_command_buf(cmd)) {
        		ipaugenblick_free_command_buf(cmd); 
     	}
-#ifdef USE_LOCAL_READY_CACHE
 	ipaugenblick_remove_socket_from_cache(&local_socket_descriptors[sock]);
-#endif
 	return 0;
 }
 

@@ -21,11 +21,9 @@ typedef struct _local_socket_descriptor_
     unsigned int local_port;
     unsigned int remote_ipaddr;
     unsigned int remote_port;
-#ifdef USE_LOCAL_READY_CACHE
     int present_in_ready_cache;
     int local_mask;
     TAILQ_ENTRY(_local_socket_descriptor_) local_ready_cache_entry;
-#endif
 }local_socket_descriptor_t;
 
 extern struct rte_ring *free_connections_ring;
