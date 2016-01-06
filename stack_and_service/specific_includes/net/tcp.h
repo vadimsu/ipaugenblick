@@ -43,11 +43,11 @@
 #include <specific_includes/net/tcp_states.h>
 #include <specific_includes/net/inet_ecn.h>
 #include <specific_includes/net/dst.h>
-
+#include <rte_lcore.h>
 /*#include <linux/seq_file.h>
 #include <linux/memcontrol.h>*/
 
-extern struct inet_hashinfo tcp_hashinfo;
+extern struct inet_hashinfo tcp_hashinfo[MAXCPU];
 
 extern struct percpu_counter tcp_orphan_count;
 void tcp_time_wait(struct sock *sk, int state, int timeo);
@@ -234,7 +234,7 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
  */
 #define	TFO_SERVER_ALWAYS	0x1000
 
-extern struct inet_timewait_death_row tcp_death_row;
+extern struct inet_timewait_death_row tcp_death_row[MAXCPU];
 
 /* sysctl variables for tcp */
 extern int sysctl_tcp_timestamps;
