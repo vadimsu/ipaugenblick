@@ -208,7 +208,7 @@ static void free_fib_info_rcu(struct fib_info *fi)
 			dev_put(nexthop_nh->nh_dev);
 		if (nexthop_nh->nh_exceptions)
 			free_nh_exceptions(nexthop_nh);
-		rt_fibinfo_free_cpus(nexthop_nh->nh_pcpu_rth_output);
+		rt_fibinfo_free_cpus(nexthop_nh->nh_pcpu_rth_output + rte_lcore_id());
 		rt_fibinfo_free(&nexthop_nh->nh_rth_input);
 	} endfor_nexthops(fi);
 
@@ -434,7 +434,7 @@ static int fib_detect_death(struct fib_info *fi, int order,
 	struct neighbour *n;
 	int state = NUD_NONE;
 
-	n = neigh_lookup(&arp_tbl, &fi->fib_nh[0].nh_gw, fi->fib_dev);
+	n = neigh_lookup(&arp_tbl[rte_lcore_id()], &fi->fib_nh[0].nh_gw, fi->fib_dev);
 	if (n) {
 		state = n->nud_state;
 		neigh_release(n);

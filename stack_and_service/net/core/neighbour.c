@@ -44,6 +44,7 @@
 //#include <net/addrconf.h>
 #include <specific_includes/linux/percpu.h>
 #include <ipaugenblick_log.h>
+#include <rte_lcore.h>
 #define DEBUG
 #define NEIGH_DEBUG 1
 #define neigh_dbg(level, fmt, ...)		\

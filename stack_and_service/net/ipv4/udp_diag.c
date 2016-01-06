@@ -154,13 +154,13 @@ done:
 static void udp_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
 		struct inet_diag_req_v2 *r, struct nlattr *bc)
 {
-	udp_dump(&udp_table, skb, cb, r, bc);
+	udp_dump(&udp_table[rte_lcore_id()], skb, cb, r, bc);
 }
 
 static int udp_diag_dump_one(struct sk_buff *in_skb, const struct nlmsghdr *nlh,
 		struct inet_diag_req_v2 *req)
 {
-	return udp_dump_one(&udp_table, in_skb, nlh, req);
+	return udp_dump_one(&udp_table[rte_lcore_id()], in_skb, nlh, req);
 }
 
 static void udp_diag_get_info(struct sock *sk, struct inet_diag_msg *r,

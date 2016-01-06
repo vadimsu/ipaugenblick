@@ -116,7 +116,7 @@
 #include <specific_includes/net/busy_poll.h>
 #include "udp_impl.h"
 
-struct udp_table udp_table __read_mostly;
+struct udp_table udp_table[MAXCPU] __read_mostly;
 EXPORT_SYMBOL(udp_table);
 
 long sysctl_udp_mem[3] __read_mostly;
@@ -213,7 +213,7 @@ int udp_lib_get_port(struct sock *sk, unsigned short snum,
 		     unsigned int hash2_nulladdr)
 {
 	struct udp_hslot *hslot, *hslot2;
-	struct udp_table *udptable = sk->sk_prot->h.udp_table;
+	struct udp_table *udptable = &sk->sk_prot->h.udp_table[rte_lcore_id()];
 	int    error = 1;
 	struct net *net = sock_net(sk);
 
@@ -702,7 +702,7 @@ out:
 
 void udp_err(struct sk_buff *skb, u32 info)
 {
-	__udp4_lib_err(skb, info, &udp_table);
+	__udp4_lib_err(skb, info, &udp_table[rte_lcore_id()]);
 }
 
 /*
@@ -1362,7 +1362,7 @@ EXPORT_SYMBOL(udp_disconnect);
 void udp_lib_unhash(struct sock *sk)
 {
 	if (sk_hashed(sk)) {
-		struct udp_table *udptable = sk->sk_prot->h.udp_table;
+		struct udp_table *udptable = &sk->sk_prot->h.udp_table[rte_lcore_id()];
 		struct udp_hslot *hslot, *hslot2;
 
 		hslot  = udp_hashslot(udptable, sock_net(sk),
@@ -1391,7 +1391,7 @@ EXPORT_SYMBOL(udp_lib_unhash);
 void udp_lib_rehash(struct sock *sk, u16 newhash)
 {
 	if (sk_hashed(sk)) {
-		struct udp_table *udptable = sk->sk_prot->h.udp_table;
+		struct udp_table *udptable = &sk->sk_prot->h.udp_table[rte_lcore_id()];
 		struct udp_hslot *hslot, *hslot2, *nhslot2;
 
 		hslot2 = udp_hashslot2(udptable, udp_sk(sk)->udp_portaddr_hash);
@@ -1842,8 +1842,8 @@ static struct sock *__udp4_lib_mcast_demux_lookup(struct net *net,
 	struct sock *sk, *result;
 	struct hlist_nulls_node *node;
 	unsigned short hnum = ntohs(loc_port);
-	unsigned int count, slot = udp_hashfn(net, hnum, udp_table.mask);
-	struct udp_hslot *hslot = &udp_table.hash[slot];
+	unsigned int count, slot = udp_hashfn(net, hnum, udp_table[rte_lcore_id()].mask);
+	struct udp_hslot *hslot = &udp_table[rte_lcore_id()].hash[slot];
 
 	rcu_read_lock();
 begin:
@@ -1895,8 +1895,8 @@ static struct sock *__udp4_lib_demux_lookup(struct net *net,
 	struct hlist_nulls_node *node;
 	unsigned short hnum = ntohs(loc_port);
 	unsigned int hash2 = udp4_portaddr_hash(net, loc_addr, hnum);
-	unsigned int slot2 = hash2 & udp_table.mask;
-	struct udp_hslot *hslot2 = &udp_table.hash2[slot2];
+	unsigned int slot2 = hash2 & udp_table[rte_lcore_id()].mask;
+	struct udp_hslot *hslot2 = &udp_table[rte_lcore_id()].hash2[slot2];
 	INET_ADDR_COOKIE(acookie, rmt_addr, loc_addr)
 	const __portpair ports = INET_COMBINED_PORTS(rmt_port, hnum);
 
@@ -1965,7 +1965,7 @@ void udp_v4_early_demux(struct sk_buff *skb)
 
 int udp_rcv(struct sk_buff *skb)
 {
-	return __udp4_lib_rcv(skb, &udp_table, IPPROTO_UDP);
+	return __udp4_lib_rcv(skb, &udp_table[rte_lcore_id()], IPPROTO_UDP);
 }
 
 void udp_destroy_sock(struct sock *sk)
@@ -2211,7 +2211,7 @@ struct proto udp_prot = {
 	.sysctl_rmem	   = &sysctl_udp_rmem_min,
 	.obj_size	   = sizeof(struct udp_sock),
 	.slab_flags	   = SLAB_DESTROY_BY_RCU,
-	.h.udp_table	   = &udp_table,
+	.h.udp_table	   = udp_table,
 #ifdef CONFIG_COMPAT
 	.compat_setsockopt = compat_udp_setsockopt,
 	.compat_getsockopt = compat_udp_getsockopt,
@@ -2482,8 +2482,13 @@ void __init udp_table_init(struct udp_table *table, const char *name)
 void __init udp_init(void)
 {
 	unsigned long limit;
-
-	udp_table_init(&udp_table, "UDP");
+	int cpu_idx;
+	char table_name[1024];
+    /* The same as original static initialization */
+	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		sprintf(table_name,"UDP%d",cpu_idx);
+		udp_table_init(&udp_table[cpu_idx], table_name);
+	}
 	limit = nr_free_buffer_pages() / 8;
 	limit = max(limit, 128UL);
 	sysctl_udp_mem[0] = limit / 4 * 3;

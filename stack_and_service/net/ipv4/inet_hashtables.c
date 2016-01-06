@@ -89,7 +89,7 @@ void inet_bind_bucket_destroy(struct kmem_cache *cachep, struct inet_bind_bucket
 void inet_bind_hash(struct sock *sk, struct inet_bind_bucket *tb,
 		    const unsigned short snum)
 {
-	struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;
+	struct inet_hashinfo *hashinfo = &sk->sk_prot->h.hashinfo[rte_lcore_id()];
 
 	atomic_inc(&hashinfo->bsockets);
 
@@ -104,7 +104,7 @@ void inet_bind_hash(struct sock *sk, struct inet_bind_bucket *tb,
  */
 static void __inet_put_port(struct sock *sk)
 {
-	struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;
+	struct inet_hashinfo *hashinfo = &sk->sk_prot->h.hashinfo[rte_lcore_id()];
 	const int bhash = inet_bhashfn(sock_net(sk), inet_sk(sk)->inet_num,
 			hashinfo->bhash_size);
 	struct inet_bind_hashbucket *head = &hashinfo->bhash[bhash];
@@ -132,7 +132,7 @@ EXPORT_SYMBOL(inet_put_port);
 
 int __inet_inherit_port(struct sock *sk, struct sock *child)
 {
-	struct inet_hashinfo *table = sk->sk_prot->h.hashinfo;
+	struct inet_hashinfo *table = &sk->sk_prot->h.hashinfo[rte_lcore_id()];
 	unsigned short port = inet_sk(child)->inet_num;
 	const int bhash = inet_bhashfn(sock_net(sk), port,
 			table->bhash_size);
@@ -400,7 +400,7 @@ static inline u32 inet_sk_port_offset(const struct sock *sk)
 
 int __inet_hash_nolisten(struct sock *sk, struct inet_timewait_sock *tw)
 {
-	struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;
+	struct inet_hashinfo *hashinfo = &sk->sk_prot->h.hashinfo[rte_lcore_id()];
 	struct hlist_nulls_head *list;
 //	spinlock_t *lock;
 	struct inet_ehash_bucket *head;
@@ -427,7 +427,7 @@ EXPORT_SYMBOL_GPL(__inet_hash_nolisten);
 
 static void __inet_hash(struct sock *sk)
 {
-	struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;
+	struct inet_hashinfo *hashinfo = &sk->sk_prot->h.hashinfo[rte_lcore_id()];
 	struct inet_listen_hashbucket *ilb;
 
 	if (sk->sk_state != TCP_LISTEN) {
@@ -456,7 +456,7 @@ EXPORT_SYMBOL_GPL(inet_hash);
 
 void inet_unhash(struct sock *sk)
 {
-	struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;
+	struct inet_hashinfo *hashinfo = &sk->sk_prot->h.hashinfo[rte_lcore_id()];
 //	spinlock_t *lock;
 	int done;
 

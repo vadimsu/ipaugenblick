@@ -7,7 +7,7 @@
 #include <specific_includes/net/neighbour.h>
 
 
-extern struct neigh_table arp_tbl;
+extern struct neigh_table arp_tbl[MAXCPU];
 
 static inline u32 arp_hashfn(u32 key, const struct net_device *dev, u32 hash_rnd)
 {
@@ -18,7 +18,7 @@ static inline u32 arp_hashfn(u32 key, const struct net_device *dev, u32 hash_rnd
 
 static inline struct neighbour *__ipv4_neigh_lookup_noref(struct net_device *dev, u32 key)
 {
-	struct neigh_hash_table *nht = rcu_dereference_bh(arp_tbl.nht);
+	struct neigh_hash_table *nht = rcu_dereference_bh(arp_tbl[rte_lcore_id()].nht);
 	struct neighbour *n;
 	u32 hash_val;
 

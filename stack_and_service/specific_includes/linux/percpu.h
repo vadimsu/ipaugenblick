@@ -27,6 +27,7 @@
  * Must be an lvalue. Since @var must be a simple identifier,
  * we force a syntax error here if it isn't.
  */
+#if 0 /*This didn't work, till solved, replaced with something simplier */
 #define get_cpu_var(var) (*({				\
 	preempt_disable();				\
 	&__get_cpu_var(var); }))
@@ -48,7 +49,12 @@
 	(void)(var);					\
 	preempt_enable();				\
 } while (0)
-
+#else
+#define get_cpu_var(var) (var[rte_lcore_id()])
+#define put_cpu_var(var)
+#define put_cpu_ptr(var)
+#define get_cpu_ptr(var) (&var[rte_lcore_id()])
+#endif
 /* minimum unit size, also is the maximum supported allocation size */
 #define PCPU_MIN_UNIT_SIZE		PFN_ALIGN(32 << 10)
 
@@ -146,7 +152,11 @@ extern int __init pcpu_page_first_chunk(size_t reserved_size,
  * version should probably be combined with get_cpu()/put_cpu().
  */
 #ifdef CONFIG_SMP
+#if 0 /*This didn't work, till solved, replaced with something simplier */
 #define per_cpu_ptr(ptr, cpu)	SHIFT_PERCPU_PTR((ptr), per_cpu_offset((cpu)))
+#else
+#define per_cpu_ptr(ptr, cpu)	(ptr + cpu)
+#endif
 #else
 #define per_cpu_ptr(ptr, cpu)	({ (void)(cpu); VERIFY_PERCPU_PTR((ptr)); })
 #endif
@@ -532,7 +542,11 @@ do {									\
 # endif
 # define __this_cpu_read(pcp)	__pcpu_size_call_return(__this_cpu_read_, (pcp))
 #endif
+#if 0 /*This didn't work, till solved, replaced with something simplier */
 #define __this_cpu_ptr(ptr) SHIFT_PERCPU_PTR(ptr, __my_cpu_offset)
+#else
+#define __this_cpu_ptr(ptr) (ptr + rte_lcore_id())
+#endif
 #define __this_cpu_generic_to_op(pcp, val, op)				\
 do {									\
 	*__this_cpu_ptr(&(pcp)) op val;					\

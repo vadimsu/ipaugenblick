@@ -140,6 +140,7 @@
 #include <rte_common.h>
 #include <rte_malloc.h>
 #include <ipaugenblick_log.h>
+#include <rte_lcore.h>
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 

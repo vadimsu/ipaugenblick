@@ -188,7 +188,7 @@ static inline int ip_finish_output2(struct sk_buff *skb)
 	nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);
 	neigh = __ipv4_neigh_lookup_noref(dev, nexthop);
 	if (unlikely(!neigh))
-		neigh = __neigh_create(&arp_tbl, &nexthop, dev, false);
+		neigh = __neigh_create(&arp_tbl[rte_lcore_id()], &nexthop, dev, false);
 	if (!IS_ERR(neigh)) {
 		int res = dst_neigh_output(dst, neigh, skb);
 
@@ -1341,19 +1341,20 @@ static int ip_reply_glue_bits(void *dptr, char *to, int offset,
  *
  *	Use a fake percpu inet socket to avoid false sharing and contention.
  */
-static DEFINE_PER_CPU(struct inet_sock, unicast_sock) = {
-	.sk = {
-		.__sk_common = {
-			.skc_refcnt = ATOMIC_INIT(1),
-		},
-		.sk_wmem_alloc	= ATOMIC_INIT(1),
-		.sk_allocation	= GFP_ATOMIC,
-		.sk_flags	= (1UL << SOCK_USE_WRITE_QUEUE),
-	},
-	.pmtudisc	= IP_PMTUDISC_WANT,
-	.uc_ttl		= -1,
-};
-
+static DEFINE_PER_CPU(struct inet_sock, unicast_sock);
+static void init_unicast_sock_percpu()
+{
+	int cpu_idx;
+    /* The same as original static initialization */
+	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		unicast_sock[cpu_idx].sk.__sk_common.skc_refcnt.counter = 1,
+		unicast_sock[cpu_idx].sk.sk_wmem_alloc.counter	= 1;
+		unicast_sock[cpu_idx].sk.sk_allocation	= GFP_ATOMIC;
+		unicast_sock[cpu_idx].sk.sk_flags	= (1UL << SOCK_USE_WRITE_QUEUE);
+		unicast_sock[cpu_idx].pmtudisc	= IP_PMTUDISC_WANT;
+		unicast_sock[cpu_idx].uc_ttl		= -1;
+	}
+}
 void ip_send_unicast_reply(struct net *net, struct sk_buff *skb, __be32 daddr,
 			   __be32 saddr, const struct ip_reply_arg *arg,
 			   unsigned int len)
@@ -1426,7 +1427,7 @@ void __init ip_init(void)
 {
 	ip_rt_init();
 	inet_initpeers();
-
+	init_unicast_sock_percpu();
 #if defined(CONFIG_IP_MULTICAST)
 	igmp_mc_init();
 #endif

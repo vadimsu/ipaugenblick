@@ -461,7 +461,7 @@ static struct neighbour *ipv4_neigh_lookup(const struct dst_entry *dst,
 	n = __ipv4_neigh_lookup(dev, *(__force u32 *)pkey);
 	if (n)
 		return n;
-	return neigh_create(&arp_tbl, pkey, dev);
+	return neigh_create(&arp_tbl[rte_lcore_id()], pkey, dev);
 }
 
 /*
@@ -489,7 +489,7 @@ void __ip_select_ident(struct iphdr *iph, struct dst_entry *dst, int more)
 	struct net *net = dev_net(dst->dev);
 	struct inet_peer *peer;
 
-	peer = inet_getpeer_v4(net->ipv4.peers, iph->daddr, 1);
+	peer = inet_getpeer_v4(net->ipv4.peers[rte_lcore_id()], iph->daddr, 1);
 	if (peer) {
 		iph->id = htons(inet_getid(peer, more));
 		inet_putpeer(peer);
@@ -850,7 +850,7 @@ void ip_rt_send_redirect(struct sk_buff *skb)
 	rcu_read_unlock();
 
 	net = dev_net(rt->dst.dev);
-	peer = inet_getpeer_v4(net->ipv4.peers, ip_hdr(skb)->saddr, 1);
+	peer = inet_getpeer_v4(net->ipv4.peers[rte_lcore_id()], ip_hdr(skb)->saddr, 1);
 	if (!peer) {
 		icmp_send(skb, ICMP_REDIRECT, ICMP_REDIR_HOST,
 			  rt_nexthop(rt, ip_hdr(skb)->daddr));
@@ -935,7 +935,7 @@ static int ip_error(struct sk_buff *skb)
 		break;
 	}
 
-	peer = inet_getpeer_v4(net->ipv4.peers, ip_hdr(skb)->saddr, 1);
+	peer = inet_getpeer_v4(net->ipv4.peers[rte_lcore_id()], ip_hdr(skb)->saddr, 1);
 
 	send = true;
 	if (peer) {
@@ -1320,12 +1320,12 @@ static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 }
 
 //static DEFINE_SPINLOCK(rt_uncached_lock);
-static LINUX_LIST_HEAD(rt_uncached_list);
+static LINUX_LIST_HEAD(rt_uncached_list[MAXCPU]);
 
 static void rt_add_uncached_list(struct rtable *rt)
 {
 	spin_lock_bh(&rt_uncached_lock);
-	list_add_tail(&rt->rt_uncached, &rt_uncached_list);
+	list_add_tail(&rt->rt_uncached, &rt_uncached_list[rte_lcore_id()]);
 	spin_unlock_bh(&rt_uncached_lock);
 }
 
@@ -1342,12 +1342,12 @@ static void ipv4_dst_destroy(struct dst_entry *dst)
 
 void rt_flush_dev(struct net_device *dev)
 {
-	if (!list_empty(&rt_uncached_list)) {
+	if (!list_empty(&rt_uncached_list[rte_lcore_id()])) {
 		struct net *net = dev_net(dev);
 		struct rtable *rt;
 
 		spin_lock_bh(&rt_uncached_lock);
-		list_for_each_entry(rt, &rt_uncached_list, rt_uncached) {
+		list_for_each_entry(rt, &rt_uncached_list[rte_lcore_id()], rt_uncached) {
 			if (rt->dst.dev != dev)
 				continue;
 			rt->dst.dev = net->loopback_dev;
@@ -2688,22 +2688,30 @@ static __net_initdata struct pernet_operations rt_genid_ops = {
 
 static int __net_init ipv4_inetpeer_init(struct net *net)
 {
-	struct inet_peer_base *bp = kmalloc(sizeof(*bp), GFP_KERNEL);
+        int cpu_idx;
+	struct inet_peer_base *bp;
 
-	if (!bp)
+        for(cpu_idx = 0;cpu_idx < rte_lcore_count();cpu_idx++) {
+            bp = kmalloc(sizeof(*bp), GFP_KERNEL);
+	    if (!bp)
 		return -ENOMEM;
-	inet_peer_base_init(bp);
-	net->ipv4.peers = bp;
+	    inet_peer_base_init(bp);
+	    net->ipv4.peers[cpu_idx] = bp;
+        }
 	return 0;
 }
 
 static void __net_exit ipv4_inetpeer_exit(struct net *net)
 {
-	struct inet_peer_base *bp = net->ipv4.peers;
+        int cpu_idx;
+  
+        for(cpu_idx = 0;cpu_idx < rte_lcore_count();cpu_idx++) {
+  	    struct inet_peer_base *bp = net->ipv4.peers[cpu_idx];
 
-	net->ipv4.peers = NULL;
-	inetpeer_invalidate_tree(bp);
-	kfree(bp);
+	    net->ipv4.peers[cpu_idx] = NULL;
+	    inetpeer_invalidate_tree(bp);
+	    kfree(bp);
+        }
 }
 
 static __net_initdata struct pernet_operations ipv4_inetpeer_ops = {

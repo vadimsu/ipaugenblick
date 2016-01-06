@@ -801,7 +801,7 @@ void __init tcp_tasklet_init(void)
 	int i;
 
 	for_each_possible_cpu(i) {
-		struct tsq_tasklet *tsq = &per_cpu(tsq_tasklet, i);
+		struct tsq_tasklet *tsq = per_cpu(tsq_tasklet, i);
 
 		LINUX_INIT_LIST_HEAD(&tsq->head);
 		tasklet_init(&tsq->tasklet,
@@ -832,7 +832,8 @@ void tcp_wfree(struct sk_buff *skb)
 
 		/* queue this socket to tasklet queue */
 		local_irq_save(flags);
-		tsq = &__get_cpu_var(tsq_tasklet);
+		//tsq = __get_cpu_var(tsq_tasklet);
+		tsq = per_cpu(tsq_tasklet, rte_lcore_id());
 		list_add(&tp->tsq_node, &tsq->head);
 		tasklet_schedule(&tsq->tasklet);
 		local_irq_restore(flags);

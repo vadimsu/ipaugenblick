@@ -46,20 +46,37 @@ static struct {
 	struct dst_entry	*list;
 	unsigned long		timer_inc;
 	unsigned long		timer_expires;
-} dst_garbage = {
-//	.lock = __SPIN_LOCK_UNLOCKED(dst_garbage.lock),
-	.timer_inc = DST_GC_MAX,
-};
+} dst_garbage[MAXCPU];
 static void dst_gc_task(struct work_struct *work);
 static void ___dst_free(struct dst_entry *dst);
 
-static DECLARE_DELAYED_WORK(dst_gc_work, dst_gc_task);
+static struct delayed_work dst_gc_work[MAXCPU];
 
 static DEFINE_MUTEX(dst_gc_mutex);
 /*
  * long lived entries are maintained in this list, guarded by dst_gc_mutex
  */
-static struct dst_entry         *dst_busy_list;
+static struct dst_entry         *dst_busy_list[MAXCPU];
+
+static void dst_percpu_init()
+{
+	int cpu_idx;
+    /* Just do the same as original static initialization */
+	for(cpu_idx = 0; cpu_idx < MAXCPU;cpu_idx++){
+		dst_garbage[cpu_idx].timer_inc = DST_GC_MAX;
+		dst_busy_list[cpu_idx] = NULL;
+		dst_gc_work[cpu_idx].work.data = WORK_STRUCT_NO_POOL | WORK_STRUCT_STATIC;
+		dst_gc_work[cpu_idx].work.entry.prev = &dst_gc_work[cpu_idx].work.entry;
+		dst_gc_work[cpu_idx].work.entry.next = &dst_gc_work[cpu_idx].work.entry;
+		dst_gc_work[cpu_idx].work.func = dst_gc_task;
+		dst_gc_work[cpu_idx].timer.function = delayed_work_timer_fn;
+		dst_gc_work[cpu_idx].timer.entry.prev = TIMER_ENTRY_STATIC ;
+		dst_gc_work[cpu_idx].timer.expires = 0;
+		dst_gc_work[cpu_idx].timer.data = (unsigned long)&dst_gc_work[cpu_idx];
+		dst_gc_work[cpu_idx].timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
+		dst_gc_work[cpu_idx].timer.slack = -1;
+	}
+}
 
 static void dst_gc_task(struct work_struct *work)
 {
@@ -70,7 +87,7 @@ static void dst_gc_task(struct work_struct *work)
 	struct dst_entry *last = &head;
 
 	mutex_lock(&dst_gc_mutex);
-	next = dst_busy_list;
+	next = dst_busy_list[rte_lcore_id()];
 
 loop:
 	while ((dst = next) != NULL) {
@@ -104,42 +121,42 @@ loop:
 		}
 	}
 
-	spin_lock_bh(&dst_garbage.lock);
-	next = dst_garbage.list;
+	spin_lock_bh(&dst_garbage[rte_lcore_id()].lock);
+	next = dst_garbage[rte_lcore_id()].list;
 	if (next) {
-		dst_garbage.list = NULL;
-		spin_unlock_bh(&dst_garbage.lock);
+		dst_garbage[rte_lcore_id()].list = NULL;
+		spin_unlock_bh(&dst_garbage[rte_lcore_id()].lock);
 		goto loop;
 	}
 	last->next = NULL;
-	dst_busy_list = head.next;
-	if (!dst_busy_list)
-		dst_garbage.timer_inc = DST_GC_MAX;
+	dst_busy_list[rte_lcore_id()] = head.next;
+	if (!dst_busy_list[rte_lcore_id()])
+		dst_garbage[rte_lcore_id()].timer_inc = DST_GC_MAX;
 	else {
 		/*
 		 * if we freed less than 1/10 of delayed entries,
 		 * we can sleep longer.
 		 */
 		if (work_performed <= delayed/10) {
-			dst_garbage.timer_expires += dst_garbage.timer_inc;
-			if (dst_garbage.timer_expires > DST_GC_MAX)
-				dst_garbage.timer_expires = DST_GC_MAX;
-			dst_garbage.timer_inc += DST_GC_INC;
+			dst_garbage[rte_lcore_id()].timer_expires += dst_garbage[rte_lcore_id()].timer_inc;
+			if (dst_garbage[rte_lcore_id()].timer_expires > DST_GC_MAX)
+				dst_garbage[rte_lcore_id()].timer_expires = DST_GC_MAX;
+			dst_garbage[rte_lcore_id()].timer_inc += DST_GC_INC;
 		} else {
-			dst_garbage.timer_inc = DST_GC_INC;
-			dst_garbage.timer_expires = DST_GC_MIN;
+			dst_garbage[rte_lcore_id()].timer_inc = DST_GC_INC;
+			dst_garbage[rte_lcore_id()].timer_expires = DST_GC_MIN;
 		}
-		expires = dst_garbage.timer_expires;
+		expires = dst_garbage[rte_lcore_id()].timer_expires;
 		/*
 		 * if the next desired timer is more than 4 seconds in the
 		 * future then round the timer to whole seconds
 		 */
 		if (expires > 4*HZ)
 			expires = round_jiffies_relative(expires);
-		schedule_delayed_work(&dst_gc_work, expires);
+		schedule_delayed_work(&dst_gc_work[rte_lcore_id()], expires);
 	}
 
-	spin_unlock_bh(&dst_garbage.lock);
+	spin_unlock_bh(&dst_garbage[rte_lcore_id()].lock);
 	mutex_unlock(&dst_gc_mutex);
 }
 
@@ -217,17 +234,17 @@ static void ___dst_free(struct dst_entry *dst)
 
 void __dst_free(struct dst_entry *dst)
 {
-	spin_lock_bh(&dst_garbage.lock);
+	spin_lock_bh(&dst_garbage[rte_lcore_id()].lock);
 	___dst_free(dst);
-	dst->next = dst_garbage.list;
-	dst_garbage.list = dst;
-	if (dst_garbage.timer_inc > DST_GC_INC) {
-		dst_garbage.timer_inc = DST_GC_INC;
-		dst_garbage.timer_expires = DST_GC_MIN;
-		mod_delayed_work(system_wq, &dst_gc_work,
-				 dst_garbage.timer_expires);
+	dst->next = dst_garbage[rte_lcore_id()].list;
+	dst_garbage[rte_lcore_id()].list = dst;
+	if (dst_garbage[rte_lcore_id()].timer_inc > DST_GC_INC) {
+		dst_garbage[rte_lcore_id()].timer_inc = DST_GC_INC;
+		dst_garbage[rte_lcore_id()].timer_expires = DST_GC_MIN;
+		mod_delayed_work(system_wq, &dst_gc_work[rte_lcore_id()],
+				 dst_garbage[rte_lcore_id()].timer_expires);
 	}
-	spin_unlock_bh(&dst_garbage.lock);
+	spin_unlock_bh(&dst_garbagerte_lcore_id()].lock);
 }
 EXPORT_SYMBOL(__dst_free);
 
@@ -380,20 +397,20 @@ static int dst_dev_event(struct notifier_block *this, unsigned long event,
 	case NETDEV_UNREGISTER_FINAL:
 	case NETDEV_DOWN:
 		mutex_lock(&dst_gc_mutex);
-		for (dst = dst_busy_list; dst; dst = dst->next) {
+		for (dst = dst_busy_list[rte_lcore_id()]; dst; dst = dst->next) {
 			last = dst;
 			dst_ifdown(dst, dev, event != NETDEV_DOWN);
 		}
 
-		spin_lock_bh(&dst_garbage.lock);
-		dst = dst_garbage.list;
-		dst_garbage.list = NULL;
-		spin_unlock_bh(&dst_garbage.lock);
+		spin_lock_bh(&dst_garbage[rte_lcore_id()].lock);
+		dst = dst_garbage[rte_lcore_id()].list;
+		dst_garbage[rte_lcore_id()].list = NULL;
+		spin_unlock_bh(&dst_garbage[rte_lcore_id()].lock);
 
 		if (last)
 			last->next = dst;
 		else
-			dst_busy_list = dst;
+			dst_busy_list[rte_lcore_id()] = dst;
 		for (; dst; dst = dst->next)
 			dst_ifdown(dst, dev, event != NETDEV_DOWN);
 		mutex_unlock(&dst_gc_mutex);
@@ -409,5 +426,6 @@ static struct notifier_block dst_dev_notifier = {
 
 void __init dst_init(void)
 {
+	dst_percpu_init();
 	register_netdevice_notifier(&dst_dev_notifier);
 }

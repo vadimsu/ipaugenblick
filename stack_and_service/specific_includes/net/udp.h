@@ -78,7 +78,7 @@ struct udp_table {
 	unsigned int		mask;
 	unsigned int		log;
 };
-extern struct udp_table udp_table;
+extern struct udp_table udp_table[MAXCPU];
 void udp_table_init(struct udp_table *, const char *);
 static inline struct udp_hslot *udp_hashslot(struct udp_table *table,
 					     struct net *net, unsigned int num)

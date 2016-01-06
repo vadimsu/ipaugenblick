@@ -21,7 +21,7 @@
 #include <specific_includes/net/ip.h>
 #include <specific_includes/net/inetpeer.h>
 #include <specific_includes/net/secure_seq.h>
-
+#include <rte_lcore.h>
 /*
  *  Theory of operations.
  *  We keep one entry for each peer IP address.  The nodes contains long-living
@@ -67,20 +67,29 @@
 
 static struct kmem_cache *peer_cachep __read_mostly;
 
-static LINUX_LIST_HEAD(gc_list);
+static struct list_head gc_list[MAXCPU];
 static const int gc_delay = 60 * HZ;
-static struct delayed_work gc_work;
+static struct delayed_work gc_work[MAXCPU];
 //static DEFINE_SPINLOCK(gc_lock);
 
 #define node_height(x) x->avl_height
 
-#define peer_avl_empty ((struct inet_peer *)&peer_fake_node)
-#define peer_avl_empty_rcu ((struct inet_peer __rcu __force *)&peer_fake_node)
-static const struct inet_peer peer_fake_node = {
-	.avl_left	= peer_avl_empty_rcu,
-	.avl_right	= peer_avl_empty_rcu,
-	.avl_height	= 0
-};
+#define peer_avl_empty ((struct inet_peer *)&peer_fake_node[rte_lcore_id()])
+#define peer_avl_empty_rcu ((struct inet_peer __rcu __force *)&peer_fake_node[rte_lcore_id()])
+static struct inet_peer peer_fake_node[MAXCPU];
+
+static void inet_peer_percpu_init()
+{
+	int cpu_idx;
+    /* The same as original static initialization */
+	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		peer_fake_node[cpu_idx].avl_left = &peer_fake_node[cpu_idx];
+		peer_fake_node[cpu_idx].avl_right = &peer_fake_node[cpu_idx];
+		peer_fake_node[cpu_idx].avl_height = 0;
+		gc_list[cpu_idx].prev = &gc_list[cpu_idx];
+		gc_list[cpu_idx].next = &gc_list[cpu_idx];
+	}
+}
 
 void inet_peer_base_init(struct inet_peer_base *bp)
 {
@@ -123,7 +132,7 @@ static void inetpeer_gc_worker(struct work_struct *work)
 	LINUX_LIST_HEAD(list);
 
 	spin_lock_bh(&gc_lock);
-	list_replace_init(&gc_list, &list);
+	list_replace_init(&gc_list[rte_lcore_id()], &list);
 	spin_unlock_bh(&gc_lock);
 
 	if (list_empty(&list))
@@ -158,15 +167,16 @@ static void inetpeer_gc_worker(struct work_struct *work)
 		return;
 
 	spin_lock_bh(&gc_lock);
-	list_splice(&list, &gc_list);
+	list_splice(&list, &gc_list[rte_lcore_id()]);
 	spin_unlock_bh(&gc_lock);
 
-	schedule_delayed_work(&gc_work, gc_delay);
+	schedule_delayed_work(&gc_work[rte_lcore_id()], gc_delay);
 }
 
 /* Called from ip_output.c:ip_init  */
 void __init inet_initpeers(void)
 {
+    int cpu_idx;
 #if 0
 	struct sysinfo si;
 
@@ -183,12 +193,14 @@ void __init inet_initpeers(void)
 	if (si.totalram <= (8192*1024)/PAGE_SIZE)
 		inet_peer_threshold >>= 2; /* about 128KB */
 #endif
+	inet_peer_percpu_init();
 	peer_cachep = kmem_cache_create("inet_peer_cache",
 			sizeof(struct inet_peer),
 			INET_PEER_CACHE_SIZE, SLAB_HWCACHE_ALIGN | SLAB_PANIC,
 			NULL);
-
-	INIT_DEFERRABLE_WORK(&gc_work, inetpeer_gc_worker);
+    for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		INIT_DEFERRABLE_WORK(&gc_work[cpu_idx], inetpeer_gc_worker);
+    }
 }
 
 static int addr_compare(const struct inetpeer_addr *a,
@@ -574,10 +586,10 @@ static void inetpeer_inval_rcu(struct inet_peer *p)
 //	struct inet_peer *p = container_of(head, struct inet_peer, gc_rcu);
 
 	spin_lock_bh(&gc_lock);
-	list_add_tail(&p->gc_list, &gc_list);
+	list_add_tail(&p->gc_list, &gc_list[rte_lcore_id()]);
 	spin_unlock_bh(&gc_lock);
 
-	schedule_delayed_work(&gc_work, gc_delay);
+	schedule_delayed_work(&gc_work[rte_lcore_id()], gc_delay);
 }
 
 void inetpeer_invalidate_tree(struct inet_peer_base *base)

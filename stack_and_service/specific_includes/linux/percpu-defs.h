@@ -88,12 +88,17 @@
  * Variant on the per-CPU variable declaration/definition theme used for
  * ordinary per-CPU variables.
  */
+#if 0 /* This didn't work, for now  - using simplier declarations */
 #define DECLARE_PER_CPU(type, name)					\
 	DECLARE_PER_CPU_SECTION(type, name, "")
 
 #define DEFINE_PER_CPU(type, name)					\
 	DEFINE_PER_CPU_SECTION(type, name, "")
+#else
+#define DECLARE_PER_CPU(type, name)	type name[MAXCPU]
 
+#define DEFINE_PER_CPU(type, name)	type name[MAXCPU]
+#endif
 /*
  * Declaration/definition used for per-CPU variables that must come first in
  * the set of variables.

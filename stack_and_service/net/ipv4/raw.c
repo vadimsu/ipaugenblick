@@ -80,13 +80,11 @@
 #include <specific_includes/linux/netfilter_ipv4.h>
 //#include <linux/compat.h>
 
-static struct raw_hashinfo raw_v4_hashinfo = {
-//	.lock = __RW_LOCK_UNLOCKED(raw_v4_hashinfo.lock),
-};
+static struct raw_hashinfo raw_v4_hashinfo[MAXCPU];
 
 void raw_hash_sk(struct sock *sk)
 {
-	struct raw_hashinfo *h = sk->sk_prot->h.raw_hash;
+	struct raw_hashinfo *h = &sk->sk_prot->h.raw_hash[rte_lcore_id()];
 	struct hlist_head *head;
 
 	head = &h->ht[inet_sk(sk)->inet_num & (RAW_HTABLE_SIZE - 1)];
@@ -100,7 +98,7 @@ EXPORT_SYMBOL_GPL(raw_hash_sk);
 
 void raw_unhash_sk(struct sock *sk)
 {
-	struct raw_hashinfo *h = sk->sk_prot->h.raw_hash;
+	struct raw_hashinfo *h = &sk->sk_prot->h.raw_hash[rte_lcore_id()];
 
 	write_lock_bh(&h->lock);
 	if (sk_del_node_init(sk))
@@ -163,8 +161,8 @@ static int raw_v4_input(struct sk_buff *skb, const struct iphdr *iph, int hash)
 	int delivered = 0;
 	struct net *net;
 
-	read_lock(&raw_v4_hashinfo.lock);
-	head = &raw_v4_hashinfo.ht[hash];
+	read_lock(&raw_v4_hashinfo[rte_lcore_id()].lock);
+	head = &raw_v4_hashinfo[rte_lcore_id()].ht[hash];
 	if (hlist_empty(head))
 		goto out;
 
@@ -187,7 +185,7 @@ static int raw_v4_input(struct sk_buff *skb, const struct iphdr *iph, int hash)
 				     skb->dev->ifindex);
 	}
 out:
-	read_unlock(&raw_v4_hashinfo.lock);
+	read_unlock(&raw_v4_hashinfo[rte_lcore_id()].lock);
 	return delivered;
 }
 
@@ -197,7 +195,7 @@ int raw_local_deliver(struct sk_buff *skb, int protocol)
 	struct sock *raw_sk;
 
 	hash = protocol & (RAW_HTABLE_SIZE - 1);
-	raw_sk = sk_head(&raw_v4_hashinfo.ht[hash]);
+	raw_sk = sk_head(&raw_v4_hashinfo[rte_lcore_id()].ht[hash]);
 
 	/* If there maybe a raw socket we must check - if not we
 	 * don't care less
@@ -279,8 +277,8 @@ void raw_icmp_error(struct sk_buff *skb, int protocol, u32 info)
 
 	hash = protocol & (RAW_HTABLE_SIZE - 1);
 
-	read_lock(&raw_v4_hashinfo.lock);
-	raw_sk = sk_head(&raw_v4_hashinfo.ht[hash]);
+	read_lock(&raw_v4_hashinfo[rte_lcore_id()].lock);
+	raw_sk = sk_head(&raw_v4_hashinfo[rte_lcore_id()].ht[hash]);
 	if (raw_sk != NULL) {
 		iph = (const struct iphdr *)skb->data;
 		net = dev_net(skb->dev);
@@ -293,7 +291,7 @@ void raw_icmp_error(struct sk_buff *skb, int protocol, u32 info)
 			iph = (const struct iphdr *)skb->data;
 		}
 	}
-	read_unlock(&raw_v4_hashinfo.lock);
+	read_unlock(&raw_v4_hashinfo[rte_lcore_id()].lock);
 }
 
 static int raw_rcv_skb(struct sock *sk, struct sk_buff *skb)
@@ -902,7 +900,7 @@ struct proto raw_prot = {
 	.hash		   = raw_hash_sk,
 	.unhash		   = raw_unhash_sk,
 	.obj_size	   = sizeof(struct raw_sock),
-	.h.raw_hash	   = &raw_v4_hashinfo,
+	.h.raw_hash	   = raw_v4_hashinfo,
 #ifdef CONFIG_COMPAT
 	.compat_setsockopt = compat_raw_setsockopt,
 	.compat_getsockopt = compat_raw_getsockopt,
@@ -1039,7 +1037,7 @@ EXPORT_SYMBOL_GPL(raw_seq_open);
 
 static int raw_v4_seq_open(struct inode *inode, struct file *file)
 {
-	return raw_seq_open(inode, file, &raw_v4_hashinfo, &raw_seq_ops);
+	return raw_seq_open(inode, file, &raw_v4_hashinfo[rte_lcore_id()], &raw_seq_ops);
 }
 
 static const struct file_operations raw_seq_fops = {

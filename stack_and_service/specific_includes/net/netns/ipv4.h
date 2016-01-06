@@ -44,7 +44,7 @@ struct netns_ipv4 {
 	struct sock		*fibnl;
 
 	struct sock		**icmp_sk;
-	struct inet_peer_base	*peers;
+	struct inet_peer_base	*peers[MAXCPU];
 	struct tcpm_hash_bucket	*tcp_metrics_hash;
 	unsigned int		tcp_metrics_hash_log;
 	struct netns_frags	frags;

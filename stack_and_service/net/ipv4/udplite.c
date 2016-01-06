@@ -18,17 +18,17 @@
 //#include <linux/export.h>
 #include "udp_impl.h"
 
-struct udp_table 	udplite_table __read_mostly;
+struct udp_table 	udplite_table[MAXCPU] __read_mostly;
 EXPORT_SYMBOL(udplite_table);
 
 static int udplite_rcv(struct sk_buff *skb)
 {
-	return __udp4_lib_rcv(skb, &udplite_table, IPPROTO_UDPLITE);
+	return __udp4_lib_rcv(skb, &udplite_table[rte_lcore_id()], IPPROTO_UDPLITE);
 }
 
 static void udplite_err(struct sk_buff *skb, u32 info)
 {
-	__udp4_lib_err(skb, info, &udplite_table);
+	__udp4_lib_err(skb, info, &udplite_table[rte_lcore_id()]);
 }
 
 static const struct net_protocol udplite_protocol = {
@@ -58,7 +58,7 @@ struct proto 	udplite_prot = {
 	.get_port	   = udp_v4_get_port,
 	.obj_size	   = sizeof(struct udp_sock),
 	.slab_flags	   = SLAB_DESTROY_BY_RCU,
-	.h.udp_table	   = &udplite_table,
+	.h.udp_table	   = udplite_table,
 #ifdef CONFIG_COMPAT
 	.compat_setsockopt = compat_udp_setsockopt,
 	.compat_getsockopt = compat_udp_getsockopt,
@@ -124,7 +124,11 @@ static inline int udplite4_proc_init(void)
 
 void __init udplite4_register(void)
 {
-	udp_table_init(&udplite_table, "UDP-Lite");
+	int cpu_idx;
+
+	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
+		udp_table_init(&udplite_table[cpu_idx], "UDP-Lite");
+	}
 	if (proto_register(&udplite_prot, 1))
 		goto out_register_err;
 
