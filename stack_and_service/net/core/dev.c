@@ -2898,6 +2898,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 			HARD_TX_UNLOCK(dev, txq);
 			ipaugenblick_log(IPAUGENBLICK_LOG_WARNING,"Virtual device %s asks to queue packet!\n",
 					     dev->name);
+#if 0
 		} else {
 			/* Recursion is detected! It is possible,
 			 * unfortunately
