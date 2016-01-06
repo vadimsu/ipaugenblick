@@ -2875,19 +2875,21 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 	   Either shot noqueue qdisc, it is even simpler 8)
 	 */
 	if (dev->flags & IFF_UP) {
+#if 0 /* it is ok if core
 		int cpu = smp_processor_id(); /* ok because BHs are off */
 
 		if (txq->xmit_lock_owner != cpu) {
+#endif
 
-			if (__this_cpu_read(xmit_recursion) > RECURSION_LIMIT)
-				goto recursion_alert;
+//			if (__this_cpu_read(xmit_recursion) > RECURSION_LIMIT)
+//				goto recursion_alert;
 
-			HARD_TX_LOCK(dev, txq, cpu);
+//			HARD_TX_LOCK(dev, txq, cpu);
 
 			if (!netif_xmit_stopped(txq)) {
-				__this_cpu_inc(xmit_recursion);
+//				__this_cpu_inc(xmit_recursion);
 				rc = dev_hard_start_xmit(skb, dev, txq);
-				__this_cpu_dec(xmit_recursion);
+//				__this_cpu_dec(xmit_recursion);
 				if (dev_xmit_complete(rc)) {
 					HARD_TX_UNLOCK(dev, txq);
 					goto out;
@@ -2904,6 +2906,7 @@ recursion_alert:
 			ipaugenblick_log(IPAUGENBLICK_LOG_WARNING,"Dead loop on virtual device %s, fix it urgently!\n",
 					     dev->name);
 		}
+#endif
 	}
 
 	rc = -ENETDOWN;
@@ -3763,6 +3766,7 @@ EXPORT_SYMBOL(netif_receive_skb);
  */
 static void flush_backlog(void *arg)
 {
+#if 0
 	struct net_device *dev = arg;
 	struct softnet_data *sd = &__get_cpu_var(softnet_data);
 	struct sk_buff *skb, *tmp;
@@ -3784,6 +3788,7 @@ static void flush_backlog(void *arg)
 			input_queue_head_incr(sd);
 		}
 	}
+#endif
 }
 
 static int napi_gro_complete(struct sk_buff *skb)
@@ -4239,10 +4244,11 @@ static int process_backlog(struct napi_struct *napi, int quota)
 void __napi_schedule(struct napi_struct *n)
 {
 	unsigned long flags;
-
+#if 0
 	local_irq_save(flags);
 	____napi_schedule(&__get_cpu_var(softnet_data), n);
 	local_irq_restore(flags);
+#endif
 }
 EXPORT_SYMBOL(__napi_schedule);
 
@@ -6094,9 +6100,10 @@ EXPORT_SYMBOL(register_netdev);
 int netdev_refcnt_read(const struct net_device *dev)
 {
 	int i, refcnt = 0;
-
+#if 0
 	for_each_possible_cpu(i)
 		refcnt += *per_cpu_ptr(dev->pcpu_refcnt, i);
+#endif
 	return refcnt;
 }
 EXPORT_SYMBOL(netdev_refcnt_read);
