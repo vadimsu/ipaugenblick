@@ -14,7 +14,7 @@
 #include <rte_ethdev.h>
 
 uint64_t received = 0;
-uint8_t get_queue_idx(void);
+uint16_t get_queue_idx(void);
 
 int dpdk_dev_get_received(int port_num,struct rte_mbuf **tbl,int tbl_size)
 {

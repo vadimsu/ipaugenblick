@@ -260,10 +260,10 @@ void show_mib_stats(void);
 static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
-#if 0
+#if 1
 		app_glue_print_stats();
 		show_mib_stats();
-        dpdk_dev_print_stats();
+		dpdk_dev_print_stats();
 		print_user_stats();
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"sk_stream_alloc_skb_failed %"PRIu64"\n",sk_stream_alloc_skb_failed);
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"tcp_memory_allocated=%"PRIu64"\n",tcp_memory_allocated);
@@ -273,8 +273,8 @@ static int print_stats(__attribute__((unused)) void *dummy)
 		dump_fclone_cache();
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
-                ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"write_sockets_queue_len %"PRIu64" read_sockets_queue_len %"PRIu64" command pool %d \n",
-                       write_sockets_queue_len,read_sockets_queue_len,free_command_pool ? rte_mempool_count(free_command_pool) : -1);
+		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"write_sockets_queue_len %"PRIu64" read_sockets_queue_len %"PRIu64" command pool %d \n",
+			write_sockets_queue_len,read_sockets_queue_len,free_command_pool ? rte_mempool_count(free_command_pool) : -1);
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"driver_tx_offload_pkts %"PRIu64" driver_tx_wo_offload_pkts %"PRIu64"\n",driver_tx_offload_pkts,driver_tx_wo_offload_pkts);
 		print_skb_iov_stats();
 #endif
@@ -461,8 +461,8 @@ static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
 }
 extern void ipaugenblick_main_loop(__attribute__((unused)) void *dummy);
 static uint8_t nb_ports = 0;
-static uint8_t queue_pairs = 0;
-static uint8_t core_2_queue_idx[MAXCPU];
+static uint16_t queue_pairs = 0;
+static uint16_t core_2_queue_idx[MAXCPU];
 static struct rte_eth_dev_info dev_info[RTE_MAX_ETHPORTS];
 
 void configure_netdevice_and_addresses(void)
@@ -520,7 +520,7 @@ void configure_netdevice_and_addresses(void)
 	}
 }
 
-uint8_t get_queue_idx(void)
+uint16_t get_queue_idx(void)
 {
 	return core_2_queue_idx[rte_lcore_id()];
 }
@@ -607,6 +607,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
 	}
 	init_lcores();
+	rte_timer_subsystem_init();
 	argc -= ret;
 	argv += ret;
     	ret = parse_args(argc, argv);
@@ -676,6 +677,7 @@ loopback_only:
 			}
 		}
 	}
+	sleep(10);
 	print_stats(NULL);	
 	return 0;
 }

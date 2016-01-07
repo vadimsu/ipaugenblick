@@ -381,11 +381,10 @@ void ipaugenblick_main_loop(__attribute__((unused)) void *dummy)
 	net_ns_init();
 	netfilter_init();
 	net_dev_init();
-	socket_pool_init();	
+	socket_pool_init();
 	skb_init();
 	inet_init();
-	app_glue_init();	
-	rte_timer_subsystem_init();
+	app_glue_init();
 	configure_netdevice_and_addresses();
 
 	ipaugenblick_service_api_init(COMMAND_POOL_SIZE,DATA_RINGS_SIZE,DATA_RINGS_SIZE);
