@@ -8,7 +8,6 @@
 #include <sys/errno.h>
 #include <string.h>
 extern int dpdk_linux_tcpip_init(int argc,char **argv);
-extern void ipaugenblick_main_loop(void);
 
 int main(int argc,char **argv)
 {
@@ -17,6 +16,6 @@ int main(int argc,char **argv)
 	printf("Invalid arguments\n");
 	return 1;
     }
-    ipaugenblick_main_loop();
+    /* should not get here */
     return 0;
 }

@@ -6401,7 +6401,7 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, const char *name,
 	dev_mc_init(dev);
 	dev_uc_init(dev);
 
-	dev_net_set(dev, &init_net);
+	dev_net_set(dev, &init_net[rte_lcore_id()]);
 
 	dev->gso_max_size = GSO_MAX_SIZE;
 	dev->gso_max_segs = GSO_MAX_SEGS;
@@ -6795,7 +6795,7 @@ static struct hlist_head * __net_init netdev_create_hash(void)
 /* Initialize per network namespace state */
 static int __net_init netdev_init(struct net *net)
 {
-	if (net != &init_net)
+	if (net != &init_net[rte_lcore_id()])
 		LINUX_INIT_LIST_HEAD(&net->dev_base_head);
 
 	net->dev_name_head = netdev_create_hash();

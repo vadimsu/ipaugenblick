@@ -631,7 +631,7 @@ errout:
 
 int inet_rtm_newroute(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
-	struct net *net = /*sock_net(skb->sk)*/&init_net; /* VADIM - no multiple nets yet*/
+	struct net *net = /*sock_net(skb->sk)*/&init_net[rte_lcore_id()];
 	struct fib_config cfg;
 	struct fib_table *tb;
 	int err;

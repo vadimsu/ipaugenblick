@@ -264,7 +264,7 @@ static __net_init int loopback_net_init(struct net *net)
 out_free_netdev:
 	free_netdev(dev);
 out:
-	if (net_eq(net, &init_net))
+	if (net_eq(net, &init_net[rte_lcore_id()]))
 	{
 		while(1)
 			printf("loopback: Failed to register netdevice: %d\n", err);

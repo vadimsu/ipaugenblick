@@ -23,6 +23,7 @@
 #include <specific_includes/net/netns/conntrack.h>
 #endif
 #include <specific_includes/net/netns/nftables.h>
+#include <rte_lcore.h>
 //#include <specific_includes/net/netns/xfrm.h>
 
 struct user_namespace;
@@ -138,7 +139,7 @@ struct net {
 //#include <linux/seq_file_net.h>
 
 /* Init's network namespace */
-extern struct net init_net;
+extern struct net init_net[MAXCPU];
 
 #ifdef CONFIG_NET_NS
 struct net *copy_net_ns(unsigned long flags, struct user_namespace *user_ns,
@@ -271,7 +272,7 @@ static inline struct net *read_pnet(struct net * const *pnet)
 #else
 
 #define write_pnet(pnet, net)	do { (void)(net);} while (0)
-#define read_pnet(pnet)		(&init_net)
+#define read_pnet(pnet)		(&init_net[rte_lcore_id()])
 
 #endif
 

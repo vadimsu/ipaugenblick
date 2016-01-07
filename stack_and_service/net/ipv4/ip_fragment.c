@@ -721,21 +721,21 @@ static int zero;
 static struct ctl_table ip4_frags_ns_ctl_table[] = {
 	{
 		.procname	= "ipfrag_high_thresh",
-		.data		= &init_net.ipv4.frags.high_thresh,
+		.data		= &init_net[0].ipv4.frags.high_thresh,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec
 	},
 	{
 		.procname	= "ipfrag_low_thresh",
-		.data		= &init_net.ipv4.frags.low_thresh,
+		.data		= &init_net[0].ipv4.frags.low_thresh,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec
 	},
 	{
 		.procname	= "ipfrag_time",
-		.data		= &init_net.ipv4.frags.timeout,
+		.data		= &init_net[0].ipv4.frags.timeout,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_jiffies,
@@ -768,7 +768,7 @@ static int __net_init ip4_frags_ns_ctl_register(struct net *net)
 	struct ctl_table_header *hdr;
 
 	table = ip4_frags_ns_ctl_table;
-	if (!net_eq(net, &init_net)) {
+	if (!net_eq(net, &init_net[rte_lcore_id()])) {
 		table = kmemdup(table, sizeof(ip4_frags_ns_ctl_table), GFP_KERNEL);
 		if (table == NULL)
 			goto err_alloc;
@@ -790,7 +790,7 @@ static int __net_init ip4_frags_ns_ctl_register(struct net *net)
 	return 0;
 
 err_reg:
-	if (!net_eq(net, &init_net))
+	if (!net_eq(net, &init_net[rte_lcore_id()]))
 		kfree(table);
 err_alloc:
 	return -ENOMEM;
@@ -807,7 +807,7 @@ static void __net_exit ip4_frags_ns_ctl_unregister(struct net *net)
 
 static void ip4_frags_ctl_register(void)
 {
-	register_net_sysctl(&init_net, "net/ipv4", ip4_frags_ctl_table);
+	register_net_sysctl(&init_net[rte_lcore_id()], "net/ipv4", ip4_frags_ctl_table);
 }
 #else
 static inline int ip4_frags_ns_ctl_register(struct net *net)

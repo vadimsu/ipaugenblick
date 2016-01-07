@@ -15,7 +15,7 @@
 
 void show_mib_stats(void)
 {
-	struct netns_mib *p_mib = &init_net.mib;
+	struct netns_mib *p_mib = &init_net[rte_lcore_id()].mib;//FIXME
 	ipaugenblick_log(IPAUGENBLICK_LOG_INFO," IPSTATS_MIB_INPKTS %"PRIu64"\n",(unsigned long)p_mib->ip_statistics[0]->mibs[IPSTATS_MIB_INPKTS]);
 	ipaugenblick_log(IPAUGENBLICK_LOG_INFO," IPSTATS_MIB_INOCTETS %"PRIu64"\n",(unsigned long)p_mib->ip_statistics[0]->mibs[IPSTATS_MIB_INOCTETS]);
 	ipaugenblick_log(IPAUGENBLICK_LOG_INFO," IPSTATS_MIB_INDELIVERS %"PRIu64"\n",(unsigned long)p_mib->ip_statistics[0]->mibs[IPSTATS_MIB_INDELIVERS]);

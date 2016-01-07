@@ -153,7 +153,7 @@ static void app_glue_sock_wakeup(struct sock *sk)
         struct tcp_sock *tp;
 	tp = tcp_sk(sk);
 
-	sock = __inet_lookup_listener(&init_net/*sk->sk_net*/,
+	sock = __inet_lookup_listener(&init_net[rte_lcore_id()],
 			&tcp_hashinfo[rte_lcore_id()],
 			sk->sk_daddr,
 			sk->sk_dport/*__be16 sport*/,
@@ -394,9 +394,9 @@ void app_glue_init_poll_intervals(int drv_poll_interval,
 			app_glue_drv_poll_interval[rte_lcore_id()],app_glue_timer_poll_interval[rte_lcore_id()],
 			app_glue_tx_ready_sockets_poll_interval[rte_lcore_id()],app_glue_rx_ready_sockets_poll_interval[rte_lcore_id()]);
 }
-uint64_t app_glue_periodic_called = 0;
-uint64_t app_glue_tx_queues_process = 0;
-uint64_t app_glue_rx_queues_process = 0;
+uint64_t app_glue_periodic_called[MAXCPU];
+uint64_t app_glue_tx_queues_process[MAXCPU];
+uint64_t app_glue_rx_queues_process[MAXCPU];
 /*
  * This function must be called by application periodically.
  * This is the heart of the system, it performs all the driver/IP stack work
@@ -501,7 +501,7 @@ void *app_glue_get_next_closed()
 		sock->closed_queue_present = 0;
 		TAILQ_REMOVE(&closed_socket_list_head[rte_lcore_id()],sock,closed_queue_entry);
 		if(sock->sk)
-			user_data = sock->sk->user_data;
+			user_data = sock->sk->sk_user_data;
 			//kernel_close(sock);
 		return user_data;
 	}
@@ -662,8 +662,8 @@ void app_glue_print_stats()
 
 	for(cpu_idx = 0;cpu_idx < 4;cpu_idx++) {
 		ratio = (float)(total_cycles_stat[cpu_idx] - total_prev[cpu_idx])/(float)(working_cycles_stat[cpu_idx] - work_prev[cpu_idx]);
-		total_prev = total_cycles_stat[cpu_idx];
-		work_prev = working_cycles_stat[cpu_idx];
+		total_prev[cpu_idx] = total_cycles_stat[cpu_idx];
+		work_prev[cpu_idx] = working_cycles_stat[cpu_idx];
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"total %"PRIu64" work %"PRIu64" ratio %f\n",total_cycles_stat,working_cycles_stat,ratio);
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"app_glue_periodic_called %"PRIu64"\n",app_glue_periodic_called[cpu_idx]);
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"app_glue_tx_queues_process %"PRIu64"\n",app_glue_tx_queues_process[cpu_idx]);

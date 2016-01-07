@@ -461,6 +461,64 @@ static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
 	}
 	return NULL;
 }
+extern void ipaugenblick_main_loop(__attribute__((unused)) void *dummy);
+static uint8_t nb_ports = 0;
+static struct rte_eth_dev_info dev_info[RTE_MAX_ETHPORTS];
+
+void configure_netdevice_and_addresses(void)
+{
+	uint8_t portid;
+	int sub_if_idx = 0;
+	struct ether_addr mac_addr;
+	dpdk_dev_config_t *p_dpdk_dev_config;
+
+	for (portid = 0; portid < nb_ports; portid++) {
+		/* skip ports that are not enabled */
+		if ((enabled_port_mask & (1 << portid)) == 0)
+			continue;
+		p_dpdk_dev_config = get_dpdk_config_entry(portid);
+		if(p_dpdk_dev_config) {	
+			dpdk_devices[portid] = create_netdev(portid,dev_info[portid].tx_offload_capa);
+			rte_eth_macaddr_get(portid,&mac_addr);
+			set_dev_addr(dpdk_devices[portid],mac_addr.addr_bytes,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+			sub_if_idx = portid;
+			while(sub_if_idx < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
+				p_dpdk_dev_config++;
+				if(p_dpdk_dev_config->port_number != portid) {
+					ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"no more addressed for port %d\n",portid);
+					break;
+				}
+				ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"Adding port%d address %s\n",portid,p_dpdk_dev_config->ip_addr_str);
+				add_dev_addr(dpdk_devices[portid],sub_if_idx - portid,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+                	        sub_if_idx++;
+			}
+		}
+	}
+	if (nb_ports)
+		return;
+	portid = 0;
+	while(1) {
+		p_dpdk_dev_config = get_dpdk_config_entry(portid);
+		if (!p_dpdk_dev_config) {
+			break;
+		}
+		dpdk_devices[portid] = init_dpdk_sw_loop(portid);
+		memset(mac_addr.addr_bytes,0,sizeof(mac_addr.addr_bytes));
+		set_dev_addr(dpdk_devices[portid],mac_addr.addr_bytes,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+		sub_if_idx = portid;
+                while(sub_if_idx < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
+                    p_dpdk_dev_config++;
+                    if(p_dpdk_dev_config->port_number != portid) {
+                        ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"no more addressed for port %d\n",portid);
+                        break;
+                    }
+                    ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"Adding port%d address %s\n",portid,p_dpdk_dev_config->ip_addr_str);
+                    add_dev_addr(dpdk_devices[portid],sub_if_idx - portid,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
+                    sub_if_idx++;
+                }
+		portid++;
+	}
+}
 /*
  * This function must be called prior any other in this package.
  * It initializes all the DPDK libs, reads the configuration, initializes the stack's
@@ -470,8 +528,7 @@ static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
  */
 int dpdk_linux_tcpip_init(int argc,char **argv)
 {
-	int ret,sub_if_idx = 0;
-	uint8_t nb_ports;
+	int ret,sub_if_idx = 0;	
 	uint8_t portid, last_port;
     uint16_t queue_id;
 	struct lcore_conf *conf;
@@ -482,8 +539,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	unsigned afinity_reset = 0;
 	rte_cpuset_t cpuset;
 
-	struct ether_addr mac_addr;
-	dpdk_dev_config_t *p_dpdk_dev_config;
+	struct ether_addr mac_addr;	
 
 	ipaugenblick_log_init(0);
 //	if(daemon(1,0)) {
@@ -502,22 +558,13 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		rte_exit(EXIT_FAILURE, "Invalid EAL arguments\n");
 	}
 	init_lcores();
-	net_ns_init();
-	netfilter_init();
-	net_dev_init();
-	socket_pool_init();	
-	skb_init();
-	inet_init();
-	app_glue_init();
-    	argc -= ret;
+	argc -= ret;
 	argv += ret;
     	ret = parse_args(argc, argv);
 	if (ret < 0) {
 		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"Invalid APP arguments");
 		rte_exit(EXIT_FAILURE, "Invalid APP arguments\n");
-	}
-	/* init RTE timer library */
-	rte_timer_subsystem_init();
+	}	
 
 	init_rx_queues_mempools();
 	mbufs_mempool = rte_mempool_create("mbufs_mempool", APP_MBUFS_POOL_SIZE,
@@ -536,8 +583,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 
 	if (nb_ports > RTE_MAX_ETHPORTS)
 		nb_ports = RTE_MAX_ETHPORTS;
-	core_count = rte_lcore_count();
-	struct rte_eth_dev_info dev_info[nb_ports]; 
+	core_count = rte_lcore_count();	
 	if (nb_ports == 0)
 		goto loopback_only;
 	for (portid = 0; portid < nb_ports; portid++) {
@@ -618,74 +664,15 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	}
 	rte_set_log_type(RTE_LOGTYPE_PMD,1);
 	rte_set_log_level(RTE_LOG_DEBUG);	
-	for (portid = 0; portid < nb_ports; portid++) {
-		/* skip ports that are not enabled */
-		if ((enabled_port_mask & (1 << portid)) == 0)
-			continue;
-		p_dpdk_dev_config = get_dpdk_config_entry(portid);
-		if(p_dpdk_dev_config) {	
-			dpdk_devices[portid] = create_netdev(portid,dev_info[portid].tx_offload_capa);
-		    rte_eth_macaddr_get(portid,&mac_addr);
-		    set_dev_addr(dpdk_devices[portid],mac_addr.addr_bytes,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
-                    sub_if_idx = portid;
-                    while(sub_if_idx < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
-                        p_dpdk_dev_config++;
-                        if(p_dpdk_dev_config->port_number != portid) {
-                            ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"no more addressed for port %d\n",portid);
-                            break;
-                        }
-                        ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"Adding port%d address %s\n",portid,p_dpdk_dev_config->ip_addr_str);
-                        add_dev_addr(dpdk_devices[portid],sub_if_idx - portid,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
-                        sub_if_idx++;
-                    }
-		}
-	}	
-	goto skip_loopback;
 loopback_only:
-	portid = 0;
-	while(1) {
-		p_dpdk_dev_config = get_dpdk_config_entry(portid);
-		if (!p_dpdk_dev_config) {
-			break;
-		}
-		dpdk_devices[portid] = init_dpdk_sw_loop(portid);
-		memset(mac_addr.addr_bytes,0,sizeof(mac_addr.addr_bytes));
-		set_dev_addr(dpdk_devices[portid],mac_addr.addr_bytes,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
-		sub_if_idx = portid;
-                while(sub_if_idx < RTE_MAX_ETHPORTS*ALIASES_MAX_NUMBER) {
-                    p_dpdk_dev_config++;
-                    if(p_dpdk_dev_config->port_number != portid) {
-                        ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"no more addressed for port %d\n",portid);
-                        break;
-                    }
-                    ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"Adding port%d address %s\n",portid,p_dpdk_dev_config->ip_addr_str);
-                    add_dev_addr(dpdk_devices[portid],sub_if_idx - portid,p_dpdk_dev_config->ip_addr_str,p_dpdk_dev_config->ip_mask_str);
-                    sub_if_idx++;
-                }
-		portid++;
-	}
-skip_loopback:	
 	RTE_LCORE_FOREACH(cpu) {
-	if(rte_lcore_is_enabled(cpu)) {
-		if(!afinity_reset) {
-			CPU_ZERO(&cpuset);
-//			memset(&cpuset,0,sizeof(cpuset));
-//			unsigned char *p = (unsigned char *)&cpuset;
-			CPU_SET(cpu,&cpuset);
-//			*p = cpu;
-			if(!rte_thread_set_affinity(&cpuset)) {
-				afinity_reset = 1;
-			} else {
-				ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot set thread affinity for %d %s %d\n",cpu,__FILE__,__LINE__);
-			//	rte_eal_remote_launch(print_stats, NULL, cpu+1);
-				break;
+		if(rte_lcore_is_enabled(cpu)) {
+			if(rte_lcore_id() != cpu) {
+				rte_eal_remote_launch(ipaugenblick_main_loop, NULL, cpu);
 			}
-		} else {
-			rte_eal_remote_launch(print_stats, NULL, cpu);
-			break;
 		}
 	}
-    }	
-    return 0;
+	print_stats(NULL);	
+	return 0;
 }
 

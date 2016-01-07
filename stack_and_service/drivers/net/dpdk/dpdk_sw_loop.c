@@ -224,6 +224,6 @@ void * init_dpdk_sw_loop(int portid)
 		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"Cannot register netdev %s %d\n",__FILE__,__LINE__);
 		return NULL;
 	}
-	init_net.loopback_dev = netdev;
+	init_net[rte_lcore_id()].loopback_dev = netdev;
 	return netdev;
 }

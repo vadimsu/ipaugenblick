@@ -19,7 +19,7 @@
 //#include <linux/user_namespace.h>
 #include <specific_includes/net/net_namespace.h>
 #include <specific_includes/net/netns/generic.h>
-
+#include <rte_lcore.h>
 /*
  *	Our network namespace constructor/destructor lists
  */
@@ -31,9 +31,7 @@ static struct list_head *first_device = &pernet_list;
 LINUX_LIST_HEAD(net_namespace_list);
 EXPORT_SYMBOL_GPL(net_namespace_list);
 
-struct net init_net = {
-	.dev_base_head = LINUX_LIST_HEAD_INIT(init_net.dev_base_head),
-};
+struct net init_net[MAXCPU]
 EXPORT_SYMBOL(init_net);
 
 #define INITIAL_NET_GEN_PTRS	13 /* +1 for len +2 for rcu_head */
@@ -403,6 +401,9 @@ int __init net_ns_init(void)
 {
 	struct net_generic *ng;
 
+//	init_net[rte_lcore_id()].dev_base_head = LINUX_LIST_HEAD_INIT(init_net[rte_lcore_id()].dev_base_head);
+	LINUX_INIT_LIST_HEAD(&init_net[rte_lcore_id()].dev_base_head);
+
 #ifdef CONFIG_NET_NS
 	net_cachep = kmem_cache_create("net_namespace", sizeof(struct net),
 					SMP_CACHE_BYTES,
@@ -418,14 +419,14 @@ int __init net_ns_init(void)
 	if (!ng)
 		panic("Could not allocate generic netns");
 
-	rcu_assign_pointer(init_net.gen, ng);
+	rcu_assign_pointer(init_net[rte_lcore_id()].gen, ng);
 
 	mutex_lock(&net_mutex);
-	if (setup_net(&init_net, /*&init_user_ns*/NULL))
+	if (setup_net(&init_net[rte_lcore_id()], /*&init_user_ns*/NULL))
 		panic("Could not setup the initial network namespace");
 
 	rtnl_lock();
-	list_add_tail(&init_net.list, &net_namespace_list);
+	list_add_tail(&init_net[rte_lcore_id()].list, &net_namespace_list);
 	rtnl_unlock();
 
 	mutex_unlock(&net_mutex);
@@ -481,13 +482,13 @@ static void __unregister_pernet_operations(struct pernet_operations *ops)
 static int __register_pernet_operations(struct list_head *list,
 					struct pernet_operations *ops)
 {
-	return ops_init(ops, &init_net);
+	return ops_init(ops, &init_net[rte_lcore_id()]);
 }
 
 static void __unregister_pernet_operations(struct pernet_operations *ops)
 {
 	LINUX_LIST_HEAD(net_exit_list);
-	list_add(&init_net.exit_list, &net_exit_list);
+	list_add(&init_net[rte_lcore_id()].exit_list, &net_exit_list);
 	ops_exit_list(ops, &net_exit_list);
 	ops_free_list(ops, &net_exit_list);
 }

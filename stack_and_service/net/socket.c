@@ -386,7 +386,7 @@ out_release:
 EXPORT_SYMBOL(__sock_create);
 int sock_create_kern(int family, int type, int protocol, struct socket **res)
 {
-	return __sock_create(&init_net, family, type, protocol, res, 1);
+	return __sock_create(&init_net[rte_lcore_id()], family, type, protocol, res, 1);
 }
 EXPORT_SYMBOL(sock_create_kern);
 

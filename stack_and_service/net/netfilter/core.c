@@ -289,7 +289,7 @@ static int __net_init netfilter_net_init(struct net *net)
 	net->nf.proc_netfilter = proc_net_mkdir(net, "netfilter",
 						net->proc_net);
 	if (!net->nf.proc_netfilter) {
-		if (!net_eq(net, &init_net))
+		if (!net_eq(net, &init_net[rte_lcore_id()]))
 			pr_err("cannot create netfilter proc entry");
 
 		return -ENOMEM;

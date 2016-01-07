@@ -2238,7 +2238,7 @@ static __net_init int devinet_init_net(struct net *net)
 	all = &ipv4_devconf;
 	dflt = &ipv4_devconf_dflt;
 
-	if (!net_eq(net, &init_net)) {
+	if (!net_eq(net, &init_net[rte_lcore_id()])) {
 		all = kmemdup(all, sizeof(ipv4_devconf), GFP_KERNEL);
 		if (all == NULL)
 			goto err_alloc_all;

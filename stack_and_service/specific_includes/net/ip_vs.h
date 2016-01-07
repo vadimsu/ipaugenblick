@@ -29,7 +29,7 @@
 #include <net/netfilter/nf_conntrack.h>
 #endif
 #include <net/net_namespace.h>		/* Netw namespace */
-
+#include <rte_lcore.h>
 /*
  * Generic access of ipvs struct
  */
@@ -65,7 +65,7 @@ static inline struct net *skb_net(const struct sk_buff *skb)
 	return dev_net(skb->dev ? : skb_dst(skb)->dev);
 #endif
 #else
-	return &init_net;
+	return &init_net[rte_lcore_id()];
 #endif
 }
 
@@ -87,7 +87,7 @@ static inline struct net *skb_sknet(const struct sk_buff *skb)
 	return sock_net(skb->sk);
 #endif
 #else
-	return &init_net;
+	return &init_net[rte_lcore_id()];
 #endif
 }
 /*
@@ -99,7 +99,7 @@ static inline struct net *seq_file_single_net(struct seq_file *seq)
 #ifdef CONFIG_NET_NS
 	return (struct net *)seq->private;
 #else
-	return &init_net;
+	return &init_net[rte_lcore_id()];
 #endif
 }
 
@@ -591,7 +591,7 @@ static inline struct net *ip_vs_conn_net(const struct ip_vs_conn *cp)
 #ifdef CONFIG_NET_NS
 	return cp->net;
 #else
-	return &init_net;
+	return &init_net[rte_lcore_id()];
 #endif
 }
 static inline void ip_vs_conn_net_set(struct ip_vs_conn *cp, struct net *net)

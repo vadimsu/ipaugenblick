@@ -50,6 +50,7 @@
 #include <specific_includes/linux/netdev_features.h>
 //#include <specific_includes/net/neighbour.h>
 #include <specific_includes/uapi/linux/netdevice.h>
+#include <rte_lcore.h>
 
 struct netpoll_info;
 struct device;
@@ -1804,7 +1805,7 @@ int call_netdevice_notifiers(unsigned long val, struct net_device *dev);
 #define for_each_netdev_continue_rcu(net, d)		\
 	list_for_each_entry_continue_rcu(d, &(net)->dev_base_head, dev_list)
 #define for_each_netdev_in_bond_rcu(bond, slave)	\
-		for_each_netdev_rcu(&init_net, slave)	\
+		for_each_netdev_rcu(&init_net[rte_lcore_id()], slave)	\
 			if (netdev_master_upper_dev_get_rcu(slave) == bond)
 #define net_device_entry(lh)	list_entry(lh, struct net_device, dev_list)
 

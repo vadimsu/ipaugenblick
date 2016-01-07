@@ -180,13 +180,13 @@ static const struct inet_diag_handler udp_diag_handler = {
 static void udplite_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
 		struct inet_diag_req_v2 *r, struct nlattr *bc)
 {
-	udp_dump(&udplite_table, skb, cb, r, bc);
+	udp_dump(&udplite_table[rte_lcore_id()], skb, cb, r, bc);
 }
 
 static int udplite_diag_dump_one(struct sk_buff *in_skb, const struct nlmsghdr *nlh,
 		struct inet_diag_req_v2 *req)
 {
-	return udp_dump_one(&udplite_table, in_skb, nlh, req);
+	return udp_dump_one(&udplite_table[rte_lcore_id()], in_skb, nlh, req);
 }
 
 static const struct inet_diag_handler udplite_diag_handler = {

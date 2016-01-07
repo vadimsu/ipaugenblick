@@ -1545,7 +1545,7 @@ static void neigh_table_init_no_netlink(struct neigh_table *tbl)
 	unsigned long now = jiffies;
 	unsigned long phsize;
 
-	write_pnet(&tbl->parms.net, &init_net);
+	write_pnet(&tbl->parms.net, &init_net[rte_lcore_id()]);
 	atomic_set(&tbl->parms.refcnt, 1);
 	tbl->parms.reachable_time =
 			  neigh_rand_reach_time(NEIGH_VAR(&tbl->parms, BASE_REACHABLE_TIME));
@@ -1555,7 +1555,7 @@ static void neigh_table_init_no_netlink(struct neigh_table *tbl)
 		panic("cannot create neighbour cache statistics");
 
 #ifdef CONFIG_PROC_FS
-	if (!proc_create_data(tbl->id, 0, init_net.proc_net_stat,
+	if (!proc_create_data(tbl->id, 0, init_net[rte_lcore_id()].proc_net_stat,
 			      &neigh_stat_seq_fops, tbl))
 		panic("cannot create neighbour proc dir entry");
 #endif
@@ -1634,7 +1634,7 @@ int neigh_table_clear(struct neigh_table *tbl)
 	kfree(tbl->phash_buckets);
 	tbl->phash_buckets = NULL;
 
-	remove_proc_entry(tbl->id, init_net.proc_net_stat);
+	remove_proc_entry(tbl->id, init_net[rte_lcore_id()].proc_net_stat);
 
 	free_percpu(tbl->stats);
 	tbl->stats = NULL;

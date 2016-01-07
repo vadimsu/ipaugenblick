@@ -74,7 +74,7 @@ int nf_log_register(u_int8_t pf, struct nf_logger *logger)
 {
 	int i;
 
-	if (pf >= ARRAY_SIZE(init_net.nf.nf_loggers))
+	if (pf >= ARRAY_SIZE(init_net[rte_lcore_id()].nf.nf_loggers))
 		return -EINVAL;
 
 	for (i = 0; i < ARRAY_SIZE(logger->list); i++)
@@ -300,7 +300,7 @@ static int netfilter_log_sysctl_init(struct net *net)
 	struct ctl_table *table;
 
 	table = nf_log_sysctl_table;
-	if (!net_eq(net, &init_net)) {
+	if (!net_eq(net, &init_net[rte_lcore_id()])) {
 		table = kmemdup(nf_log_sysctl_table,
 				 sizeof(nf_log_sysctl_table),
 				 GFP_KERNEL);
@@ -332,7 +332,7 @@ static int netfilter_log_sysctl_init(struct net *net)
 	return 0;
 
 err_reg:
-	if (!net_eq(net, &init_net))
+	if (!net_eq(net, &init_net[rte_lcore_id()]))
 		kfree(table);
 err_alloc:
 	return -ENOMEM;
@@ -344,7 +344,7 @@ static void netfilter_log_sysctl_exit(struct net *net)
 
 	table = net->nf.nf_log_dir_header->ctl_table_arg;
 	unregister_net_sysctl_table(net->nf.nf_log_dir_header);
-	if (!net_eq(net, &init_net))
+	if (!net_eq(net, &init_net[rte_lcore_id()]))
 		kfree(table);
 }
 #else

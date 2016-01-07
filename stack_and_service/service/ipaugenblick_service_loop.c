@@ -287,7 +287,7 @@ static inline void process_commands()
 	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_genmask;
 	   p_sockaddr->sin_family = AF_INET;
            p_sockaddr->sin_addr.s_addr = cmd->u.route.dest_mask;
-	   if(ip_rt_ioctl(&init_net,SIOCADDRT,&rtentry)) {
+	   if(ip_rt_ioctl(&init_net[rte_lcore_id()],SIOCADDRT,&rtentry)) {
 		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"CANNOT ADD ROUTE ENTRY %x %x %x\n",
 			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
@@ -311,7 +311,7 @@ static inline void process_commands()
 	   p_sockaddr = (struct sockaddr_in *)&rtentry.rt_genmask;
 	   p_sockaddr->sin_family = AF_INET;
            p_sockaddr->sin_addr.s_addr = cmd->u.route.dest_mask;
-	   if(ip_rt_ioctl(&init_net,SIOCDELRT,&rtentry)) {
+	   if(ip_rt_ioctl(&init_net[rte_lcore_id()],SIOCDELRT,&rtentry)) {
 		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"CANNOT DELETE ROUTE ENTRY %x %x %x\n",
 			((struct sockaddr_in *)&rtentry.rt_dst)->sin_addr.s_addr,
 			((struct sockaddr_in *)&rtentry.rt_gateway)->sin_addr.s_addr,
@@ -366,7 +366,9 @@ static inline void process_commands()
     ipaugenblick_free_command_buf(cmd);
 }
 
-void ipaugenblick_main_loop()
+void configure_netdevice_and_addresses(void);
+
+void ipaugenblick_main_loop(__attribute__((unused)) void *dummy)
 {
     struct rte_mbuf *mbuf;
     uint8_t ports_to_poll[1] = { 0 };
@@ -375,35 +377,43 @@ void ipaugenblick_main_loop()
                                  100 /*timer_poll_interval*/,
                                  drv_poll_interval/(10*MAX_PKT_BURST),
                                 drv_poll_interval/(60*MAX_PKT_BURST));
-    
-    ipaugenblick_service_api_init(COMMAND_POOL_SIZE,DATA_RINGS_SIZE,DATA_RINGS_SIZE);
-    TAILQ_INIT(&buffers_available_notification_socket_list_head);
-    TAILQ_INIT(&ipaugenblick_clients_list_head);
-    init_systick(rte_lcore_id());
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"IPAugenblick service initialized\n");
-    while(1) {
-        process_commands();
-	app_glue_periodic(1,ports_to_poll,1);
-        while(!TAILQ_EMPTY(&buffers_available_notification_socket_list_head)) {
-            if(get_buffer_count() > 0) {
-                struct socket *sock = TAILQ_FIRST(&buffers_available_notification_socket_list_head);
-                socket_satelite_data_t *socket_data = get_user_data(sock);
-		if(socket_data->socket->type == SOCK_DGRAM)
-		   	user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_data->ringset_idx].tx_space,sk_stream_wspace(socket_data->socket->sk));
+
+	net_ns_init();
+	netfilter_init();
+	net_dev_init();
+	socket_pool_init();	
+	skb_init();
+	inet_init();
+	app_glue_init();	
+	rte_timer_subsystem_init();
+	configure_netdevice_and_addresses();
+
+	ipaugenblick_service_api_init(COMMAND_POOL_SIZE,DATA_RINGS_SIZE,DATA_RINGS_SIZE);
+	TAILQ_INIT(&buffers_available_notification_socket_list_head);
+	TAILQ_INIT(&ipaugenblick_clients_list_head);
+	init_systick(rte_lcore_id());
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"IPAugenblick service initialized\n");
+	while(1) {
+		process_commands();
+		app_glue_periodic(1,ports_to_poll,1);
+		while(!TAILQ_EMPTY(&buffers_available_notification_socket_list_head)) {
+			if(get_buffer_count() > 0) {
+				struct socket *sock = TAILQ_FIRST(&buffers_available_notification_socket_list_head);
+				socket_satelite_data_t *socket_data = get_user_data(sock);
+				if(socket_data->socket->type == SOCK_DGRAM)
+					user_set_socket_tx_space(&g_ipaugenblick_sockets[socket_data->ringset_idx].tx_space,sk_stream_wspace(socket_data->socket->sk));
 		//printf("%s %d %d %d %d\n",__FILE__,__LINE__,socket_data->ringset_idx,g_ipaugenblick_sockets[socket_data->ringset_idx].tx_space,sk_stream_wspace(socket_data->socket->sk));
-                if(!ipaugenblick_mark_writable(socket_data)) { 
-                    sock->buffers_available_notification_queue_present = 0;
-                    TAILQ_REMOVE(&buffers_available_notification_socket_list_head,sock,buffers_available_notification_queue_entry); 
-                }
-                else {
-                    break;
-                }
-            }
-            else {
-                break;
-            }
-        }
-    }
+					if(!ipaugenblick_mark_writable(socket_data)) { 
+						sock->buffers_available_notification_queue_present = 0;
+						TAILQ_REMOVE(&buffers_available_notification_socket_list_head,sock,buffers_available_notification_queue_entry); 
+					} else {
+						break;
+					}
+			} else {
+				break;
+			}
+		}
+	}
 }
 /*this is called in non-data-path thread */
 void print_user_stats()

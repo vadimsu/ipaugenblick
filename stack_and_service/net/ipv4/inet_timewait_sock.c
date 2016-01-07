@@ -255,7 +255,7 @@ rescan:
 
 	twdr->tw_count -= killed;
 #ifndef CONFIG_NET_NS
-	NET_ADD_STATS_BH(&init_net, LINUX_MIB_TIMEWAITED, killed);
+	NET_ADD_STATS_BH(&init_net[rte_lcore_id()], LINUX_MIB_TIMEWAITED, killed);
 #endif
 	return ret;
 }
@@ -472,7 +472,7 @@ out:
 	if ((twdr->tw_count -= killed) == 0)
 		del_timer(&twdr->tw_timer);
 #ifndef CONFIG_NET_NS
-	NET_ADD_STATS_BH(&init_net, LINUX_MIB_TIMEWAITKILLED, killed);
+	NET_ADD_STATS_BH(&init_net[rte_lcore_id()], LINUX_MIB_TIMEWAITKILLED, killed);
 #endif
 	spin_unlock(&twdr->death_lock);
 }
