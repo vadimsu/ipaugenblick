@@ -14,9 +14,11 @@
 uint64_t transmitted = 0;
 uint64_t tx_dropped = 0;
 
+uint8_t get_queue_idx(void);
+
 void dpdk_dev_enqueue_for_tx(int port_num,struct rte_mbuf *m)
 {
-	unsigned ret = rte_eth_tx_burst(port_num, (uint16_t) /*queue_id*/0, &m, (uint16_t) 1);
+	unsigned ret = rte_eth_tx_burst(port_num, (uint16_t) get_queue_idx(), &m, (uint16_t) 1);
 	transmitted += ret;
 	if (unlikely(ret < 1)) {
 		tx_dropped ++;

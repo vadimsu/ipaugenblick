@@ -14,12 +14,13 @@
 #include <rte_ethdev.h>
 
 uint64_t received = 0;
+uint8_t get_queue_idx(void);
 
 int dpdk_dev_get_received(int port_num,struct rte_mbuf **tbl,int tbl_size)
 {
 	unsigned nb_rx = 0;
 
-	nb_rx = rte_eth_rx_burst((uint8_t)port_num, 0,tbl,tbl_size);
+	nb_rx = rte_eth_rx_burst((uint8_t)port_num, get_queue_idx(), tbl,tbl_size);
 	received += nb_rx;
-    return nb_rx;
+	return nb_rx;
 }

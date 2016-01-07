@@ -55,8 +55,6 @@
  */
 static uint16_t nb_rxd = RTE_RX_DESC_DEFAULT;
 static uint16_t nb_txd = RTE_TX_DESC_DEFAULT;
-/* list of enabled ports */
-static uint32_t dst_ports[RTE_MAX_ETHPORTS];
 /* mask of enabled ports */
 static uint32_t enabled_port_mask = 0;
 static unsigned int rx_queue_per_lcore = 1;
@@ -463,6 +461,8 @@ static dpdk_dev_config_t *get_dpdk_config_entry(int portnum)
 }
 extern void ipaugenblick_main_loop(__attribute__((unused)) void *dummy);
 static uint8_t nb_ports = 0;
+static uint8_t queue_pairs = 0;
+static uint8_t core_2_queue_idx[MAXCPU];
 static struct rte_eth_dev_info dev_info[RTE_MAX_ETHPORTS];
 
 void configure_netdevice_and_addresses(void)
@@ -519,6 +519,64 @@ void configure_netdevice_and_addresses(void)
 		portid++;
 	}
 }
+
+uint8_t get_queue_idx(void)
+{
+	return core_2_queue_idx[rte_lcore_id()];
+}
+
+static void adjust_queue_configuration()
+{
+	unsigned cpu;
+
+	queue_pairs = 0;
+	RTE_LCORE_FOREACH(cpu) {
+		if(rte_lcore_is_enabled(cpu)) {
+			if(rte_lcore_id() != cpu) {
+				core_2_queue_idx[cpu] = queue_pairs;
+				queue_pairs++;
+			}
+		}
+	}
+}
+
+static void configure_ports_queues(uint8_t portid)
+{
+	int ret;
+	uint16_t queue_id;
+
+	ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"Port#%d queue pairs %d\n", portid, queue_pairs);
+
+	ret = rte_eth_dev_configure(portid, queue_pairs, queue_pairs, &port_conf);
+	if (ret < 0)
+		rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%u\n",
+				ret, (unsigned) portid);
+	fflush(stdout);
+	if (!dev_info[portid].tx_offload_capa) {
+		nb_rxd = nb_txd = 256;
+		tx_conf.txq_flags = ETH_TXQ_FLAGS_NOOFFLOADS;
+	} else {
+		nb_rxd = nb_txd = 4096;
+		tx_conf.txq_flags = 0;
+	}
+	for(queue_id = 0; queue_id < queue_pairs; queue_id++) {
+		ret = rte_eth_rx_queue_setup(portid, queue_id, nb_rxd,
+				rte_eth_dev_socket_id(portid), &rx_conf,
+				get_direct_pool(queue_id));
+		if (ret < 0)
+			rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup:err=%d, port=%u\n",
+					ret, (unsigned) portid);
+	}
+	/* init one TX queue on each port */
+	fflush(stdout);
+	for(queue_id = 0; queue_id < queue_pairs; queue_id++) {
+		ret = rte_eth_tx_queue_setup(portid, queue_id, nb_txd,
+				rte_eth_dev_socket_id(portid), &tx_conf);
+		if (ret < 0)
+			rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup:err=%d, port=%u\n",
+					ret, (unsigned) portid);
+	}
+}
 /*
  * This function must be called prior any other in this package.
  * It initializes all the DPDK libs, reads the configuration, initializes the stack's
@@ -528,18 +586,9 @@ void configure_netdevice_and_addresses(void)
  */
 int dpdk_linux_tcpip_init(int argc,char **argv)
 {
-	int ret,sub_if_idx = 0;	
-	uint8_t portid, last_port;
-    uint16_t queue_id;
-	struct lcore_conf *conf;
-	unsigned nb_ports_in_mask = 0;
-	uint8_t nb_ports_available;
-	unsigned lcore_id, core_count;
+	int ret;
+	uint8_t portid;
 	unsigned cpu;
-	unsigned afinity_reset = 0;
-	rte_cpuset_t cpuset;
-
-	struct ether_addr mac_addr;	
 
 	ipaugenblick_log_init(0);
 //	if(daemon(1,0)) {
@@ -583,7 +632,6 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 
 	if (nb_ports > RTE_MAX_ETHPORTS)
 		nb_ports = RTE_MAX_ETHPORTS;
-	core_count = rte_lcore_count();	
 	if (nb_ports == 0)
 		goto loopback_only;
 	for (portid = 0; portid < nb_ports; portid++) {
@@ -591,67 +639,23 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		if ((enabled_port_mask & (1 << portid)) == 0)
 			continue;
 
-		if (nb_ports_in_mask % 2) {
-			dst_ports[portid] = last_port;
-			dst_ports[last_port] = portid;
-		}
-		else
-			last_port = portid;
-
-		nb_ports_in_mask++;
-
 		rte_eth_dev_info_get(portid, &dev_info[portid]);
 	}      
 	
 	ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"MASTER LCORE %d\n",rte_get_master_lcore());
 
-
-        nb_ports_available = nb_ports;
-
+	adjust_queue_configuration();
 	/* Initialise each port */
 	for (portid = 0; portid < nb_ports; portid++) {
 		/* skip ports that are not enabled */
 		if ((enabled_port_mask & (1 << portid)) == 0) {
 			ipaugenblick_log(IPAUGENBLICK_LOG_WARNING,"Skipping disabled port %u\n", (unsigned) portid);
-			nb_ports_available--;
 			continue;
 		}
 		/* init port */
 		ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"Initializing port %u... ", (unsigned) portid);
 		fflush(stdout);
-		ret = rte_eth_dev_configure(portid, RX_QUEUE_PER_PORT, TX_QUEUE_PER_PORT, &port_conf);
-		if (ret < 0)
-			rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%u\n",
-					ret, (unsigned) portid);
-
-//                retrieve_eth_addr_for_port(portid);
-
-		/* init one RX queue */
-		fflush(stdout);
-		if (!dev_info[portid].tx_offload_capa) {
-			nb_rxd = nb_txd = 256;
-			tx_conf.txq_flags = ETH_TXQ_FLAGS_NOOFFLOADS;
-		} else {
-			nb_rxd = nb_txd = 4096;
-			tx_conf.txq_flags = 0;
-		}
-        	for(queue_id = 0;queue_id < RX_QUEUE_PER_PORT;queue_id++) { 
-		    ret = rte_eth_rx_queue_setup(portid, queue_id, nb_rxd,
-			   		rte_eth_dev_socket_id(portid), &rx_conf,
-					get_direct_pool(queue_id));
-			if (ret < 0)
-				rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup:err=%d, port=%u\n",
-						ret, (unsigned) portid);
-		}
-		/* init one TX queue on each port */
-		fflush(stdout);
-		for(queue_id = 0;queue_id < TX_QUEUE_PER_PORT;queue_id++) {
-			ret = rte_eth_tx_queue_setup(portid, queue_id, nb_txd,
-					rte_eth_dev_socket_id(portid), &tx_conf);
-			if (ret < 0)
-				rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup:err=%d, port=%u\n",
-						ret, (unsigned) portid);
-		}
+		configure_ports_queues(portid);
 		/* Start device */
 		ret = rte_eth_dev_start(portid);
 		if (ret < 0)
