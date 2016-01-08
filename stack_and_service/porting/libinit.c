@@ -247,7 +247,7 @@ DUMP(argc);
 
 static struct rte_mempool *mbufs_mempool = NULL;
 
-extern unsigned long tcp_memory_allocated;
+extern unsigned long tcp_memory_allocated[MAXCPU];
 extern uint64_t sk_stream_alloc_skb_failed;
 extern uint64_t write_sockets_queue_len;
 extern uint64_t read_sockets_queue_len;
@@ -261,12 +261,19 @@ static int print_stats(__attribute__((unused)) void *dummy)
 {
 	while(1) {
 #if 1
+		unsigned cpu;
 		app_glue_print_stats();
 		show_mib_stats();
 		dpdk_dev_print_stats();
 		print_user_stats();
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"sk_stream_alloc_skb_failed %"PRIu64"\n",sk_stream_alloc_skb_failed);
-		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"tcp_memory_allocated=%"PRIu64"\n",tcp_memory_allocated);
+		RTE_LCORE_FOREACH(cpu) {
+			if(rte_lcore_is_enabled(cpu)) {
+				if(rte_lcore_id() != cpu) {
+					ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"cpu#%d tcp_memory_allocated=%"PRIu64"\n",cpu,tcp_memory_allocated[cpu]);
+				}
+			}
+		}
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"jiffies %"PRIu64"\n",jiffies);
 		dump_header_cache();
 		dump_head_cache();
@@ -670,15 +677,25 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	rte_set_log_type(RTE_LOGTYPE_PMD,1);
 	rte_set_log_level(RTE_LOG_DEBUG);	
 loopback_only:
+	printf("MASTER CORE %d\n",rte_lcore_id());
+//	ipaugenblick_main_loop(NULL);
 	RTE_LCORE_FOREACH(cpu) {
 		if(rte_lcore_is_enabled(cpu)) {
+#if 1
 			if(rte_lcore_id() != cpu) {
 				rte_eal_remote_launch(ipaugenblick_main_loop, NULL, cpu);
 			}
+#else
+			if(rte_lcore_id() == cpu) {
+				rte_eal_remote_launch(print_stats, NULL, cpu);
+			}
+#endif
 		}
 	}
 	sleep(10);
-	print_stats(NULL);	
+#if 1
+	print_stats(NULL);
+#endif
 	return 0;
 }
 

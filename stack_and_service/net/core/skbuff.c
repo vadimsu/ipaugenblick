@@ -390,7 +390,7 @@ struct netdev_alloc_cache {
 	 */
 	unsigned int		pagecnt_bias;
 };
-static DEFINE_PER_CPU(struct netdev_alloc_cache, netdev_alloc_cache);
+static struct netdev_alloc_cache  netdev_alloc_cache[MAXCPU];
 
 static void *__netdev_alloc_frag(unsigned int fragsz, gfp_t gfp_mask)
 {

@@ -1,7 +1,7 @@
 #ifndef __NET_FRAG_H__
 #define __NET_FRAG_H__
 
-#include <specific_includes/linux/percpu_counter.h>
+//#include <specific_includes/linux/percpu_counter.h>
 #include <specific_includes/linux/ktime.h>
 
 struct netns_frags {

@@ -25,7 +25,7 @@
 /*#include <linux/bug.h>
 #include <linux/slab.h>
 #include <linux/cache.h>*/
-#include <specific_includes/linux/percpu.h>
+//#include <specific_includes/linux/percpu.h>
 #include <specific_includes/linux/skbuff.h>
 //#include <linux/dmaengine.h>
 #include <specific_includes/linux/crypto.h>
@@ -49,7 +49,7 @@
 
 extern struct inet_hashinfo tcp_hashinfo[MAXCPU];
 
-extern struct percpu_counter tcp_orphan_count;
+extern struct percpu_counter tcp_orphan_count[MAXCPU];
 void tcp_time_wait(struct sock *sk, int state, int timeo);
 
 #define MAX_TCP_HEADER	(128 + MAX_HEADER)
@@ -284,9 +284,9 @@ extern unsigned int sysctl_tcp_notsent_lowat;
 extern int sysctl_tcp_min_tso_segs;
 extern int sysctl_tcp_autocorking;
 
-extern atomic_long_t tcp_memory_allocated;
-extern struct percpu_counter tcp_sockets_allocated;
-extern int tcp_memory_pressure;
+extern atomic_long_t tcp_memory_allocated[MAXCPU];
+extern struct percpu_counter tcp_sockets_allocated[MAXCPU];
+extern int tcp_memory_pressure[MAXCPU];
 
 /*
  * The next routines deal with comparing 32 bit unsigned ints

@@ -859,7 +859,6 @@ static int tcp_v4_rtx_synack(struct sock *sk, struct request_sock *req)
 	int res = tcp_v4_send_synack(sk, NULL, req, 0);
 
 	if (!res) {
-printf("%s %d\n",__FILE__,__LINE__);
 		TCP_INC_STATS_BH(sock_net(sk), TCP_MIB_RETRANSSEGS);
 	}
 	return res;
@@ -2750,10 +2749,10 @@ struct proto tcp_prot = {
 	.get_port		= inet_csk_get_port,
 	.enter_memory_pressure	= tcp_enter_memory_pressure,
 	.stream_memory_free	= tcp_stream_memory_free,
-	.sockets_allocated	= &tcp_sockets_allocated,
-	.orphan_count		= &tcp_orphan_count,
-	.memory_allocated	= &tcp_memory_allocated,
-	.memory_pressure	= &tcp_memory_pressure,
+	.sockets_allocated	= /*&tcp_sockets_allocated*/NULL,
+	.orphan_count		= /*&tcp_orphan_count*/NULL,
+	.memory_allocated	= /*&tcp_memory_allocated*/NULL,
+	.memory_pressure	= /*&tcp_memory_pressure*/NULL,
 	.sysctl_mem		= sysctl_tcp_mem,
 	.sysctl_wmem		= sysctl_tcp_wmem,
 	.sysctl_rmem		= sysctl_tcp_rmem,
@@ -2775,6 +2774,14 @@ struct proto tcp_prot = {
 #endif
 };
 EXPORT_SYMBOL(tcp_prot);
+
+void tcp_prot_multicore_fixup(void)
+{
+	tcp_prot.sockets_allocated = &tcp_sockets_allocated[rte_lcore_id()];
+	tcp_prot.orphan_count = &tcp_orphan_count[rte_lcore_id()];
+	tcp_prot.memory_allocated = &tcp_memory_allocated[rte_lcore_id()];
+	tcp_prot.memory_pressure = &tcp_memory_pressure[rte_lcore_id()];
+}
 
 static int __net_init tcp_sk_init(struct net *net)
 {

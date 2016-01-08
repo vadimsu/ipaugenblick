@@ -232,7 +232,7 @@ int net_ratelimit(void)
     return 1;
 }
 
-static DEFINE_PER_CPU(struct rnd_state, net_rand_state);
+static struct rnd_state net_rand_state[MAXCPU];
 
 /**
  *	prandom_u32_state - seeded pseudo-random number generator.
@@ -264,7 +264,7 @@ EXPORT_SYMBOL(prandom_u32_state);
 u32 prandom_u32(void)
 {
 	unsigned long r;
-	struct rnd_state *state = &get_cpu_var(net_rand_state);
+	struct rnd_state *state = &net_rand_state[rte_lcore_id()];
 	r = prandom_u32_state(state);
 	put_cpu_var(state);
 	return r;
@@ -653,10 +653,10 @@ void init_lcores()
 		}
 	}
 }
-void __percpu *__alloc_percpu(size_t size, size_t align)
+void *__alloc_percpu(int size, int align)
 {
 //	return pcpu_alloc(size, align, false);
-	return rte_zmalloc(NULL,size*nr_cpu_ids,align);
+	return rte_zmalloc(NULL,size,align);
 }
 void __init setup_per_cpu_areas(void)
 {

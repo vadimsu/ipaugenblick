@@ -263,10 +263,10 @@ static RAW_NOTIFIER_HEAD(netdev_chain);
  *	Device drivers call our routines to queue packets here. We empty the
  *	queue in the local softnet handler.
  */
-
+#if 0
 DEFINE_PER_CPU_ALIGNED(struct softnet_data, softnet_data);
 EXPORT_PER_CPU_SYMBOL(softnet_data);
-
+#endif
 #ifdef CONFIG_LOCKDEP
 /*
  * register_netdevice() inits txq->_xmit_lock and sets lockdep class
@@ -2153,11 +2153,11 @@ EXPORT_SYMBOL(netif_get_num_default_rss_queues);
 
 static inline void __netif_reschedule(struct Qdisc *q)
 {
-	struct softnet_data *sd;
+//	struct softnet_data *sd;
 	unsigned long flags;
 
 	local_irq_save(flags);
-	sd = &__get_cpu_var(softnet_data);
+//	sd = &__get_cpu_var(softnet_data);
 //	q->next_sched = NULL;
 //	*sd->output_queue_tailp = q;
 //	sd->output_queue_tailp = &q->next_sched;
@@ -2788,7 +2788,7 @@ static void skb_update_prio(struct sk_buff *skb)
 #define skb_update_prio(skb)
 #endif
 
-static DEFINE_PER_CPU(int, xmit_recursion);
+static int xmit_recursion[MAXCPU];
 #define RECURSION_LIMIT 10
 
 /**
@@ -2948,7 +2948,7 @@ int weight_p __read_mostly = 64;            /* old backlog weight */
 static inline void ____napi_schedule(struct softnet_data *sd,
 				     struct napi_struct *napi)
 {
-	list_add_tail(&napi->poll_list, &sd->poll_list);
+//	list_add_tail(&napi->poll_list, &sd->poll_list);
 //	__raise_softirq_irqoff(NET_RX_SOFTIRQ);
 }
 
@@ -3223,7 +3223,7 @@ static int enqueue_to_backlog(struct sk_buff *skb, int cpu,
 	struct softnet_data *sd;
 	unsigned long flags;
 	unsigned int qlen;
-
+#if 0
 	sd = &per_cpu(softnet_data, cpu);
 
 	local_irq_save(flags);
@@ -3257,6 +3257,10 @@ enqueue:
 
 	atomic_long_inc(&skb->dev->rx_dropped);
 	kfree_skb(skb);
+#else
+	printf("MUST NOT GET HERE %s %d\n",__FILE__,__LINE__);
+	exit(0);
+#endif
 	return NET_RX_DROP;
 }
 
@@ -4181,6 +4185,7 @@ static void net_rps_action_and_irq_enable(struct softnet_data *sd)
 
 static int process_backlog(struct napi_struct *napi, int quota)
 {
+#if 0
 	int work = 0;
 	struct softnet_data *sd = container_of(napi, struct softnet_data, backlog);
 
@@ -4234,6 +4239,11 @@ static int process_backlog(struct napi_struct *napi, int quota)
 	local_irq_enable();
 
 	return work;
+#else
+	printf("MUST NOT GET HERE %s %d\n",__FILE__,__LINE__);
+	exit(0);
+	return 0;
+#endif
 }
 
 /**
@@ -6707,7 +6717,7 @@ static int dev_cpu_callback(struct notifier_block *nfb,
 #if 0
 	if (action != CPU_DEAD && action != CPU_DEAD_FROZEN)
 		return NOTIFY_OK;
-#endif
+
 	local_irq_disable();
 	cpu = smp_processor_id();
 	sd = &per_cpu(softnet_data, cpu);
@@ -6746,7 +6756,7 @@ static int dev_cpu_callback(struct notifier_block *nfb,
 		netif_rx_internal(skb);
 		input_queue_head_incr(oldsd);
 	}
-
+#endif
 	return NOTIFY_OK;
 }
 
@@ -7060,7 +7070,7 @@ int __init net_dev_init(void)
 	/*
 	 *	Initialise the packet receive queues.
 	 */
-
+#if 0
 	for_each_possible_cpu(i) {
 		struct softnet_data *sd = &per_cpu(softnet_data, i);
 
@@ -7077,7 +7087,7 @@ int __init net_dev_init(void)
 		sd->backlog.poll = process_backlog;
 		sd->backlog.weight = weight_p;
 	}
-
+#endif
 	dev_boot_phase = 0;
 
 	/* The loopback device is special if any other network devices

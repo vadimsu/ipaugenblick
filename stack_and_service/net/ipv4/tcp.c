@@ -288,7 +288,7 @@ int sysctl_tcp_min_tso_segs __read_mostly = 2;
 
 int sysctl_tcp_autocorking __read_mostly = 0;
 
-struct percpu_counter tcp_orphan_count;
+struct percpu_counter tcp_orphan_count[MAXCPU];
 EXPORT_SYMBOL_GPL(tcp_orphan_count);
 
 long sysctl_tcp_mem[3] __read_mostly;
@@ -299,13 +299,13 @@ EXPORT_SYMBOL(sysctl_tcp_mem);
 EXPORT_SYMBOL(sysctl_tcp_rmem);
 EXPORT_SYMBOL(sysctl_tcp_wmem);
 
-atomic_long_t tcp_memory_allocated;	/* Current allocated memory. */
+atomic_long_t tcp_memory_allocated[MAXCPU];	/* Current allocated memory. */
 EXPORT_SYMBOL(tcp_memory_allocated);
 
 /*
  * Current number of TCP sockets.
  */
-struct percpu_counter tcp_sockets_allocated;
+struct percpu_counter tcp_sockets_allocated[MAXCPU];
 //EXPORT_SYMBOL(tcp_sockets_allocated);
 
 /*
@@ -323,14 +323,14 @@ struct tcp_splice_state {
  * All the __sk_mem_schedule() is of this nature: accounting
  * is strict, actions are advisory and have some latency.
  */
-int tcp_memory_pressure __read_mostly;
+int tcp_memory_pressure[MAXCPU] __read_mostly;
 EXPORT_SYMBOL(tcp_memory_pressure);
 
 void tcp_enter_memory_pressure(struct sock *sk)
 {
-	if (!tcp_memory_pressure) {
+	if (!tcp_memory_pressure[rte_lcore_id()]) {
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPMEMORYPRESSURES);
-		tcp_memory_pressure = 1;
+		tcp_memory_pressure[rte_lcore_id()] = 1;
 	}
 }
 EXPORT_SYMBOL(tcp_enter_memory_pressure);
@@ -2823,45 +2823,40 @@ EXPORT_SYMBOL(compat_tcp_getsockopt);
 #endif
 
 #ifdef CONFIG_TCP_MD5SIG
-static struct tcp_md5sig_pool __percpu *tcp_md5sig_pool __read_mostly;
+static struct tcp_md5sig_pool __percpu *tcp_md5sig_pool[MAXCPU];
 static DEFINE_MUTEX(tcp_md5sig_mutex);
 
 static void __tcp_free_md5sig_pool(struct tcp_md5sig_pool __percpu *pool)
 {
-	int cpu;
+	struct tcp_md5sig_pool *p = pool;
 
-	for_each_possible_cpu(cpu) {
-		struct tcp_md5sig_pool *p = per_cpu_ptr(pool, cpu);
-
-		if (p->md5_desc.tfm)
-			crypto_free_hash(p->md5_desc.tfm);
-	}
+	if (p->md5_desc.tfm)
+		crypto_free_hash(p->md5_desc.tfm);
 	free_percpu(pool);
 }
 
 static void __tcp_alloc_md5sig_pool(void)
 {
-	int cpu;
 	struct tcp_md5sig_pool __percpu *pool;
 
 	pool = alloc_percpu(struct tcp_md5sig_pool);
 	if (!pool)
 		return;
 
-	for_each_possible_cpu(cpu) {
+	{
 		struct crypto_hash *hash;
 
 		hash = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
 		if (IS_ERR_OR_NULL(hash))
 			goto out_free;
 
-		per_cpu_ptr(pool, cpu)->md5_desc.tfm = hash;
+		pool->md5_desc.tfm = hash;
 	}
 	/* before setting tcp_md5sig_pool, we must commit all writes
 	 * to memory. See ACCESS_ONCE() in tcp_get_md5sig_pool()
 	 */
 	smp_wmb();
-	tcp_md5sig_pool = pool;
+	tcp_md5sig_pool[rte_lcore_id()] = pool;
 	return;
 out_free:
 	__tcp_free_md5sig_pool(pool);
@@ -2869,15 +2864,15 @@ out_free:
 
 bool tcp_alloc_md5sig_pool(void)
 {
-	if (unlikely(!tcp_md5sig_pool)) {
+	if (unlikely(!tcp_md5sig_pool[rte_lcore_id()])) {
 		mutex_lock(&tcp_md5sig_mutex);
 
-		if (!tcp_md5sig_pool)
+		if (!tcp_md5sig_pool[rte_lcore_id()])
 			__tcp_alloc_md5sig_pool();
 
 		mutex_unlock(&tcp_md5sig_mutex);
 	}
-	return tcp_md5sig_pool != NULL;
+	return tcp_md5sig_pool[rte_lcore_id()] != NULL;
 }
 EXPORT_SYMBOL(tcp_alloc_md5sig_pool);
 
@@ -2894,9 +2889,9 @@ struct tcp_md5sig_pool *tcp_get_md5sig_pool(void)
 	struct tcp_md5sig_pool __percpu *p;
 
 	local_bh_disable();
-	p = ACCESS_ONCE(tcp_md5sig_pool);
+	p = ACCESS_ONCE(tcp_md5sig_pool[rte_lcore_id()]);
 	if (p)
-		return __this_cpu_ptr(p);
+		return p;
 
 	local_bh_enable();
 	return NULL;
@@ -3027,8 +3022,8 @@ void __init tcp_init(void)
 
 	BUILD_BUG_ON(sizeof(struct tcp_skb_cb) > sizeof(skb->cb));
 
-	percpu_counter_init(&tcp_sockets_allocated, 0);
-	percpu_counter_init(&tcp_orphan_count, 0);
+	percpu_counter_init(&tcp_sockets_allocated[rte_lcore_id()], 0);
+	percpu_counter_init(&tcp_orphan_count[rte_lcore_id()], 0);
 	sprintf(hash_name,"tcp_bind_bucket%d",rte_lcore_id());
 	tcp_hashinfo[rte_lcore_id()].bind_bucket_cachep =
 				kmem_cache_create(hash_name,
@@ -3094,7 +3089,7 @@ void __init tcp_init(void)
 	sysctl_tcp_rmem[2] = max(87380, max_rshare);
 
 	pr_info("Hash tables configured (established %u bind %u)\n",
-		tcp_hashinfo[0].ehash_mask + 1, tcp_hashinfo[0].bhash_size);
+		tcp_hashinfo[rte_lcore_id()].ehash_mask + 1, tcp_hashinfo[rte_lcore_id()].bhash_size);
 
 	tcp_metrics_init();
 

@@ -21,7 +21,7 @@
 //#include <linux/rcupdate.h>
 #include <specific_includes/net/fib_rules.h>
 #include <specific_includes/net/inetpeer.h>
-#include <specific_includes/linux/percpu.h>
+//#include <specific_includes/linux/percpu.h>
 
 struct fib_config {
 	u8			fc_dst_len;

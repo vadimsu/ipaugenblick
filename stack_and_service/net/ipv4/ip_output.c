@@ -1341,7 +1341,7 @@ static int ip_reply_glue_bits(void *dptr, char *to, int offset,
  *
  *	Use a fake percpu inet socket to avoid false sharing and contention.
  */
-static DEFINE_PER_CPU(struct inet_sock, unicast_sock);
+static struct inet_sock unicast_sock[MAXCPU];
 static void init_unicast_sock_percpu()
 {
     /* The same as original static initialization */
@@ -1391,7 +1391,7 @@ void ip_send_unicast_reply(struct net *net, struct sk_buff *skb, __be32 daddr,
 	if (IS_ERR(rt))
 		return;
 
-	inet = &get_cpu_var(unicast_sock);
+	inet = &unicast_sock[rte_lcore_id()];
 
 	inet->tos = arg->tos;
 	sk = &inet->sk;

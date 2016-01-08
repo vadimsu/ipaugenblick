@@ -19,7 +19,7 @@ net/core/sock.c net/core/skbuff.c \
 net/core/request_sock.c net/core/stream.c net/core/dummies.c net/core/datagram.c net/core/netevent.c \
 net/socket.c net/netfilter/core.c net/netfilter/nf_sockopt.c net/netfilter/nf_log.c net/netfilter/nf_queue.c \
 arch/x86/lib/csum-partial_64.c arch/x86/lib/csum-wrappers_64.c \
-lib/kasprintf.c lib/kstrtox.c lib/md5.c lib/percpu_counter.c lib/find_next_bit.c lib/bitmap.c lib/sha1.c \
+lib/kasprintf.c lib/kstrtox.c lib/md5.c lib/find_next_bit.c lib/bitmap.c lib/sha1.c \
 crypto/api.c \
 drivers/net/loopback.c kernel/notifier.c porting/mm_porting.c porting/timer_porting.c \
 porting/timing_porting.c porting/tasklet_workqueues_porting.c porting/app_glue.c \

@@ -33,7 +33,7 @@
 //#include <asm/cache.h>
 #include <specific_includes/asm/byteorder.h>
 
-#include <specific_includes/linux/percpu.h>
+//#include <specific_includes/linux/percpu.h>
 #include <specific_includes/linux/rculist.h>
 //#include <linux/dmaengine.h>
 #include <specific_includes/linux/workqueue.h>
@@ -1999,6 +1999,7 @@ extern int netdev_flow_limit_table_len;
 /*
  * Incoming packets are placed on per-cpu queues
  */
+#if 0
 struct softnet_data {
 	struct Qdisc		*output_queue;
 	struct Qdisc		**output_queue_tailp;
@@ -2048,7 +2049,7 @@ static inline void input_queue_tail_incr_save(struct softnet_data *sd,
 
 DECLARE_PER_CPU_ALIGNED(struct softnet_data, softnet_data);
 //extern struct softnet_data softnet_data[1];
-
+#endif
 void __netif_schedule(struct Qdisc *q);
 
 static inline void netif_schedule_queue(struct netdev_queue *txq)

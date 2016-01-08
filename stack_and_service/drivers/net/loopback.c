@@ -57,7 +57,7 @@
 #include <specific_includes/linux/if_arp.h>	/* For ARPHRD_ETHER */
 #include <specific_includes/linux/ip.h>
 #include <specific_includes/linux/tcp.h>
-#include <specific_includes/linux/percpu.h>
+//#include <specific_includes/linux/percpu.h>
 #include <specific_includes/net/net_namespace.h>
 //#include <linux/u64_stats_sync.h>
 
@@ -150,14 +150,13 @@ static struct rtnl_link_stats64 *loopback_get_stats64(struct net_device *dev,
 {
 	u64 bytes = 0;
 	u64 packets = 0;
-	int i;
 
-	for_each_possible_cpu(i) {
+	{
 		const struct pcpu_lstats *lb_stats;
 		u64 tbytes, tpackets;
 		unsigned int start;
 
-		lb_stats = per_cpu_ptr(dev->lstats, i);
+		lb_stats = dev->lstats;
 //		do {
 //			start = u64_stats_fetch_begin_bh(&lb_stats->syncp);
 			tbytes = lb_stats->bytes;
@@ -184,14 +183,13 @@ static const struct ethtool_ops loopback_ethtool_ops = {
 
 static int loopback_dev_init(struct net_device *dev)
 {
-	int i;
 	dev->lstats = alloc_percpu(struct pcpu_lstats);
 	if (!dev->lstats)
 		return -ENOMEM;
 
-	for_each_possible_cpu(i) {
+	{
 		struct pcpu_lstats *lb_stats;
-		lb_stats = per_cpu_ptr(dev->lstats, i);
+		lb_stats = dev->lstats;
 //		u64_stats_init(&lb_stats->syncp);
 	}
 	return 0;

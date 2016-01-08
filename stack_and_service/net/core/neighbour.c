@@ -42,7 +42,7 @@
 #include <specific_includes/linux/log2.h>
 #include <specific_includes/linux/inetdevice.h>
 //#include <net/addrconf.h>
-#include <specific_includes/linux/percpu.h>
+//#include <specific_includes/linux/percpu.h>
 #include <ipaugenblick_log.h>
 #include <rte_lcore.h>
 #define DEBUG
@@ -1895,15 +1895,14 @@ static int neightbl_fill_info(struct sk_buff *skb, struct neigh_table *tbl,
 	}
 
 	{
-		int cpu;
 		struct ndt_stats ndst;
 
 		memset(&ndst, 0, sizeof(ndst));
 
-		for_each_possible_cpu(cpu) {
+		{
 			struct neigh_statistics	*st;
 
-			st = per_cpu_ptr(tbl->stats, cpu);
+			st = tbl->stats;
 			ndst.ndts_allocs		+= st->allocs;
 			ndst.ndts_destroys		+= st->destroys;
 			ndst.ndts_hash_grows		+= st->hash_grows;
@@ -2688,32 +2687,15 @@ EXPORT_SYMBOL(neigh_seq_stop);
 static void *neigh_stat_seq_start(struct seq_file *seq, loff_t *pos)
 {
 	struct neigh_table *tbl = seq->private;
-	int cpu;
 
-	if (*pos == 0)
-		return SEQ_START_TOKEN;
-
-	for (cpu = *pos-1; cpu < nr_cpu_ids; ++cpu) {
-		if (!cpu_possible(cpu))
-			continue;
-		*pos = cpu+1;
-		return per_cpu_ptr(tbl->stats, cpu);
-	}
-	return NULL;
+	return tbl->stats;
 }
 
 static void *neigh_stat_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {
 	struct neigh_table *tbl = seq->private;
-	int cpu;
 
-	for (cpu = *pos; cpu < nr_cpu_ids; ++cpu) {
-		if (!cpu_possible(cpu))
-			continue;
-		*pos = cpu+1;
-		return per_cpu_ptr(tbl->stats, cpu);
-	}
-	return NULL;
+	return tbl->stats, cpu;
 }
 
 static void neigh_stat_seq_stop(struct seq_file *seq, void *v)

@@ -69,7 +69,7 @@
 #include <specific_includes/linux/types.h>
 #include <specific_includes/linux/bitops.h>
 #include <specific_includes/linux/slab.h>
-#include <specific_includes/linux/percpu.h>
+//#include <specific_includes/linux/percpu.h>
 //#include <linux/kernel.h>
 //#include <linux/mm.h>
 //#include <linux/string.h>
@@ -195,7 +195,7 @@ const __u8 ip_tos2prio[16] = {
 };
 EXPORT_SYMBOL(ip_tos2prio);
 
-static DEFINE_PER_CPU(struct rt_cache_stat, rt_cache_stat);
+static struct rt_cache_stat rt_cache_stat[MAXCPU];
 #define RT_CACHE_STAT_INC(field) __this_cpu_inc(rt_cache_stat.field)
 
 #ifdef CONFIG_PROC_FS
@@ -341,14 +341,14 @@ static const struct file_operations rt_cpu_seq_fops = {
 static int rt_acct_proc_show(struct seq_file *m, void *v)
 {
 	struct ip_rt_acct *dst, *src;
-	unsigned int i, j;
+	unsigned int j;
 
 	dst = kcalloc(256, sizeof(struct ip_rt_acct), GFP_KERNEL);
 	if (!dst)
 		return -ENOMEM;
 
-	for_each_possible_cpu(i) {
-		src = (struct ip_rt_acct *)per_cpu_ptr(ip_rt_acct, i);
+	{
+		src = (struct ip_rt_acct *)ip_rt_acct[rte_lcore_id()];
 		for (j = 0; j < 256; j++) {
 			dst[j].o_bytes   += src[j].o_bytes;
 			dst[j].o_packets += src[j].o_packets;
@@ -686,9 +686,9 @@ static void update_or_create_fnhe(struct fib_nh *nh, __be32 daddr, __be32 gw,
 		if (rt)
 			rt->dst.obsolete = DST_OBSOLETE_KILL;
 
-		for_each_possible_cpu(i) {
+		{
 			struct rtable __rcu **prt;
-			prt = per_cpu_ptr(nh->nh_pcpu_rth_output, i);
+			prt = nh->nh_pcpu_rth_output;
 			rt = rcu_dereference(*prt);
 			if (rt)
 				rt->dst.obsolete = DST_OBSOLETE_KILL;
@@ -1305,7 +1305,7 @@ static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 	if (rt_is_input_route(rt)) {
 		p = (struct rtable **)&nh->nh_rth_input;
 	} else {
-		p = (struct rtable **)__this_cpu_ptr(nh->nh_pcpu_rth_output);
+		p = (struct rtable **)&nh->nh_pcpu_rth_output;
 	}
 	orig = *p;
 
@@ -1936,7 +1936,7 @@ static struct rtable *__mkroute_output(const struct fib_result *res,
 				do_cache = false;
 				goto add;
 			}
-			prth = __this_cpu_ptr(nh->nh_pcpu_rth_output);
+			prth = nh->nh_pcpu_rth_output;
 		}
 		rth = rcu_dereference(*prth);
 		if (rt_cache_valid(rth)) {
@@ -2720,7 +2720,7 @@ static __net_initdata struct pernet_operations ipv4_inetpeer_ops = {
 };
 
 #ifdef CONFIG_IP_ROUTE_CLASSID
-struct ip_rt_acct __percpu *ip_rt_acct __read_mostly;
+struct ip_rt_acct __percpu *ip_rt_acct[MAXCPU] __read_mostly;
 #endif /* CONFIG_IP_ROUTE_CLASSID */
 
 int __init ip_rt_init(void)
@@ -2728,8 +2728,8 @@ int __init ip_rt_init(void)
 	int rc = 0;
 
 #ifdef CONFIG_IP_ROUTE_CLASSID
-	ip_rt_acct = __alloc_percpu(256 * sizeof(struct ip_rt_acct), __alignof__(struct ip_rt_acct));
-	if (!ip_rt_acct)
+	ip_rt_acct[rte_lcore_id()] = __alloc_percpu(256 * sizeof(struct ip_rt_acct), __alignof__(struct ip_rt_acct));
+	if (!ip_rt_acct[rte_lcore_id()])
 		panic("IP: failed to allocate ip_rt_acct\n");
 #endif
 

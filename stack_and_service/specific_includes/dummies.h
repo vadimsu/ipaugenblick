@@ -165,6 +165,7 @@ extern volatile unsigned long long jiffies;
 //typedef unsigned int u32;
 //#define MSEC_PER_SEC 1000
 //#define NSEC_PER_MSEC 1000000
+void __percpu *__alloc_percpu(int size, int align);
 #define read_unlock(a)
 #define read_lock(a)
 #define rcu_read_lock()
@@ -205,7 +206,39 @@ extern volatile unsigned long long jiffies;
 #define read_seqretry(a,b) 0
 #define remove_proc_entry(a,b)
 //#define call_netevent_notifiers(a,b)
-//#define alloc_percpu(a) malloc(a)
+#define alloc_percpu(a) (a *)rte_malloc(NULL, sizeof(a), CACHE_LINE_SIZE)
+struct percpu_counter {
+	unsigned long counter;
+};
+static inline percpu_counter_inc(struct percpu_counter *percpu_counter)
+{
+	percpu_counter->counter++;
+}
+static inline percpu_counter_dec(struct percpu_counter *percpu_counter)
+{
+	percpu_counter->counter--;
+}
+static inline percpu_counter_init(struct percpu_counter *percpu_counter, int val)
+{
+	percpu_counter->counter = val;
+}
+static inline long percpu_counter_sum_positive(struct percpu_counter *fbc)
+{
+	long ret = fbc->counter;
+	return ret < 0 ? 0 : ret;
+}
+static inline long percpu_counter_read_positive(struct percpu_counter *fbc)
+{
+	long ret = fbc->counter;
+
+	if (ret >= 0)
+		return ret;
+	return 0;
+}
+static inline long percpu_counter_read(struct percpu_counter *fbc)
+{
+	return fbc->counter;
+}
 /*static inline int copy_from_user(void *dst,void *src,int size)
 {
     memcpy(dst,src,size); 
@@ -273,8 +306,25 @@ static inline int copy_to_user(void *dst,void *src,int size)
 #define netdev_queue_update_kobjects(dev, real_num_tx_queues,txq) 0
 #define in_irq() 0
 #define irqs_disabled() 0
-//#define __this_cpu_inc(a)
-//#define __this_cpu_dec(a)
+#define __this_cpu_add(a, b) (a) += (b)
+#define this_cpu_add(a, b) __this_cpu_add(a, b)
+#define __this_cpu_inc(a)  this_cpu_add((a), 1)
+#define this_cpu_inc(a) __this_cpu_inc(a)
+#define __this_cpu_sub(a, b) (a) -= (b)
+#define this_cpu_sub(a, b) __this_cpu_sub(a, b)
+#define this_cpu_dec(a)  this_cpu_sub((a), 1)
+#define put_cpu_var(a)
+static inline void __percpu_counter_add(struct percpu_counter *fbc, long amount, int batch)
+{
+	long count;
+
+	count = fbc->counter + amount;
+	if (count >= batch || count <= -batch) {
+		__this_cpu_sub(fbc->counter, count - amount);
+	} else {
+		this_cpu_add(fbc->counter, amount);
+	}
+}
 #define __this_cpu_read(a) 0
 #define put_cpu()
 #define preempt_enable()

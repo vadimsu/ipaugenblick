@@ -694,7 +694,7 @@ struct tsq_tasklet {
 	struct tasklet_struct	tasklet;
 	struct list_head	head; /* queue of tcp sockets */
 };
-static DEFINE_PER_CPU(struct tsq_tasklet, tsq_tasklet);
+static struct tsq_tasklet tsq_tasklet[MAXCPU];
 
 static void tcp_tsq_handler(struct sock *sk)
 {
@@ -798,7 +798,7 @@ EXPORT_SYMBOL(tcp_release_cb);
 
 void __init tcp_tasklet_init(void)
 {
-	struct tsq_tasklet *tsq = per_cpu(tsq_tasklet, rte_lcore_id());
+	struct tsq_tasklet *tsq = &tsq_tasklet[rte_lcore_id()];
 
 	LINUX_INIT_LIST_HEAD(&tsq->head);
 	tasklet_init(&tsq->tasklet,
@@ -829,7 +829,7 @@ void tcp_wfree(struct sk_buff *skb)
 		/* queue this socket to tasklet queue */
 		local_irq_save(flags);
 		//tsq = __get_cpu_var(tsq_tasklet);
-		tsq = per_cpu(tsq_tasklet, rte_lcore_id());
+		tsq = &tsq_tasklet[rte_lcore_id()];
 		list_add(&tp->tsq_node, &tsq->head);
 		tasklet_schedule(&tsq->tasklet);
 		local_irq_restore(flags);
@@ -2439,7 +2439,6 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 
 	if (err == 0) {
 		/* Update global TCP statistics. */
-printf("%s %d\n",__FILE__,__LINE__);
 		TCP_INC_STATS(sock_net(sk), TCP_MIB_RETRANSSEGS);
 
 		tp->total_retrans++;

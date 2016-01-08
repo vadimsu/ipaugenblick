@@ -1485,12 +1485,10 @@ EXPORT_SYMBOL_GPL(inet_ctl_sock_create);
 unsigned long snmp_fold_field(void __percpu *mib[], int offt)
 {
 	unsigned long res = 0;
-	int i, j;
+	int j;
 
-	for_each_possible_cpu(i) {
-		for (j = 0; j < SNMP_ARRAY_SZ; j++)
-			res += *(((unsigned long *) per_cpu_ptr(mib[j], i)) + offt);
-	}
+	for (j = 0; j < SNMP_ARRAY_SZ; j++)
+		res += *((unsigned long *)(mib[j]) + offt);
 	return res;
 }
 EXPORT_SYMBOL_GPL(snmp_fold_field);
@@ -1500,15 +1498,14 @@ EXPORT_SYMBOL_GPL(snmp_fold_field);
 u64 snmp_fold_field64(void __percpu *mib[], int offt, size_t syncp_offset)
 {
 	u64 res = 0;
-	int cpu;
 
-	for_each_possible_cpu(cpu) {
+	{
 		void *bhptr;
 		struct u64_stats_sync *syncp;
 		u64 v;
 		unsigned int start;
 
-		bhptr = per_cpu_ptr(mib[0], cpu);
+		bhptr = mib[0];
 		syncp = (struct u64_stats_sync *)(bhptr + syncp_offset);
 		do {
 			start = u64_stats_fetch_begin_bh(syncp);
@@ -1585,16 +1582,15 @@ static __net_init int ipv4_mib_init_net(struct net *net)
 			  __alignof__(struct ipstats_mib)) < 0)
 		goto err_ip_mib;
 
-	for_each_possible_cpu(i) {
+	{
 		struct ipstats_mib *af_inet_stats;
-		af_inet_stats = per_cpu_ptr(net->mib.ip_statistics[0], i);
+		af_inet_stats = net->mib.ip_statistics[0];
 		//u64_stats_init(&af_inet_stats->syncp);
 #if SNMP_ARRAY_SZ == 2
-		af_inet_stats = per_cpu_ptr(net->mib.ip_statistics[1], i);
+		af_inet_stats = net->mib.ip_statistics[1];
 		//u64_stats_init(&af_inet_stats->syncp);
 #endif
 	}
-
 	if (snmp_mib_init((void __percpu **)net->mib.net_statistics,
 			  sizeof(struct linux_mib),
 			  __alignof__(struct linux_mib)) < 0)
@@ -1611,11 +1607,12 @@ static __net_init int ipv4_mib_init_net(struct net *net)
 			  sizeof(struct icmp_mib),
 			  __alignof__(struct icmp_mib)) < 0)
 		goto err_icmp_mib;
+
 	net->mib.icmpmsg_statistics = kzalloc(sizeof(struct icmpmsg_mib),
 					      GFP_KERNEL);
 	if (!net->mib.icmpmsg_statistics)
 		goto err_icmpmsg_mib;
-
+printf("%s %d %p %p %p\n",__FILE__,__LINE__,net->mib.tcp_statistics,net->mib.net_statistics,net->mib.ip_statistics);
 	tcp_mib_init(net);
 	return 0;
 
@@ -1700,7 +1697,7 @@ static struct packet_type ip_packet_type __read_mostly = {
 	.type = cpu_to_be16(ETH_P_IP),
 	.func = ip_rcv,
 };
-
+void tcp_prot_multicore_fixup(void);
 int __init inet_init(void)
 {
 	struct inet_protosw *q;
@@ -1708,6 +1705,7 @@ int __init inet_init(void)
 	int rc = -EINVAL;
 
 	BUILD_BUG_ON(sizeof(struct inet_skb_parm) > FIELD_SIZEOF(struct sk_buff, cb));
+	tcp_prot_multicore_fixup();
 
 	sysctl_local_reserved_ports = kzalloc(65536 / 8, GFP_KERNEL);
 	if (!sysctl_local_reserved_ports)

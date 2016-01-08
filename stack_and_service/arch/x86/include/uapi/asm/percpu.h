@@ -53,6 +53,7 @@
  * saves one instruction and avoids clobbering a temp register.
  */
 #define __this_cpu_ptr(ptr)				\
+ensure it is not compiled
 ({							\
 	unsigned long tcp_ptr__;			\
 	__verify_pcpu_ptr(ptr);				\
