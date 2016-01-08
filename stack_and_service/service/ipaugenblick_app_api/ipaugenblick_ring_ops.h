@@ -39,6 +39,14 @@ extern uint64_t ipaugenblick_stats_rx_dequeued_local;
 extern uint64_t ipaugenblick_stats_flush_local;
 extern uint64_t ipaugenblick_stats_flush;
 
+static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
+{
+    ipaugenblick_cmd_t *cmd;
+    if(rte_mempool_get(free_command_pool,(void **)&cmd))
+        return NULL;
+    return cmd;
+}
+
 static inline int ipaugenblick_enqueue_command_buf(ipaugenblick_cmd_t *cmd)
 {
     return (rte_ring_enqueue(command_ring,(void *)cmd) == -ENOBUFS);

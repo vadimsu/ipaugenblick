@@ -24,18 +24,18 @@ typedef struct
     pid_t apppid;
 } socket_satelite_data_t;
 
-extern struct rte_ring *command_ring;
-extern struct rte_ring *selectors_ring;
-extern struct rte_ring *free_connections_ring;
-extern struct rte_mempool *free_connections_pool;
-extern struct rte_ring *free_clients_ring;
-extern struct ipaugenblick_clients ipaugenblick_clients[IPAUGENBLICK_CLIENTS_POOL_SIZE];
-extern struct rte_mempool *selectors_pool;
-extern struct rte_ring *rx_mbufs_ring;
-extern struct rte_mempool *free_command_pool;
-extern socket_satelite_data_t socket_satelite_data[IPAUGENBLICK_CONNECTION_POOL_SIZE];
-extern ipaugenblick_socket_t *g_ipaugenblick_sockets;
-extern ipaugenblick_selector_t *g_ipaugenblick_selectors;
+extern struct rte_ring *command_ring[MAXCPU];
+extern struct rte_ring *selectors_ring[MAXCPU];
+extern struct rte_ring *free_connections_ring[MAXCPU];
+extern struct rte_mempool *free_connections_pool[MAXCPU];
+extern struct rte_ring *free_clients_ring[MAXCPU];
+extern struct ipaugenblick_clients ipaugenblick_clients[MAXCPU][IPAUGENBLICK_CLIENTS_POOL_SIZE];
+extern struct rte_mempool *selectors_pool[MAXCPU];
+extern struct rte_ring *rx_mbufs_ring[MAXCPU];
+extern struct rte_mempool *free_command_pool[MAXCPU];
+extern socket_satelite_data_t socket_satelite_data[MAXCPU][IPAUGENBLICK_CONNECTION_POOL_SIZE];
+extern ipaugenblick_socket_t *g_ipaugenblick_sockets[MAXCPU];
+extern ipaugenblick_selector_t *g_ipaugenblick_selectors[MAXCPU];
 extern uint64_t user_kick_select_tx;
 extern uint64_t user_kick_select_rx;
 extern uint64_t user_pending_accept;
@@ -46,172 +46,184 @@ static inline struct ipaugenblick_memory *ipaugenblick_service_api_init(int comm
                                                           int rx_bufs_count,
                                                           int tx_bufs_count)
 {   
-    char ringname[1024];
-    int ringset_idx,i; 
-    ipaugenblick_socket_t *ipaugenblick_socket;
-    ipaugenblick_selector_t *ipaugenblick_selector;
+	char ringname[1024];
+	int ringset_idx,i; 
+	ipaugenblick_socket_t *ipaugenblick_socket;
+	ipaugenblick_selector_t *ipaugenblick_selector;
 
-    memset(ipaugenblick_clients,0,sizeof(ipaugenblick_clients));
+	memset(ipaugenblick_clients[rte_lcore_id()],0,sizeof(ipaugenblick_clients[rte_lcore_id()]));
 
-    free_clients_ring = rte_ring_create(FREE_CLIENTS_RING,IPAUGENBLICK_CLIENTS_POOL_SIZE,rte_socket_id(), 0);
-    if(!free_clients_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
-        exit(0);
-    }
+	sprintf(ringname,"#%d#%s",rte_lcore_id(),FREE_CLIENTS_RING);
 
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CLIENTS RING CREATED\n");
-
-    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CLIENTS_POOL_SIZE;ringset_idx++) {
-        rte_ring_enqueue(free_clients_ring,(void*)ringset_idx);
-	sprintf(ringname,"%s%d",FREE_CLIENTS_RING,ringset_idx);
-	ipaugenblick_clients[ringset_idx].client_ring = rte_ring_create(ringname, 64,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
-	if(!ipaugenblick_clients[ringset_idx].client_ring) {
+	free_clients_ring[rte_lcore_id()] = rte_ring_create(ringname,IPAUGENBLICK_CLIENTS_POOL_SIZE,rte_socket_id(), 0);
+	if(!free_clients_ring[rte_lcore_id()]) {
 		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
-        	exit(0);
+		exit(0);
 	}
-    }
 
-    memset(socket_satelite_data,0,sizeof(void *)*IPAUGENBLICK_CONNECTION_POOL_SIZE);
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CLIENTS RING CREATED\n");
 
-    sprintf(ringname,COMMAND_RING_NAME);
+	for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CLIENTS_POOL_SIZE;ringset_idx++) {
+        	rte_ring_enqueue(free_clients_ring[rte_lcore_id()],(void*)ringset_idx);
+		sprintf(ringname,"%s#%d#%d",FREE_CLIENTS_RING,rte_lcore_id(),ringset_idx);
+		ipaugenblick_clients[rte_lcore_id()][ringset_idx].client_ring = rte_ring_create(ringname, 64,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
+		if(!ipaugenblick_clients[rte_lcore_id()][ringset_idx].client_ring) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+			exit(0);
+		}
+	}
 
-    command_ring = rte_ring_create(ringname, command_bufs_count,rte_socket_id(), RING_F_SC_DEQ);
-    if(!command_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
-        exit(0);
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"COMMAND RING CREATED\n");
-    sprintf(ringname,"rx_mbufs_ring");
+	memset(socket_satelite_data[rte_lcore_id()],0,sizeof(void *)*IPAUGENBLICK_CONNECTION_POOL_SIZE);
 
-    rx_mbufs_ring = rte_ring_create(ringname, rx_bufs_count*IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
-    if(!rx_mbufs_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
-        exit(0);
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"RX RING CREATED\n");
-    sprintf(ringname,FREE_COMMAND_POOL_NAME);
+	sprintf(ringname,"%s#%d",COMMAND_RING_NAME, rte_lcore_id());
 
-    free_command_pool = rte_mempool_create(ringname, command_bufs_count,
+	command_ring[rte_lcore_id()] = rte_ring_create(ringname, command_bufs_count,rte_socket_id(), RING_F_SC_DEQ);
+	if(!command_ring[rte_lcore_id()]) {
+        	ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+	        exit(0);
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"COMMAND RING CREATED\n");
+	sprintf(ringname,"%s#%d","rx_mbufs_ring", rte_lcore_id());
+
+	rx_mbufs_ring[rte_lcore_id()] = rte_ring_create(ringname, rx_bufs_count*IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
+	if(!rx_mbufs_ring[rte_lcore_id()]) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+		exit(0);
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"RX RING CREATED\n");
+	sprintf(ringname,"%s#%d",FREE_COMMAND_POOL_NAME,rte_lcore_id());
+
+	free_command_pool[rte_lcore_id()] = rte_mempool_create(ringname, command_bufs_count,
 	    			           sizeof(ipaugenblick_cmd_t), 0,
 				           0,
 				           NULL, NULL,
 				           NULL, NULL,
 				           rte_socket_id(), 0);
-    if(!free_command_pool) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
-        exit(0);
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"COMMAND POOL CREATED\n");
-    sprintf(ringname,FREE_CONNECTIONS_POOL_NAME);
+	if(!free_command_pool[rte_lcore_id()]) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
+		exit(0);
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"COMMAND POOL CREATED\n");
+	sprintf(ringname,"%s#%d",FREE_CONNECTIONS_POOL_NAME,rte_lcore_id());
 
-    free_connections_pool = rte_mempool_create(ringname, 1,
+	free_connections_pool[rte_lcore_id()] = rte_mempool_create(ringname, 1,
 	    	  		               sizeof(ipaugenblick_socket_t)*IPAUGENBLICK_CONNECTION_POOL_SIZE, 0,
 				               0,
 				               NULL, NULL,
 				               NULL, NULL,
 				               rte_socket_id(), 0);
-    if(!free_connections_pool) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
-        exit(0);
-    }
+	if(!free_connections_pool[rte_lcore_id()]) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
+		exit(0);
+	}
 
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CONNECTIONS POOL CREATED\n");
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CONNECTIONS POOL CREATED\n");
 
-    if(rte_mempool_get(free_connections_pool,(void **)&g_ipaugenblick_sockets)) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot get from mempool %s %d \n",__FILE__,__LINE__);
-        exit(0);
-    }
+	if(rte_mempool_get(free_connections_pool[rte_lcore_id()],(void **)&g_ipaugenblick_sockets[rte_lcore_id()])) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot get from mempool %s %d \n",__FILE__,__LINE__);
+		exit(0);
+	}
 
-    ipaugenblick_socket = g_ipaugenblick_sockets;
+	ipaugenblick_socket = g_ipaugenblick_sockets[rte_lcore_id()];
 
-    free_connections_ring = rte_ring_create(FREE_CONNECTIONS_RING,IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
-    if(!free_connections_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
-        exit(0);
-    }
+	sprintf(ringname,"%s#%d",FREE_CONNECTIONS_RING,rte_lcore_id());
 
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CONNECTIONS RING CREATED\n"); 
+	free_connections_ring[rte_lcore_id()] = rte_ring_create(ringname,IPAUGENBLICK_CONNECTION_POOL_SIZE,rte_socket_id(), 0);
+	if(!free_connections_ring[rte_lcore_id()]) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+		exit(0);
+	}
 
-    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CONNECTION_POOL_SIZE;ringset_idx++,ipaugenblick_socket++) { 
-          
-        memset(ipaugenblick_socket,0,sizeof(ipaugenblick_socket_t));
-        ipaugenblick_socket->connection_idx = ringset_idx;
-        rte_atomic16_init(&ipaugenblick_socket->read_ready_to_app);
-        rte_atomic16_init(&ipaugenblick_socket->write_ready_to_app);
-	rte_atomic32_init(&ipaugenblick_socket->tx_space);
-        rte_ring_enqueue(free_connections_ring,(void*)ipaugenblick_socket);
-        sprintf(ringname,TX_RING_NAME_BASE"%d",ringset_idx);
-        socket_satelite_data[ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
-        if(!socket_satelite_data[ringset_idx].tx_ring) {
-            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
-            exit(0);
-        }
-        rte_ring_set_water_mark(socket_satelite_data[ringset_idx].tx_ring,/*tx_bufs_count/10*/1);
-        sprintf(ringname,RX_RING_NAME_BASE"%d",ringset_idx);
-        socket_satelite_data[ringset_idx].rx_ring = rte_ring_create(ringname, rx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
-        if(!socket_satelite_data[ringset_idx].rx_ring) {
-            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
-            exit(0);
-        }
-        rte_ring_set_water_mark(socket_satelite_data[ringset_idx].rx_ring,/*rx_bufs_count/10*/1);
-        socket_satelite_data[ringset_idx].ringset_idx = -1;
-        socket_satelite_data[ringset_idx].parent_idx = -1;
-        socket_satelite_data[ringset_idx].socket = NULL;
-	socket_satelite_data[ringset_idx].apppid = 0;
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"CONNECTIONS Tx/Rx RINGS CREATED\n");
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"FREE CONNECTIONS RING CREATED\n"); 
+
+	for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_CONNECTION_POOL_SIZE;ringset_idx++,ipaugenblick_socket++) { 
+		memset(ipaugenblick_socket,0,sizeof(ipaugenblick_socket_t));
+		ipaugenblick_socket->connection_idx = ringset_idx;
+		rte_atomic16_init(&ipaugenblick_socket->read_ready_to_app);
+		rte_atomic16_init(&ipaugenblick_socket->write_ready_to_app);
+		rte_atomic32_init(&ipaugenblick_socket->tx_space);
+		rte_ring_enqueue(free_connections_ring[rte_lcore_id()],(void*)ipaugenblick_socket);
+		sprintf(ringname,TX_RING_NAME_BASE"#%d#%d", rte_lcore_id(),ringset_idx);
+		socket_satelite_data[rte_lcore_id()][ringset_idx].tx_ring = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
+		if(!socket_satelite_data[rte_lcore_id()][ringset_idx].tx_ring) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+			exit(0);
+		}
+		rte_ring_set_water_mark(socket_satelite_data[rte_lcore_id()][ringset_idx].tx_ring,/*tx_bufs_count/10*/1);
+		sprintf(ringname,RX_RING_NAME_BASE"%d#%d", rte_lcore_id(),ringset_idx);
+		socket_satelite_data[rte_lcore_id()][ringset_idx].rx_ring = rte_ring_create(ringname, rx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
+		if(!socket_satelite_data[rte_lcore_id()][ringset_idx].rx_ring) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+			exit(0);
+		}
+		rte_ring_set_water_mark(socket_satelite_data[rte_lcore_id()][ringset_idx].rx_ring,/*rx_bufs_count/10*/1);
+		socket_satelite_data[rte_lcore_id()][ringset_idx].ringset_idx = -1;
+		socket_satelite_data[rte_lcore_id()][ringset_idx].parent_idx = -1;
+		socket_satelite_data[rte_lcore_id()][ringset_idx].socket = NULL;
+		socket_satelite_data[rte_lcore_id()][ringset_idx].apppid = 0;
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"CONNECTIONS Tx/Rx RINGS CREATED\n");
     
-    sprintf(ringname,SELECTOR_POOL_NAME);
+	sprintf(ringname,"%s#%d",SELECTOR_POOL_NAME,rte_lcore_id());
 
-    selectors_pool = rte_mempool_create(ringname, 1,
+	selectors_pool[rte_lcore_id()] = rte_mempool_create(ringname, 1,
 	     		                sizeof(ipaugenblick_selector_t)*IPAUGENBLICK_SELECTOR_POOL_SIZE, 0,
 				               0,
 				               NULL, NULL,
 				               NULL, NULL,
 				               rte_socket_id(), 0);
-    if(!selectors_pool) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
-        exit(0);
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR POOL CREATED\n");
-    if(rte_mempool_get(selectors_pool,(void **)&g_ipaugenblick_selectors)) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot get from mempool %s %d \n",__FILE__,__LINE__);
-        exit(0);
-    }
-    selectors_ring = rte_ring_create(SELECTOR_RING_NAME,IPAUGENBLICK_SELECTOR_POOL_SIZE,rte_socket_id(), 0);
-    if(!selectors_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d \n",__FILE__,__LINE__);
-        exit(0);
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR RING CREATED\n");
-    ipaugenblick_selector = g_ipaugenblick_selectors;
-    for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_SELECTOR_POOL_SIZE;ringset_idx++) {
-        sprintf(ringname,"SELECTOR_RING_NAME%d",ringset_idx);
-        ipaugenblick_selector[ringset_idx].ready_connections = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
-        if(!ipaugenblick_selector[ringset_idx].ready_connections) {
-            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
-            exit(0);
-        }
-        ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR READY RING#%d CREATED\n",ringset_idx);
-        rte_ring_enqueue(selectors_ring,(void*)ringset_idx);
-    } 
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"DONE\n");
-    return 0;
+	if(!selectors_pool[rte_lcore_id()]) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create mempool %s %d\n",__FILE__,__LINE__);
+		exit(0);
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR POOL CREATED\n");
+	if(rte_mempool_get(selectors_pool[rte_lcore_id()],(void **)&g_ipaugenblick_selectors[rte_lcore_id()])) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot get from mempool %s %d \n",__FILE__,__LINE__);
+		exit(0);
+	}
+	sprintf(ringname,"%s#%d",SELECTOR_RING_NAME, rte_lcore_id());
+	selectors_ring[rte_lcore_id()] = rte_ring_create(ringname,IPAUGENBLICK_SELECTOR_POOL_SIZE,rte_socket_id(), 0);
+	if(!selectors_ring[rte_lcore_id()]) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d \n",__FILE__,__LINE__);
+		exit(0);
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR RING CREATED\n");
+	ipaugenblick_selector = g_ipaugenblick_selectors[rte_lcore_id()];
+	for(ringset_idx = 0;ringset_idx < IPAUGENBLICK_SELECTOR_POOL_SIZE;ringset_idx++) {
+        	sprintf(ringname,"SELECTOR_RING_NAME%d#%d",ringset_idx, rte_lcore_id());
+		ipaugenblick_selector[ringset_idx].ready_connections = rte_ring_create(ringname, tx_bufs_count,rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
+		if(!ipaugenblick_selector[ringset_idx].ready_connections) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot create ring %s %d\n",__FILE__,__LINE__);
+			exit(0);
+		}
+		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"SELECTOR READY RING#%d CREATED\n",ringset_idx);
+		rte_ring_enqueue(selectors_ring[rte_lcore_id()],(void*)ringset_idx);
+	} 
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"DONE\n");
+	return 0;
 }
 static inline ipaugenblick_cmd_t *ipaugenblick_dequeue_command_buf()
 {
     ipaugenblick_cmd_t *cmd;
-    if(!rte_ring_count(command_ring))
+    if(!rte_ring_count(command_ring[rte_lcore_id()]))
         return NULL;
-    if(rte_ring_sc_dequeue_bulk(command_ring,(void **)&cmd,1)) {
+    if(rte_ring_sc_dequeue_bulk(command_ring[rte_lcore_id()],(void **)&cmd,1)) {
         return NULL;
     }
     return cmd;
 }
 
+static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
+{
+    ipaugenblick_cmd_t *cmd;
+    if(rte_mempool_get(free_command_pool[rte_lcore_id()],(void **)&cmd))
+        return NULL;
+    return cmd;
+}
+
 static inline void ipaugenblick_free_command_buf(ipaugenblick_cmd_t *cmd)
 {
-    rte_mempool_put(free_command_pool,(void *)cmd);
+    rte_mempool_put(free_command_pool[rte_lcore_id()],(void *)cmd);
 }
 
 extern unsigned long app_pid;
@@ -224,16 +236,18 @@ static inline void ipaugenblick_mark_readable(void *descriptor)
         //ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d\n",__FILE__,__LINE__);
         return;
     }
-#if 1
+
 //    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
-    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].read_ready_to_app)) {
+    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[rte_lcore_id()][socket_satelite_data->ringset_idx].read_ready_to_app)) {
+#if 0
         if(socket_satelite_data->apppid)
            kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
+#endif
         return;
     }
-#endif
+
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_READABLE_BIT << SOCKET_READY_SHIFT);
-    rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
+    rte_ring_enqueue(g_ipaugenblick_selectors[rte_lcore_id()][socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
     if(socket_satelite_data->apppid)
            kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
     user_kick_select_rx++; 
@@ -272,7 +286,7 @@ static inline int ipaugenblick_dequeue_tx_buf_burst(void *descriptor,struct rte_
 static inline int ipaugenblick_tx_buf_count(void *descriptor)
 {
     socket_satelite_data_t *socket_satelite_data = (socket_satelite_data_t *)descriptor;
-    rte_atomic16_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_done_from_app,0);
+    rte_atomic16_set(&g_ipaugenblick_sockets[rte_lcore_id()][socket_satelite_data->ringset_idx].write_done_from_app,0);
     return rte_ring_count(socket_satelite_data->tx_ring);
 }
 
@@ -304,13 +318,15 @@ static inline int ipaugenblick_mark_writable(void *descriptor)
 //	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d\n",__FILE__,__LINE__);
         return 1;
     }
-    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[socket_satelite_data->ringset_idx].write_ready_to_app)) {
+    if(!rte_atomic16_test_and_set(&g_ipaugenblick_sockets[rte_lcore_id()][socket_satelite_data->ringset_idx].write_ready_to_app)) {
+#if 0
 	if(socket_satelite_data->apppid)
         	kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
+#endif
         return;
     }
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_WRITABLE_BIT << SOCKET_READY_SHIFT);
-    rc = rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
+    rc = rte_ring_enqueue(g_ipaugenblick_selectors[rte_lcore_id()][socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
     user_kick_select_tx++;
 //    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
     if(socket_satelite_data->apppid)
@@ -328,7 +344,7 @@ static inline int ipaugenblick_mark_closed(void *descriptor)
         return 1;
     }
     ringidx_ready_mask = socket_satelite_data->ringset_idx|(SOCKET_CLOSED_BIT << SOCKET_READY_SHIFT);
-    rc = rte_ring_enqueue(g_ipaugenblick_selectors[socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
+    rc = rte_ring_enqueue(g_ipaugenblick_selectors[rte_lcore_id()][socket_satelite_data->parent_idx].ready_connections,(void *)ringidx_ready_mask);
 //    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"%s %d %d\n",__FILE__,__LINE__,socket_satelite_data->apppid);
     if(socket_satelite_data->apppid)
         kill(socket_satelite_data->apppid,/*SIGUSR1*/10);
@@ -337,7 +353,7 @@ static inline int ipaugenblick_mark_closed(void *descriptor)
 
 static inline void ipaugenblick_free_socket(int connidx)
 {
-   rte_ring_enqueue(free_connections_ring,(void *)&g_ipaugenblick_sockets[connidx]);
+   rte_ring_enqueue(free_connections_ring[rte_lcore_id()],(void *)&g_ipaugenblick_sockets[rte_lcore_id()][connidx]);
 }
 
 #endif

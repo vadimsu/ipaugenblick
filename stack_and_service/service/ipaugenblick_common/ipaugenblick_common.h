@@ -159,14 +159,4 @@ typedef struct
 #define COMMON_NOTIFICATIONS_POOL_NAME "common_notifications_pool_name"
 #define COMMON_NOTIFICATIONS_RING_NAME "common_notifications_ring_name"
 
-extern struct rte_mempool *free_command_pool;
-
-static inline ipaugenblick_cmd_t *ipaugenblick_get_free_command_buf()
-{
-    ipaugenblick_cmd_t *cmd;
-    if(rte_mempool_get(free_command_pool,(void **)&cmd))
-        return NULL;
-    return cmd;
-}
-
 #endif /* __IPAUGENBLICK_MEMORY_COMMON_H__ */

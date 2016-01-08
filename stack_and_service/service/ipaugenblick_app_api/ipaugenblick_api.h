@@ -82,7 +82,7 @@ typedef void (*ipaugenblick_update_cbk_t)(unsigned char command,unsigned char *b
 * RETURNS:
 *    0 if succeeded. Otherwise the process will exit
 */
-extern int ipaugenblick_app_init(int argc, char **argv,char *app_unique_id);
+extern int ipaugenblick_app_init(int argc, char **argv,char *app_unique_id, int service_core);
 
 extern int ipaugenblick_create_client(ipaugenblick_update_cbk_t update_cbk);
 

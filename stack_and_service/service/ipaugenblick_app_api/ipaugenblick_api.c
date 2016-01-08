@@ -143,129 +143,131 @@ void sig_handler(int signum)
 }
 
 /* must be called per process */
-int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id)
+int ipaugenblick_app_init(int argc,char **argv,char *app_unique_id, int service_core)
 {
-    int i;
-    char ringname[1024];
-    rte_cpuset_t cpuset;
-    unsigned cpu;
+	int i;
+	char ringname[1024];
+	rte_cpuset_t cpuset;
+	unsigned cpu;
 
-    ipaugenblick_log_init(0);
-//    ipaugenblick_set_log_level(0);
+	ipaugenblick_log_init(0);
+//	ipaugenblick_set_log_level(0);
 
-    if(rte_eal_init(argc, argv) < 0) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot initialize rte_eal");
-	return -1;
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"EAL initialized\n");
-
-    free_clients_ring = rte_ring_lookup(FREE_CLIENTS_RING);
-    if(!free_clients_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find ring %s %d\n",__FILE__,__LINE__);
-        exit(0);
-    }
-
-    free_connections_ring = rte_ring_lookup(FREE_CONNECTIONS_RING);
-
-    if(!free_connections_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free connections ring\n");
-        return -1;
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"free connections ring initialized\n");
-    free_connections_pool = rte_mempool_lookup(FREE_CONNECTIONS_POOL_NAME);
-
-    if(!free_connections_pool) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free connections pool\n");
-        return -1;
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"free connections pool initialized\n");
-    memset(local_socket_descriptors,0,sizeof(local_socket_descriptors));
-    for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
-        sprintf(ringname,RX_RING_NAME_BASE"%d",i);
-        local_socket_descriptors[i].rx_ring = rte_ring_lookup(ringname);
-        if(!local_socket_descriptors[i].rx_ring) {
-            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
-            exit(0);
-        }
-        sprintf(ringname,TX_RING_NAME_BASE"%d",i);
-        local_socket_descriptors[i].tx_ring = rte_ring_lookup(ringname);
-        if(!local_socket_descriptors[i].tx_ring) {
-            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
-            exit(0);
-        }
-        local_socket_descriptors[i].select = -1;
-        local_socket_descriptors[i].socket = NULL;
-        sprintf(ringname,"lrxcache%s_%d",app_unique_id,i);
-        ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"local cache name %s\n",ringname);
-        local_socket_descriptors[i].local_cache = rte_ring_create(ringname, 64, rte_socket_id(), RING_F_SC_DEQ|RING_F_SP_ENQ);
-        if(!local_socket_descriptors[i].local_cache) {
-           ipaugenblick_log(IPAUGENBLICK_LOG_WARNING,"cannot create local cache\n");
-	   local_socket_descriptors[i].local_cache = rte_ring_lookup(ringname);
-	   if(!local_socket_descriptors[i].local_cache) {
-		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"and cannot find\n");
-		exit(0);
-	   } 
-        }
-	local_socket_descriptors[i].any_event_received = 0;
-    }
-    tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
-    if(!tx_bufs_pool) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find tx bufs pool\n");
-        return -1;
-    }
-    ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"mbufs pool initialized\n"); 
-    free_command_pool = rte_mempool_lookup(FREE_COMMAND_POOL_NAME);
-    if(!free_command_pool) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free command pool\n");
-        return -1;
-    }
-    
-    command_ring = rte_ring_lookup(COMMAND_RING_NAME);
-    if(!command_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find command ring\n");
-        return -1;
-    }
-    rx_bufs_ring = rte_ring_lookup("rx_mbufs_ring");
-    if(!rx_bufs_ring) {
-        ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find rx bufs ring\n");
-        return -1;
-    }
-    selectors_ring = rte_ring_lookup(SELECTOR_RING_NAME);
-    
-    for(i = 0;i < IPAUGENBLICK_SELECTOR_POOL_SIZE;i++) {
-        sprintf(ringname,"SELECTOR_RING_NAME%d",i);
-        selectors[i].ready_connections = rte_ring_lookup(ringname);
-        if(!selectors[i].ready_connections) {
-            ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find ring %s %d\n",__FILE__,__LINE__);
-            exit(0);
-        }
-	TAILQ_INIT(&selectors[i].local_ready_cache);
-	selectors[i].queue_length = 0;
-    }
-    
-    signal(SIGHUP, sig_handler);
-    signal(SIGINT, sig_handler);
-    signal(SIGILL, sig_handler);
-    signal(SIGABRT, sig_handler);
-    signal(SIGFPE, sig_handler);
-    signal(SIGFPE, sig_handler);
-    signal(SIGSEGV, sig_handler);
-    signal(SIGTERM, sig_handler);
-    signal(SIGUSR1, sig_handler);
-    
-    RTE_LCORE_FOREACH(cpu) {
-	if(rte_lcore_is_enabled(cpu)) {
-		CPU_ZERO(&cpuset);
-//		memset(&cpuset,0,sizeof(cpuset));
-//		unsigned char *p = (unsigned char *)&cpuset;
-		CPU_SET(cpu,&cpuset);
-		//*p = cpu;
-		if(!rte_thread_set_affinity(&cpuset))
-			break;
-		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot set thread affinity for %d %s %d\n",cpu,__FILE__,__LINE__);
+	if(rte_eal_init(argc, argv) < 0) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot initialize rte_eal");
+		return -1;
 	}
-    }
-    return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"EAL initialized\n");
+
+	sprintf(ringname,"#%d#%s", service_core, FREE_CLIENTS_RING);
+	free_clients_ring = rte_ring_lookup(ringname);
+	if(!free_clients_ring) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find ring %s %d\n",__FILE__,__LINE__);
+		exit(0);
+	}
+	sprintf(ringname,"%s#%d", FREE_CONNECTIONS_RING, service_core);
+	free_connections_ring = rte_ring_lookup(ringname);
+
+	if(!free_connections_ring) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free connections ring\n");
+		return -1;
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"free connections ring initialized\n");
+	sprintf(ringname,"%s#%d", FREE_CONNECTIONS_POOL_NAME, service_core);
+	free_connections_pool = rte_mempool_lookup(ringname);
+
+	if(!free_connections_pool) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free connections pool\n");
+		return -1;
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"free connections pool initialized\n");
+	memset(local_socket_descriptors,0,sizeof(local_socket_descriptors));
+	for(i = 0;i < IPAUGENBLICK_CONNECTION_POOL_SIZE;i++) {
+		sprintf(ringname,RX_RING_NAME_BASE"%d#%d",service_core, i);
+		local_socket_descriptors[i].rx_ring = rte_ring_lookup(ringname);
+		if(!local_socket_descriptors[i].rx_ring) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+			exit(0);
+		}
+		sprintf(ringname,TX_RING_NAME_BASE"#%d#%d", service_core, i);
+		local_socket_descriptors[i].tx_ring = rte_ring_lookup(ringname);
+		if(!local_socket_descriptors[i].tx_ring) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"%s %d\n",__FILE__,__LINE__);
+			exit(0);
+		}
+		local_socket_descriptors[i].select = -1;
+		local_socket_descriptors[i].socket = NULL;
+		sprintf(ringname,"lrxcache%s_%d_%d",app_unique_id,i, service_core);
+		ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"local cache name %s\n",ringname);
+		local_socket_descriptors[i].local_cache = rte_ring_create(ringname, 64, rte_socket_id(), RING_F_SC_DEQ|RING_F_SP_ENQ);
+		if(!local_socket_descriptors[i].local_cache) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_WARNING,"cannot create local cache\n");
+			local_socket_descriptors[i].local_cache = rte_ring_lookup(ringname);
+			if(!local_socket_descriptors[i].local_cache) {
+				ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"and cannot find\n");
+				exit(0);
+			}
+		}
+		local_socket_descriptors[i].any_event_received = 0;
+	}
+	tx_bufs_pool = rte_mempool_lookup("mbufs_mempool");
+	if(!tx_bufs_pool) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find tx bufs pool\n");
+		return -1;
+	}
+	ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"mbufs pool initialized\n");
+	sprintf(ringname,"%s#%d", FREE_COMMAND_POOL_NAME, service_core);
+	free_command_pool = rte_mempool_lookup(ringname);
+	if(!free_command_pool) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find free command pool\n");
+		return -1;
+	}
+	sprintf(ringname,"%s#%d", COMMAND_RING_NAME, service_core);
+	command_ring = rte_ring_lookup(ringname);
+	if(!command_ring) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find command ring\n");
+		return -1;
+	}
+	sprintf(ringname,"rx_mbufs_ring#%d", service_core);
+	rx_bufs_ring = rte_ring_lookup(ringname);
+	if(!rx_bufs_ring) {
+		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find rx bufs ring\n");
+		return -1;
+	}
+	sprintf(ringname,"%s#%d", SELECTOR_RING_NAME, service_core, service_core);
+	selectors_ring = rte_ring_lookup(ringname);
+    
+	for(i = 0;i < IPAUGENBLICK_SELECTOR_POOL_SIZE;i++) {
+		sprintf(ringname,"SELECTOR_RING_NAME%d#%d",i, service_core);
+		selectors[i].ready_connections = rte_ring_lookup(ringname);
+		if(!selectors[i].ready_connections) {
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot find ring %s %d\n",__FILE__,__LINE__);
+			exit(0);
+		}
+		TAILQ_INIT(&selectors[i].local_ready_cache);
+		selectors[i].queue_length = 0;
+	}
+    
+	signal(SIGHUP, sig_handler);
+	signal(SIGINT, sig_handler);
+	signal(SIGILL, sig_handler);
+	signal(SIGABRT, sig_handler);
+	signal(SIGFPE, sig_handler);
+	signal(SIGFPE, sig_handler);
+	signal(SIGSEGV, sig_handler);
+	signal(SIGTERM, sig_handler);
+	signal(SIGUSR1, sig_handler);
+    
+	RTE_LCORE_FOREACH(cpu) {
+		if(rte_lcore_is_enabled(cpu)) {
+			CPU_ZERO(&cpuset);
+			CPU_SET(cpu,&cpuset);
+			if(!rte_thread_set_affinity(&cpuset))
+				break;
+			ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"cannot set thread affinity for %d %s %d\n",cpu,__FILE__,__LINE__);
+		}
+	}
+	return ((tx_bufs_pool == NULL)||(command_ring == NULL)||(free_command_pool == NULL));
 }
 
 int ipaugenblick_create_client(ipaugenblick_update_cbk_t update_cbk)
