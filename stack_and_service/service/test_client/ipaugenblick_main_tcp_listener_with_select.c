@@ -14,7 +14,7 @@
 
 #define USE_TX 1
 #define USE_RX 1
-#define LISTENERS_COUNT 4
+#define LISTENERS_COUNT 8
 #define LISTENERS_BASE 7777
 
 static inline int is_listener(int sock, int *listeners)
@@ -144,7 +144,7 @@ int main(int argc,char **argv)
 	                ipaugenblick_set_socket_select(newsock,selector);
 			if (rxtxmask & 0x1)
 				ipaugenblick_fdset (newsock, &readfdset);
-			if (rxtxmask & 0x3)
+			if (rxtxmask & 0x2)
 				ipaugenblick_fdset (newsock, &writefdset);
 			ipaugenblick_fdset (newsock, &excfdset);
             	    }
@@ -170,7 +170,7 @@ int main(int argc,char **argv)
                 	}
 
 	                received_count+=segs;
-			if(!(received_count%1000)) {
+			if(!(received_count%1000000)) {
 	                    printf("received %u transmitted_count %u\n", received_count, transmitted_count);
 			    print_stats();
                 	}
@@ -195,7 +195,7 @@ int main(int argc,char **argv)
         	            break;
                 	}
 			transmitted_count++;
-			if(!(transmitted_count%1000)) {
+			if(!(transmitted_count%1000000)) {
                 	    printf("received %u transmitted_count %u\n", received_count, transmitted_count);
 			    print_stats();
         	        }
@@ -218,7 +218,7 @@ int main(int argc,char **argv)
 	                    }
         	            else {
 				transmitted_count += tx_space;
-				if(!(transmitted_count%1000)) {
+				if(!(transmitted_count%1000000)) {
         	            		printf("transmitted %u received_count %u\n", transmitted_count, received_count);
 					print_stats();
                 		}
