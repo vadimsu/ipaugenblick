@@ -249,9 +249,9 @@ static struct rte_mempool *mbufs_mempool = NULL;
 
 extern unsigned long tcp_memory_allocated[MAXCPU];
 extern uint64_t sk_stream_alloc_skb_failed;
-extern uint64_t write_sockets_queue_len;
-extern uint64_t read_sockets_queue_len;
-extern struct rte_mempool *free_command_pool;
+extern uint64_t write_sockets_queue_len[MAXCPU];
+extern uint64_t read_sockets_queue_len[MAXCPU];
+extern struct rte_mempool *free_command_pool[MAXCPU];
 extern volatile unsigned long long jiffies;
 extern uint64_t driver_tx_offload_pkts;
 extern uint64_t driver_tx_wo_offload_pkts;
@@ -271,6 +271,8 @@ static int print_stats(__attribute__((unused)) void *dummy)
 			if(rte_lcore_is_enabled(cpu)) {
 				if(rte_lcore_id() != cpu) {
 					ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"cpu#%d tcp_memory_allocated=%"PRIu64"\n",cpu,tcp_memory_allocated[cpu]);
+					ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"write_sockets_queue_len %"PRIu64" read_sockets_queue_len %"PRIu64" command pool %d \n",
+						write_sockets_queue_len[cpu],read_sockets_queue_len[cpu],free_command_pool[cpu] ? rte_mempool_count(free_command_pool[cpu]) : -1);
 				}
 			}
 		}
@@ -279,9 +281,7 @@ static int print_stats(__attribute__((unused)) void *dummy)
 		dump_head_cache();
 		dump_fclone_cache();
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"rx pool free count %d\n",rte_mempool_count(pool_direct[0]));
-		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"stack pool free count %d\n",rte_mempool_count(mbufs_mempool));
-		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"write_sockets_queue_len %"PRIu64" read_sockets_queue_len %"PRIu64" command pool %d \n",
-			write_sockets_queue_len,read_sockets_queue_len,free_command_pool ? rte_mempool_count(free_command_pool) : -1);
+		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"stack pool free count %d\n",rte_mempool_count(mbufs_mempool));	
 		ipaugenblick_log(IPAUGENBLICK_LOG_INFO,"driver_tx_offload_pkts %"PRIu64" driver_tx_wo_offload_pkts %"PRIu64"\n",driver_tx_offload_pkts,driver_tx_wo_offload_pkts);
 		print_skb_iov_stats();
 #endif
