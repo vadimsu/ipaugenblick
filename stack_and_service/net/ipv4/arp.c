@@ -1217,21 +1217,16 @@ static int arp_netdev_event(struct notifier_block *this, unsigned long event,
 {
 	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
 	struct netdev_notifier_change_info *change_info;
-	int cpu_idx;
 
 	switch (event) {
 	case NETDEV_CHANGEADDR:
-		for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		    neigh_changeaddr(&arp_tbl[cpu_idx], dev);
-		}
+		neigh_changeaddr(&arp_tbl[rte_lcore_id()], dev);
 		rt_cache_flush(dev_net(dev));
 		break;
 	case NETDEV_CHANGE:
 		change_info = ptr;
 		if (change_info->flags_changed & IFF_NOARP)
-			for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-				neigh_changeaddr(&arp_tbl[cpu_idx], dev);
-			}
+			neigh_changeaddr(&arp_tbl[rte_lcore_id()], dev);
 		break;
 	default:
 		break;
@@ -1267,35 +1262,32 @@ static int arp_proc_init(void);
 void neigh_per_core_init();
 void __init arp_init(void)
 {
-	int cpu_idx;
     /* The same as original static initializations */
 	neigh_per_core_init();
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		arp_tbl[cpu_idx].family		= AF_INET;
-		arp_tbl[cpu_idx].key_len	= 4;
-		arp_tbl[cpu_idx].hash		= arp_hash;
-		arp_tbl[cpu_idx].constructor	= arp_constructor;
-		arp_tbl[cpu_idx].proxy_redo	= parp_redo;
-		arp_tbl[cpu_idx].id		= strdup("arp_cache");
-		arp_tbl[cpu_idx].parms.tbl	= &arp_tbl[cpu_idx];
-		arp_tbl[cpu_idx].parms.reachable_time = /*30 * HZ*/HZ/*since load_balancer is primitive, faster ARP response - VADIM */;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_MCAST_PROBES] = 3;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_UCAST_PROBES] = 3;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_RETRANS_TIME] = 1 * HZ;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_BASE_REACHABLE_TIME] = /*30 * HZ*/HZ/100;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_DELAY_PROBE_TIME] = 5 * HZ;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_GC_STALETIME] = 60 * HZ;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_QUEUE_LEN_BYTES] = 64 * 1024;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_PROXY_QLEN] = 64;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_ANYCAST_DELAY] = 1 * HZ;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_PROXY_DELAY]	= (8 * HZ) / 10;
-		arp_tbl[cpu_idx].parms.data[NEIGH_VAR_LOCKTIME] = 1 * HZ;
-		arp_tbl[cpu_idx].gc_interval	= 30 * HZ;
-		arp_tbl[cpu_idx].gc_thresh1	= 128;
-		arp_tbl[cpu_idx].gc_thresh2	= 512;
-		arp_tbl[cpu_idx].gc_thresh3	= 1024;
-		neigh_table_init(&arp_tbl[cpu_idx],cpu_idx);
-	}
+	arp_tbl[rte_lcore_id()].family		= AF_INET;
+	arp_tbl[rte_lcore_id()].key_len	= 4;
+	arp_tbl[rte_lcore_id()].hash		= arp_hash;
+	arp_tbl[rte_lcore_id()].constructor	= arp_constructor;
+	arp_tbl[rte_lcore_id()].proxy_redo	= parp_redo;
+	arp_tbl[rte_lcore_id()].id		= strdup("arp_cache");
+	arp_tbl[rte_lcore_id()].parms.tbl	= &arp_tbl[rte_lcore_id()];
+	arp_tbl[rte_lcore_id()].parms.reachable_time = /*30 * HZ*/HZ/*since load_balancer is primitive, faster ARP response - VADIM */;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_MCAST_PROBES] = 3;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_UCAST_PROBES] = 3;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_RETRANS_TIME] = 1 * HZ;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_BASE_REACHABLE_TIME] = /*30 * HZ*/HZ/100;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_DELAY_PROBE_TIME] = 5 * HZ;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_GC_STALETIME] = 60 * HZ;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_QUEUE_LEN_BYTES] = 64 * 1024;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_PROXY_QLEN] = 64;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_ANYCAST_DELAY] = 1 * HZ;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_PROXY_DELAY]	= (8 * HZ) / 10;
+	arp_tbl[rte_lcore_id()].parms.data[NEIGH_VAR_LOCKTIME] = 1 * HZ;
+	arp_tbl[rte_lcore_id()].gc_interval	= 30 * HZ;
+	arp_tbl[rte_lcore_id()].gc_thresh1	= 128;
+	arp_tbl[rte_lcore_id()].gc_thresh2	= 512;
+	arp_tbl[rte_lcore_id()].gc_thresh3	= 1024;
+	neigh_table_init(&arp_tbl[rte_lcore_id()],rte_lcore_id());
 
 	dev_add_pack(&arp_packet_type);
 	arp_proc_init();

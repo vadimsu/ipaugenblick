@@ -37,28 +37,25 @@ struct inet_timewait_death_row tcp_death_row[MAXCPU];
 
 void tcp_init_death_row()
 {
-	int cpu_idx;
     /* The same as original static initialization */
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		 tcp_death_row[cpu_idx].sysctl_max_tw_buckets = NR_FILE * 2;
-		 tcp_death_row[cpu_idx].period = TCP_TIMEWAIT_LEN / INET_TWDR_TWKILL_SLOTS;
-		 tcp_death_row[cpu_idx].hashinfo	= &tcp_hashinfo[cpu_idx];
-		 tcp_death_row[cpu_idx].tw_timer.entry.prev = TIMER_ENTRY_STATIC;
-		 tcp_death_row[cpu_idx].tw_timer.expires = 0;
-		 tcp_death_row[cpu_idx].tw_timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
-		 tcp_death_row[cpu_idx].tw_timer.function = inet_twdr_hangman;
-		 tcp_death_row[cpu_idx].tw_timer.data = (unsigned long)&tcp_death_row[cpu_idx];
-		 tcp_death_row[cpu_idx].twkill_work.data = WORK_STRUCT_NO_POOL | WORK_STRUCT_STATIC;
-		 tcp_death_row[cpu_idx].twkill_work.entry.prev = &tcp_death_row[cpu_idx].twkill_work.entry;
-		 tcp_death_row[cpu_idx].twkill_work.entry.next = &tcp_death_row[cpu_idx].twkill_work.entry;
-		 tcp_death_row[cpu_idx].twkill_work.func = inet_twdr_twkill_work;
-		 tcp_death_row[cpu_idx].twcal_hand	= -1;
-		 tcp_death_row[cpu_idx].twcal_timer.entry.prev = TIMER_ENTRY_STATIC;
-		 tcp_death_row[cpu_idx].twcal_timer.expires = 0;
-		 tcp_death_row[cpu_idx].twcal_timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
-		 tcp_death_row[cpu_idx].twcal_timer.function = inet_twdr_twcal_tick;
-		 tcp_death_row[cpu_idx].twcal_timer.data = (unsigned long)&tcp_death_row[cpu_idx];
-	}
+	 tcp_death_row[rte_lcore_id()].sysctl_max_tw_buckets = NR_FILE * 2;
+	 tcp_death_row[rte_lcore_id()].period = TCP_TIMEWAIT_LEN / INET_TWDR_TWKILL_SLOTS;
+	 tcp_death_row[rte_lcore_id()].hashinfo	= &tcp_hashinfo[rte_lcore_id()];
+	 tcp_death_row[rte_lcore_id()].tw_timer.entry.prev = TIMER_ENTRY_STATIC;
+	 tcp_death_row[rte_lcore_id()].tw_timer.expires = 0;
+	 tcp_death_row[rte_lcore_id()].tw_timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
+	 tcp_death_row[rte_lcore_id()].tw_timer.function = inet_twdr_hangman;
+	 tcp_death_row[rte_lcore_id()].tw_timer.data = (unsigned long)&tcp_death_row[rte_lcore_id()];
+	 tcp_death_row[rte_lcore_id()].twkill_work.data = WORK_STRUCT_NO_POOL | WORK_STRUCT_STATIC;
+	 tcp_death_row[rte_lcore_id()].twkill_work.entry.prev = &tcp_death_row[rte_lcore_id()].twkill_work.entry;
+	 tcp_death_row[rte_lcore_id()].twkill_work.entry.next = &tcp_death_row[rte_lcore_id()].twkill_work.entry;
+	 tcp_death_row[rte_lcore_id()].twkill_work.func = inet_twdr_twkill_work;
+	 tcp_death_row[rte_lcore_id()].twcal_hand	= -1;
+	 tcp_death_row[rte_lcore_id()].twcal_timer.entry.prev = TIMER_ENTRY_STATIC;
+	 tcp_death_row[rte_lcore_id()].twcal_timer.expires = 0;
+	 tcp_death_row[rte_lcore_id()].twcal_timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
+	 tcp_death_row[rte_lcore_id()].twcal_timer.function = inet_twdr_twcal_tick;
+	 tcp_death_row[rte_lcore_id()].twcal_timer.data = (unsigned long)&tcp_death_row[rte_lcore_id()];
 }
 
 static bool tcp_in_window(u32 seq, u32 end_seq, u32 s_win, u32 e_win)

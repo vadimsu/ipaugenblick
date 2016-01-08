@@ -798,16 +798,12 @@ EXPORT_SYMBOL(tcp_release_cb);
 
 void __init tcp_tasklet_init(void)
 {
-	int i;
+	struct tsq_tasklet *tsq = per_cpu(tsq_tasklet, rte_lcore_id());
 
-	for_each_possible_cpu(i) {
-		struct tsq_tasklet *tsq = per_cpu(tsq_tasklet, i);
-
-		LINUX_INIT_LIST_HEAD(&tsq->head);
-		tasklet_init(&tsq->tasklet,
-			     tcp_tasklet_func,
-			     (unsigned long)tsq);
-	}
+	LINUX_INIT_LIST_HEAD(&tsq->head);
+	tasklet_init(&tsq->tasklet,
+		     tcp_tasklet_func,
+		     (unsigned long)tsq);
 }
 
 /*
@@ -2443,6 +2439,7 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 
 	if (err == 0) {
 		/* Update global TCP statistics. */
+printf("%s %d\n",__FILE__,__LINE__);
 		TCP_INC_STATS(sock_net(sk), TCP_MIB_RETRANSSEGS);
 
 		tp->total_retrans++;

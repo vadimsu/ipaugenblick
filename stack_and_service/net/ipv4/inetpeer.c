@@ -80,15 +80,12 @@ static struct inet_peer peer_fake_node[MAXCPU];
 
 static void inet_peer_percpu_init()
 {
-	int cpu_idx;
     /* The same as original static initialization */
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		peer_fake_node[cpu_idx].avl_left = &peer_fake_node[cpu_idx];
-		peer_fake_node[cpu_idx].avl_right = &peer_fake_node[cpu_idx];
-		peer_fake_node[cpu_idx].avl_height = 0;
-		gc_list[cpu_idx].prev = &gc_list[cpu_idx];
-		gc_list[cpu_idx].next = &gc_list[cpu_idx];
-	}
+	peer_fake_node[rte_lcore_id()].avl_left = &peer_fake_node[rte_lcore_id()];
+	peer_fake_node[rte_lcore_id()].avl_right = &peer_fake_node[rte_lcore_id()];
+	peer_fake_node[rte_lcore_id()].avl_height = 0;
+	gc_list[rte_lcore_id()].prev = &gc_list[rte_lcore_id()];
+	gc_list[rte_lcore_id()].next = &gc_list[rte_lcore_id()];
 }
 
 void inet_peer_base_init(struct inet_peer_base *bp)
@@ -176,7 +173,6 @@ static void inetpeer_gc_worker(struct work_struct *work)
 /* Called from ip_output.c:ip_init  */
 void __init inet_initpeers(void)
 {
-    int cpu_idx;
 #if 0
 	struct sysinfo si;
 
@@ -198,9 +194,7 @@ void __init inet_initpeers(void)
 			sizeof(struct inet_peer),
 			INET_PEER_CACHE_SIZE, SLAB_HWCACHE_ALIGN | SLAB_PANIC,
 			NULL);
-    for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		INIT_DEFERRABLE_WORK(&gc_work[cpu_idx], inetpeer_gc_worker);
-    }
+	INIT_DEFERRABLE_WORK(&gc_work[rte_lcore_id()], inetpeer_gc_worker);
 }
 
 static int addr_compare(const struct inetpeer_addr *a,

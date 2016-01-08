@@ -124,11 +124,7 @@ static inline int udplite4_proc_init(void)
 
 void __init udplite4_register(void)
 {
-	int cpu_idx;
-
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		udp_table_init(&udplite_table[cpu_idx], "UDP-Lite");
-	}
+	udp_table_init(&udplite_table[rte_lcore_id()], "UDP-Lite");
 	if (proto_register(&udplite_prot, 1))
 		goto out_register_err;
 

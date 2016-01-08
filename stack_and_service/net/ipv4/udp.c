@@ -2482,13 +2482,10 @@ void __init udp_table_init(struct udp_table *table, const char *name)
 void __init udp_init(void)
 {
 	unsigned long limit;
-	int cpu_idx;
 	char table_name[1024];
     /* The same as original static initialization */
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		sprintf(table_name,"UDP%d",cpu_idx);
-		udp_table_init(&udp_table[cpu_idx], table_name);
-	}
+	sprintf(table_name,"UDP%d",rte_lcore_id());
+	udp_table_init(&udp_table[rte_lcore_id()], table_name);
 	limit = nr_free_buffer_pages() / 8;
 	limit = max(limit, 128UL);
 	sysctl_udp_mem[0] = limit / 4 * 3;

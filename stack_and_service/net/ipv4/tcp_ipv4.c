@@ -858,8 +858,10 @@ static int tcp_v4_rtx_synack(struct sock *sk, struct request_sock *req)
 {
 	int res = tcp_v4_send_synack(sk, NULL, req, 0);
 
-	if (!res)
+	if (!res) {
+printf("%s %d\n",__FILE__,__LINE__);
 		TCP_INC_STATS_BH(sock_net(sk), TCP_MIB_RETRANSSEGS);
+	}
 	return res;
 }
 
@@ -2797,10 +2799,8 @@ static struct pernet_operations __net_initdata tcp_sk_ops = {
 
 void __init tcp_v4_init(void)
 {
-	int i;
-	for(i = 0;i < MAXCPU;i++) {
-		inet_hashinfo_init(&tcp_hashinfo[i]);
-	}
+	inet_hashinfo_init(&tcp_hashinfo[rte_lcore_id()]);
+
 	if (register_pernet_subsys(&tcp_sk_ops))
 		panic("Failed to create the TCP control socket.\n");
 }

@@ -99,10 +99,7 @@ static const struct file_operations neigh_stat_seq_fops;
 //static DEFINE_RWLOCK(neigh_tbl_lock);
 void neigh_per_core_init()
 {
-	int cpu_idx;
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		neigh_tables[cpu_idx] = NULL;
-	}
+	neigh_tables[rte_lcore_id()] = NULL;
 }
 static int neigh_blackhole(struct neighbour *neigh, struct sk_buff *skb)
 {

@@ -3022,68 +3022,60 @@ void __init tcp_init(void)
 	struct sk_buff *skb = NULL;
 	unsigned long limit;
 	int max_rshare, max_wshare, cnt;
-	unsigned int i,cpu_idx;
+	unsigned int i;
 	char hash_name[1024];
 
 	BUILD_BUG_ON(sizeof(struct tcp_skb_cb) > sizeof(skb->cb));
 
 	percpu_counter_init(&tcp_sockets_allocated, 0);
 	percpu_counter_init(&tcp_orphan_count, 0);
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		printf("%s %d %p\n",__FILE__,__LINE__,&tcp_hashinfo[cpu_idx]);
-		sprintf(hash_name,"tcp_bind_bucket%d",cpu_idx);
-		tcp_hashinfo[cpu_idx].bind_bucket_cachep =
+	sprintf(hash_name,"tcp_bind_bucket%d",rte_lcore_id());
+	tcp_hashinfo[rte_lcore_id()].bind_bucket_cachep =
 				kmem_cache_create(hash_name,
 						sizeof(struct inet_bind_bucket), TCP_BIND_CACHE_SIZE,
 						SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
-	}
 
 	/* Size and allocate the main established and bind bucket
 	 * hash tables.
 	 *
 	 * The methodology is similar to that of the buffer cache.
 	 */
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		sprintf(hash_name,"TCP established%d",cpu_idx);
-		tcp_hashinfo[cpu_idx].ehash =
-				alloc_large_system_hash(hash_name,
-						sizeof(struct inet_ehash_bucket),
-						thash_entries,
-						17, /* one slot per 128 KB of memory */
-						0,
-						NULL,
-						&tcp_hashinfo[cpu_idx].ehash_mask,
-						0,
-						thash_entries ? 0 : 512 * 1024);
-		for (i = 0; i <= tcp_hashinfo[cpu_idx].ehash_mask; i++)
-			INIT_HLIST_NULLS_HEAD(&tcp_hashinfo[cpu_idx].ehash[i].chain, i);
-	}
+	sprintf(hash_name,"TCP established%d",rte_lcore_id());
+	tcp_hashinfo[rte_lcore_id()].ehash =
+			alloc_large_system_hash(hash_name,
+					sizeof(struct inet_ehash_bucket),
+					thash_entries,
+					17, /* one slot per 128 KB of memory */
+					0,
+					NULL,
+					&tcp_hashinfo[rte_lcore_id()].ehash_mask,
+					0,
+					thash_entries ? 0 : 512 * 1024);
+	for (i = 0; i <= tcp_hashinfo[rte_lcore_id()].ehash_mask; i++)
+		INIT_HLIST_NULLS_HEAD(&tcp_hashinfo[rte_lcore_id()].ehash[i].chain, i);
 
 	if (inet_ehash_locks_alloc(&tcp_hashinfo))
 		panic("TCP: failed to alloc ehash_locks");
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++) {
-		sprintf(hash_name,"TCP bind%d",cpu_idx);
-		tcp_hashinfo[cpu_idx].bhash =
-				alloc_large_system_hash(hash_name,
-						sizeof(struct inet_bind_hashbucket),
-						tcp_hashinfo[cpu_idx].ehash_mask + 1,
-						17, /* one slot per 128 KB of memory */
-						0,
-						&tcp_hashinfo[cpu_idx].bhash_size,
-						NULL,
-						0,
-						64 * 1024);
-		tcp_hashinfo[cpu_idx].bhash_size = 1U << tcp_hashinfo[cpu_idx].bhash_size;
-		for (i = 0; i < tcp_hashinfo[cpu_idx].bhash_size; i++) {
-			spin_lock_init(&tcp_hashinfo[cpu_idx].bhash[i].lock);
-			INIT_HLIST_HEAD(&tcp_hashinfo[cpu_idx].bhash[i].chain);
-		}
+	sprintf(hash_name,"TCP bind%d",rte_lcore_id());
+	tcp_hashinfo[rte_lcore_id()].bhash =
+			alloc_large_system_hash(hash_name,
+					sizeof(struct inet_bind_hashbucket),
+					tcp_hashinfo[rte_lcore_id()].ehash_mask + 1,
+					17, /* one slot per 128 KB of memory */
+					0,
+					&tcp_hashinfo[rte_lcore_id()].bhash_size,
+					NULL,
+					0,
+					64 * 1024);
+	tcp_hashinfo[rte_lcore_id()].bhash_size = 1U << tcp_hashinfo[rte_lcore_id()].bhash_size;
+	for (i = 0; i < tcp_hashinfo[rte_lcore_id()].bhash_size; i++) {
+		spin_lock_init(&tcp_hashinfo[rte_lcore_id()].bhash[i].lock);
+		INIT_HLIST_HEAD(&tcp_hashinfo[rte_lcore_id()].bhash[i].chain);
 	}
 
-	cnt = tcp_hashinfo[0].ehash_mask + 1;
+	cnt = tcp_hashinfo[rte_lcore_id()].ehash_mask + 1;
 
-	for(cpu_idx = 0;cpu_idx < MAXCPU;cpu_idx++)
-		tcp_death_row[cpu_idx].sysctl_max_tw_buckets = cnt / 2;
+	tcp_death_row[rte_lcore_id()].sysctl_max_tw_buckets = cnt / 2;
 	sysctl_tcp_max_orphans = cnt / 2;
 	sysctl_max_syn_backlog = max(128, cnt / 256);
 	tcp_init_death_row();

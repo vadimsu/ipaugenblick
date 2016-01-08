@@ -60,22 +60,19 @@ static struct dst_entry         *dst_busy_list[MAXCPU];
 
 static void dst_percpu_init()
 {
-	int cpu_idx;
     /* Just do the same as original static initialization */
-	for(cpu_idx = 0; cpu_idx < MAXCPU;cpu_idx++){
-		dst_garbage[cpu_idx].timer_inc = DST_GC_MAX;
-		dst_busy_list[cpu_idx] = NULL;
-		dst_gc_work[cpu_idx].work.data = WORK_STRUCT_NO_POOL | WORK_STRUCT_STATIC;
-		dst_gc_work[cpu_idx].work.entry.prev = &dst_gc_work[cpu_idx].work.entry;
-		dst_gc_work[cpu_idx].work.entry.next = &dst_gc_work[cpu_idx].work.entry;
-		dst_gc_work[cpu_idx].work.func = dst_gc_task;
-		dst_gc_work[cpu_idx].timer.function = delayed_work_timer_fn;
-		dst_gc_work[cpu_idx].timer.entry.prev = TIMER_ENTRY_STATIC ;
-		dst_gc_work[cpu_idx].timer.expires = 0;
-		dst_gc_work[cpu_idx].timer.data = (unsigned long)&dst_gc_work[cpu_idx];
-		dst_gc_work[cpu_idx].timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
-		dst_gc_work[cpu_idx].timer.slack = -1;
-	}
+	dst_garbage[rte_lcore_id()].timer_inc = DST_GC_MAX;
+	dst_busy_list[rte_lcore_id()] = NULL;
+	dst_gc_work[rte_lcore_id()].work.data = WORK_STRUCT_NO_POOL | WORK_STRUCT_STATIC;
+	dst_gc_work[rte_lcore_id()].work.entry.prev = &dst_gc_work[rte_lcore_id()].work.entry;
+	dst_gc_work[rte_lcore_id()].work.entry.next = &dst_gc_work[rte_lcore_id()].work.entry;
+	dst_gc_work[rte_lcore_id()].work.func = dst_gc_task;
+	dst_gc_work[rte_lcore_id()].timer.function = delayed_work_timer_fn;
+	dst_gc_work[rte_lcore_id()].timer.entry.prev = TIMER_ENTRY_STATIC ;
+	dst_gc_work[rte_lcore_id()].timer.expires = 0;
+	dst_gc_work[rte_lcore_id()].timer.data = (unsigned long)&dst_gc_work[rte_lcore_id()];
+	dst_gc_work[rte_lcore_id()].timer.base = (void *)((unsigned long)&boot_tvec_bases + TIMER_IRQSAFE);
+	dst_gc_work[rte_lcore_id()].timer.slack = -1;
 }
 
 static void dst_gc_task(struct work_struct *work)
