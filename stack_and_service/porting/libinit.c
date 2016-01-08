@@ -118,25 +118,20 @@ struct rte_mempool *get_direct_pool(uint16_t queue_id)
 }
 
 /* This function initializes the rx queue rte_mbuf pool */
-static void init_rx_queues_mempools()
+static void init_rx_queues_mempools(unsigned cpu, uint16_t queue_id)
 {
-	uint16_t queue_id;
         char pool_name[1024];
 
-/* create the mbuf pools */
-//	SET_MBUF_DEBUG_POOL(&g_direct_mbufs[0],&g_direct_mbuf_idx);
-        for(queue_id = 0;queue_id < RX_QUEUE_PER_PORT;queue_id++) {
-                sprintf(pool_name,"pool_direct%d",queue_id);
-                pool_direct[queue_id] =
-				rte_mempool_create(pool_name, MBUFS_PER_RX_QUEUE,
+	ipaugenblick_log(IPAUGENBLICK_LOG_DEBUG,"CORE %d QUEUE %d\n", cpu, queue_id);
+	sprintf(pool_name,"pool_direct%d",queue_id);
+	pool_direct[queue_id] = rte_mempool_create(pool_name, MBUFS_PER_RX_QUEUE,
 						   MBUF_SIZE, 0,
 						   sizeof(struct rte_pktmbuf_pool_private),
 						   rte_pktmbuf_pool_init, NULL,
 						   rte_pktmbuf_init, NULL,
-						   rte_socket_id(), 0);
-			if (pool_direct[queue_id] == NULL)
-				rte_panic("Cannot init direct mbuf pool\n");
-        }
+						   rte_lcore_to_socket_id(cpu), 0);
+	if (pool_direct[queue_id] == NULL)
+		rte_panic("Cannot init direct mbuf pool\n");
 }
 
 static struct rte_eth_conf port_conf = {
@@ -541,6 +536,7 @@ static void adjust_queue_configuration()
 		if(rte_lcore_is_enabled(cpu)) {
 			if(rte_lcore_id() != cpu) {
 				core_2_queue_idx[cpu] = queue_pairs;
+				init_rx_queues_mempools(cpu, queue_pairs);
 				queue_pairs++;
 			}
 		}
@@ -622,8 +618,7 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 		ipaugenblick_log(IPAUGENBLICK_LOG_ERR,"Invalid APP arguments");
 		rte_exit(EXIT_FAILURE, "Invalid APP arguments\n");
 	}	
-
-	init_rx_queues_mempools();
+	
 	mbufs_mempool = rte_mempool_create("mbufs_mempool", APP_MBUFS_POOL_SIZE,
 							   MBUF_SIZE, 0,
 							   sizeof(struct rte_pktmbuf_pool_private),
@@ -677,7 +672,6 @@ int dpdk_linux_tcpip_init(int argc,char **argv)
 	rte_set_log_type(RTE_LOGTYPE_PMD,1);
 	rte_set_log_level(RTE_LOG_DEBUG);	
 loopback_only:
-	printf("MASTER CORE %d\n",rte_lcore_id());
 //	ipaugenblick_main_loop(NULL);
 	RTE_LCORE_FOREACH(cpu) {
 		if(rte_lcore_is_enabled(cpu)) {
