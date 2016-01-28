@@ -1073,15 +1073,15 @@ struct proto {
 	bool			(*stream_memory_free)(const struct sock *sk);
 	/* Memory pressure */
 	void			(*enter_memory_pressure)(struct sock *sk);
-	atomic_long_t		*memory_allocated;	/* Current allocated memory. */
-	struct percpu_counter	*sockets_allocated;	/* Current number of sockets. */
+	atomic_long_t		*memory_allocated[MAXCPU];	/* Current allocated memory. */
+	struct percpu_counter	*sockets_allocated[MAXCPU];	/* Current number of sockets. */
 	/*
 	 * Pressure flag: try to collapse.
 	 * Technical note: it is used by multiple contexts non atomically.
 	 * All the __sk_mem_schedule() is of this nature: accounting
 	 * is strict, actions are advisory and have some latency.
 	 */
-	int			*memory_pressure;
+	int			*memory_pressure[MAXCPU];
 	long			*sysctl_mem;
 	int			*sysctl_wmem;
 	int			*sysctl_rmem;
@@ -1092,7 +1092,7 @@ struct proto {
 	unsigned int		obj_size;
 	int			slab_flags;
 
-	struct percpu_counter	*orphan_count;
+	struct percpu_counter	*orphan_count[MAXCPU];
 
 	struct request_sock_ops	*rsk_prot;
 	struct timewait_sock_ops *twsk_prot;
@@ -1226,23 +1226,23 @@ static inline bool sk_stream_is_writeable(const struct sock *sk)
 
 static inline bool sk_has_memory_pressure(const struct sock *sk)
 {
-	return sk->sk_prot->memory_pressure != NULL;
+	return sk->sk_prot->memory_pressure[rte_lcore_id()] != NULL;
 }
 
 static inline bool sk_under_memory_pressure(const struct sock *sk)
 {
-	if (!sk->sk_prot->memory_pressure)
+	if (!sk->sk_prot->memory_pressure[rte_lcore_id()])
 		return false;
 
 	if (mem_cgroup_sockets_enabled && sk->sk_cgrp)
 		return !!sk->sk_cgrp->memory_pressure;
 
-	return !!*sk->sk_prot->memory_pressure;
+	return !!*sk->sk_prot->memory_pressure[rte_lcore_id()];
 }
 
 static inline void sk_leave_memory_pressure(struct sock *sk)
 {
-	int *memory_pressure = sk->sk_prot->memory_pressure;
+	int *memory_pressure = sk->sk_prot->memory_pressure[rte_lcore_id()];
 
 	if (!memory_pressure)
 		return;
@@ -1291,7 +1291,7 @@ static inline void memcg_memory_allocated_add(struct cg_proto *prot,
 	struct res_counter *fail;
 	int ret;
 
-	ret = res_counter_charge_nofail(&prot->memory_allocated,
+	ret = res_counter_charge_nofail(&prot->memory_allocated[rte_lcore_id()],
 					amt << PAGE_SHIFT, &fail);
 	if (ret < 0)
 		*parent_status = OVER_LIMIT;
@@ -1300,13 +1300,13 @@ static inline void memcg_memory_allocated_add(struct cg_proto *prot,
 static inline void memcg_memory_allocated_sub(struct cg_proto *prot,
 					      unsigned long amt)
 {
-	res_counter_uncharge(&prot->memory_allocated, amt << PAGE_SHIFT);
+	res_counter_uncharge(&prot->memory_allocated[rte_lcore_id()], amt << PAGE_SHIFT);
 }
 
 static inline u64 memcg_memory_allocated_read(struct cg_proto *prot)
 {
 	u64 ret;
-	ret = res_counter_read_u64(&prot->memory_allocated, RES_USAGE);
+	ret = res_counter_read_u64(&prot->memory_allocated[rte_lcore_id()], RES_USAGE);
 	return ret >> PAGE_SHIFT;
 }
 
@@ -1317,7 +1317,7 @@ sk_memory_allocated(const struct sock *sk)
 	if (mem_cgroup_sockets_enabled && sk->sk_cgrp)
 		return memcg_memory_allocated_read(sk->sk_cgrp);
 
-	return atomic_long_read(prot->memory_allocated);
+	return atomic_long_read(prot->memory_allocated[rte_lcore_id()]);
 }
 
 static inline long
@@ -1328,11 +1328,11 @@ sk_memory_allocated_add(struct sock *sk, int amt, int *parent_status)
 	if (mem_cgroup_sockets_enabled && sk->sk_cgrp) {
 		memcg_memory_allocated_add(sk->sk_cgrp, amt, parent_status);
 		/* update the root cgroup regardless */
-		atomic_long_add_return(amt, prot->memory_allocated);
+		atomic_long_add_return(amt, prot->memory_allocated[rte_lcore_id()]);
 		return memcg_memory_allocated_read(sk->sk_cgrp);
 	}
 
-	return atomic_long_add_return(amt, prot->memory_allocated);
+	return atomic_long_add_return(amt, prot->memory_allocated[rte_lcore_id()]);
 }
 
 static inline void
@@ -1343,7 +1343,7 @@ sk_memory_allocated_sub(struct sock *sk, int amt)
 	if (mem_cgroup_sockets_enabled && sk->sk_cgrp)
 		memcg_memory_allocated_sub(sk->sk_cgrp, amt);
 
-	atomic_long_sub(amt, prot->memory_allocated);
+	atomic_long_sub(amt, prot->memory_allocated[rte_lcore_id()]);
 }
 
 static inline void sk_sockets_allocated_dec(struct sock *sk)
@@ -1357,7 +1357,7 @@ static inline void sk_sockets_allocated_dec(struct sock *sk)
 			percpu_counter_dec(&cg_proto->sockets_allocated);
 	}
 
-	percpu_counter_dec(prot->sockets_allocated);
+	percpu_counter_dec(prot->sockets_allocated[rte_lcore_id()]);
 }
 
 static inline void sk_sockets_allocated_inc(struct sock *sk)
@@ -1371,7 +1371,7 @@ static inline void sk_sockets_allocated_inc(struct sock *sk)
 			percpu_counter_inc(&cg_proto->sockets_allocated);
 	}
 
-	percpu_counter_inc(prot->sockets_allocated);
+	percpu_counter_inc(prot->sockets_allocated[rte_lcore_id()]);
 }
 
 static inline int
@@ -1382,13 +1382,13 @@ sk_sockets_allocated_read_positive(struct sock *sk)
 	if (mem_cgroup_sockets_enabled && sk->sk_cgrp)
 		return percpu_counter_read_positive(&sk->sk_cgrp->sockets_allocated);
 
-	return percpu_counter_read_positive(prot->sockets_allocated);
+	return percpu_counter_read_positive(prot->sockets_allocated[rte_lcore_id()]);
 }
 
 static inline int
 proto_sockets_allocated_sum_positive(struct proto *prot)
 {
-	return percpu_counter_sum_positive(prot->sockets_allocated);
+	return percpu_counter_sum_positive(prot->sockets_allocated[rte_lcore_id()]);
 }
 
 static inline long
@@ -1400,9 +1400,9 @@ proto_memory_allocated(struct proto *prot)
 static inline bool
 proto_memory_pressure(struct proto *prot)
 {
-	if (!prot->memory_pressure)
+	if (!prot->memory_pressure[rte_lcore_id()])
 		return false;
-	return !!*prot->memory_pressure;
+	return !!*prot->memory_pressure[rte_lcore_id()];
 }
 
 
@@ -1503,7 +1503,7 @@ static inline int sk_mem_pages(int amt)
 static inline bool sk_has_account(struct sock *sk)
 {
 	/* return true if protocol supports memory accounting */
-	return !!sk->sk_prot->memory_allocated;
+	return !!sk->sk_prot->memory_allocated[rte_lcore_id()];
 }
 
 static inline bool sk_wmem_schedule(struct sock *sk, int size)

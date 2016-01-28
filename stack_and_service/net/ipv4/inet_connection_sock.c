@@ -721,7 +721,7 @@ void inet_csk_destroy_sock(struct sock *sk)
 
 	sk_refcnt_debug_release(sk);
 
-	percpu_counter_dec(sk->sk_prot->orphan_count);
+	percpu_counter_dec(sk->sk_prot->orphan_count[rte_lcore_id()]);
 	sock_put(sk);
 }
 EXPORT_SYMBOL(inet_csk_destroy_sock);
@@ -738,7 +738,7 @@ void inet_csk_prepare_forced_close(struct sock *sk)
 
 	/* The below has to be done to allow calling inet_csk_destroy_sock */
 	sock_set_flag(sk, SOCK_DEAD);
-	percpu_counter_inc(sk->sk_prot->orphan_count);
+	percpu_counter_inc(sk->sk_prot->orphan_count[rte_lcore_id()]);
 	inet_sk(sk)->inet_num = 0;
 }
 EXPORT_SYMBOL(inet_csk_prepare_forced_close);
@@ -817,7 +817,7 @@ void inet_csk_listen_stop(struct sock *sk)
 
 		sock_orphan(child);
 
-//		percpu_counter_inc(sk->sk_prot->orphan_count);
+//		percpu_counter_inc(sk->sk_prot->orphan_count[rte_lcore_id()]);
 
 		if (sk->sk_protocol == IPPROTO_TCP && tcp_rsk(req)->listener) {
 			BUG_ON(tcp_sk(child)->fastopen_rsk != req);

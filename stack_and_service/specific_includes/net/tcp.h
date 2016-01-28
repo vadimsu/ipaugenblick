@@ -315,7 +315,7 @@ static inline bool tcp_out_of_memory(struct sock *sk)
 
 static inline bool tcp_too_many_orphans(struct sock *sk, int shift)
 {
-	struct percpu_counter *ocp = sk->sk_prot->orphan_count;
+	struct percpu_counter *ocp = sk->sk_prot->orphan_count[rte_lcore_id()];
 	int orphans = percpu_counter_read_positive(ocp);
 
 	if (orphans << shift > sysctl_tcp_max_orphans) {

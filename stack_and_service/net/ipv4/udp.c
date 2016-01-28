@@ -128,7 +128,7 @@ EXPORT_SYMBOL(sysctl_udp_rmem_min);
 int sysctl_udp_wmem_min __read_mostly;
 EXPORT_SYMBOL(sysctl_udp_wmem_min);
 
-atomic_long_t udp_memory_allocated;
+atomic_long_t udp_memory_allocated[MAXCPU];
 EXPORT_SYMBOL(udp_memory_allocated);
 
 #define MAX_UDP_PORTS 65536
@@ -2205,7 +2205,9 @@ struct proto udp_prot = {
 	.unhash		   = udp_lib_unhash,
 	.rehash		   = udp_v4_rehash,
 	.get_port	   = udp_v4_get_port,
+#if 0
 	.memory_allocated  = &udp_memory_allocated,
+#endif
 	.sysctl_mem	   = sysctl_udp_mem,
 	.sysctl_wmem	   = &sysctl_udp_wmem_min,
 	.sysctl_rmem	   = &sysctl_udp_rmem_min,
@@ -2219,6 +2221,11 @@ struct proto udp_prot = {
 	.clear_sk	   = sk_prot_clear_portaddr_nulls,
 };
 EXPORT_SYMBOL(udp_prot);
+
+void udp_proto_multicore_fixup()
+{
+	udp_prot.memory_allocated[rte_lcore_id()] = &udp_memory_allocated[rte_lcore_id()];
+}
 
 /* ------------------------------------------------------------------------ */
 #ifdef CONFIG_PROC_FS

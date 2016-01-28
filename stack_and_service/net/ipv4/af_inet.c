@@ -1706,6 +1706,7 @@ int __init inet_init(void)
 
 	BUILD_BUG_ON(sizeof(struct inet_skb_parm) > FIELD_SIZEOF(struct sk_buff, cb));
 	tcp_prot_multicore_fixup();
+	udp_prot_multicore_fixup();
 
 	sysctl_local_reserved_ports = kzalloc(65536 / 8, GFP_KERNEL);
 	if (!sysctl_local_reserved_ports)

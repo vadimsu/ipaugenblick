@@ -1520,7 +1520,7 @@ struct sock *sk_clone_lock(const struct sock *sk, const gfp_t priority)
 
 		sk_update_clone(sk, newsk);
 
-		if (newsk->sk_prot->sockets_allocated)
+		if (newsk->sk_prot->sockets_allocated[rte_lcore_id()])
 			sk_sockets_allocated_inc(newsk);
 
 		if (newsk->sk_flags & SK_FLAGS_TIMESTAMP)
@@ -2860,12 +2860,12 @@ static char proto_method_implemented(const void *method)
 }
 static long sock_prot_memory_allocated(struct proto *proto)
 {
-	return proto->memory_allocated != NULL ? proto_memory_allocated(proto) : -1L;
+	return proto->memory_allocated[rte_lcore_id()] != NULL ? proto_memory_allocated(proto) : -1L;
 }
 
 static char *sock_prot_memory_pressure(struct proto *proto)
 {
-	return proto->memory_pressure != NULL ?
+	return proto->memory_pressure[rte_lcore_id()] != NULL ?
 	proto_memory_pressure(proto) ? "yes" : "no" : "NI";
 }
 
