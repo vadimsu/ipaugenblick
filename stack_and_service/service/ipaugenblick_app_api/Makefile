@@ -5,7 +5,7 @@ SRC_ROOT=$(CURRENT_DIR)
 SRCS-y :=  ipaugenblick_api.c ../../log/ipaugenblick_log.c
 #CFLAGS += -g
 CFLAGS += -Ofast  
-CFLAGS += $(WERROR_FLAGS) 
+CFLAGS += -Wno-deprecated-declarations
 DPDK_HEADERS=$(SRC_ROOT)x86_64-native-linuxapp-gcc/include
 ALL_HEADERS = -I$(DPDK_HEADERS) -I./ -I$(SRC_ROOT)stack_and_service/
 CFLAGS += $(ALL_HEADERS) -DMAXCPU=32 -D__UAPI_DEF_IN6_ADDR=1 -D__UAPI_DEF_SOCKADDR_IN6=1 -D__UAPI_DEF_IN6_ADDR_ALT=1 -DCONFIG_INET\

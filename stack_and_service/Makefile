@@ -29,7 +29,7 @@ drivers/net/dpdk/dpdk_sw_loop.c drivers/net/dpdk/device.c service/ipaugenblick_s
 log/ipaugenblick_log.c
 #CFLAGS += -g
 CFLAGS += -Ofast   
-CFLAGS += $(WERROR_FLAGS) 
+CFLAGS += -Wno-deprecated-declarations
 LINUX_HEADERS=$(SRC_ROOT)stack_and_service/
 DPDK_HEADERS=$(RTE_SDK)/x86_64-native-linuxapp-gcc/include
 ALL_HEADERS = -I$(LINUX_HEADERS) -I$(DPDK_HEADERS) -I$(LINUX_HEADERS)service

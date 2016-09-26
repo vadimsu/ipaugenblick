@@ -82,16 +82,16 @@ int get_max_drv_poll_interval_in_micros(int port_num)
 
 	rte_eth_link_get(port_num,&rte_eth_link);
 	switch(rte_eth_link.link_speed) {
-	case ETH_LINK_SPEED_10:
+	case ETH_LINK_SPEED_10M:
 		bytes_in_sec = 10/8;
 		break;
-	case ETH_LINK_SPEED_100:
+	case ETH_LINK_SPEED_100M:
 		bytes_in_sec = 100/8;
 		break;
-	case ETH_LINK_SPEED_1000:
+	case ETH_LINK_SPEED_1G:
 		bytes_in_sec = 1000/8;
 		break;
-	case ETH_LINK_SPEED_10000:
+	case ETH_LINK_SPEED_10G:
 		bytes_in_sec = 10000/8;
 		break;
 	default:
