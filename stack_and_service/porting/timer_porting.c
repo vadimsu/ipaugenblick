@@ -17,7 +17,6 @@
 #include <rte_lcore.h>
 #include <rte_mempool.h>
 #include <rte_cycles.h>
-#include <rte_hash.h>
 #include <rte_byteorder.h>
 
 int del_timer(struct timer_list * timer)

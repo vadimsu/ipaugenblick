@@ -74,7 +74,6 @@
 #include <rte_lcore.h>
 #include <rte_mempool.h>
 #include <rte_cycles.h>
-#include <rte_hash.h>
 #include <rte_byteorder.h>
 
 void ip_mc_down(struct in_device *in_dev)
