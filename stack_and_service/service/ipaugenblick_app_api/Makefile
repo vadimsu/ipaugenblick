@@ -1,4 +1,4 @@
-RTE_SDK=$(CURRENT_DIR)dpdk-2.0.0
+RTE_SDK=$(CURRENT_DIR)dpdk-16.07
 RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.vars.mk
 SRC_ROOT=$(CURRENT_DIR)
