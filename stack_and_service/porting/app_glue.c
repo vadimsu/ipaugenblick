@@ -407,7 +407,7 @@ uint64_t app_glue_rx_queues_process = 0;
  * Returns: None
  *
  */
-inline void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to_poll_count)
+void app_glue_periodic(int call_flush_queues,uint8_t *ports_to_poll,int ports_to_poll_count)
 {
 	uint64_t ts,ts2,ts3,ts4;
     uint8_t port_idx;
