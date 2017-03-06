@@ -30,7 +30,7 @@ log/ipaugenblick_log.c
 #CFLAGS += -g
 CFLAGS += -Ofast   
 CFLAGS += -Wno-deprecated-declarations
-LDLIBS += -lrte_eal -lrte_timer -lrte_ring -lrte_mempool -lethdev -lrte_mbuf
+LDLIBS += -lrte_eal -lrte_timer -lrte_ring -lrte_mempool -lrte_ethdev -lrte_mbuf
 LINUX_HEADERS=$(SRC_ROOT)stack_and_service/
 DPDK_HEADERS=$(RTE_SDK)/x86_64-native-linuxapp-gcc/include
 ALL_HEADERS = -I$(LINUX_HEADERS) -I$(DPDK_HEADERS) -I$(LINUX_HEADERS)service
