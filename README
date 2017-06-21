@@ -1,41 +1,62 @@
 News
 Intro
 
-At the end of April 2014, I started the poring of Linux TCP/IP into the user space and integrating it with DPDK, after I had done the same with FreeBSD for the company I worked for. Today, almost 5 months (or 20 weekends) later, I decided to publish it. Please feel free to contact me for any question you may have. In case you have questions/difficulties to wirk with the package, you can also ask me to schedule a skype session, if you wish. Contact me to schedule. I'll be glad to help
+At the end of April 2014, I started the porting of Linux TCP/IP into the user
+space and integrated it with DPDK, after I had done the same with FreeBSD for
+the company I worked for. Today, almost 5 months (or 20 weekends) later, I
+decided to publish it. Please feel free to contact me for any question you may
+have. In case you have questions/difficulties to work with the package, you can
+also ask me to schedule a skype session, if you wish. Contact me to schedule.
+I'll be glad to help
 
 Architecture overview
 
-IPAugenblick runs as a backgroung process. It is composed of ported to user space Linux TCP/IP stack, which interfaces using some glue logic
-the PMD at the bottom and user applications at the top. To communicate user applications, a number (equal to max supported sockets number) 
-rings are created. A user application runs as EAL secondary process which means it shares the memory and no memory is copied.
-Since the rte_rings are used, neither receive nor transmit are blocking. A user application does not interfaces the ring directly but
-using posix-like API (stack_and_service/service/ipaugenblick_app/ipaugenblick_app_api.h) which appears as a library. Once a buffer is placed in the ring by the application, it is then read by the IPAugenblick service, passed to the TCP/IP stack. Upon leaving the TCP/IP stack, the packet is placed in PMD ring for transmission. In opposite direction, IPaugenblick service pools the PMD for incoming packets. Once received, it
-is passed upper to the stack. When the TCP/IP stack decides the data is ready to be read by user, it calls a callback function, which
-checks if there is a space in the ring (between the IPaugenblick service and user application). If there is some space, the packet is read from
-the socket and is placed in the ring. The application is then kicked to notify there are data to read. The receive path is also non-blocking
-and no memory copying
+ustack runs as a background process. It is composed of ported to user space
+Linux TCP/IP stack, which interfaces with the PMD at the bottom using some
+glue logic and user applications at the top. To communicate with user
+applications, a number (equal to max supported sockets number) of rings are
+created. A user application runs as EAL secondary process which means it shares
+the memory and no memory is copied. Since the rte_rings are used, neither
+receive nor transmit are blocking. A user application does not interfaces the
+ring directly but using posix-like API (stack_and_service/service/ustack_app
+/ustack_app_api.h) which appears as a library. Once a buffer is placed in the
+ring by the application, it is then read by the ustack service, passed to the
+TCP/IP stack. Upon leaving the TCP/IP stack, the packet is placed in PMD ring
+for transmission. In opposite direction, ustack service pools the PMD for
+incoming packets. Once received, it is passed upper to the stack. When the
+TCP/IP stack decides that the data is ready to be read for user, it calls a
+callback function, which checks if there is a space in the ring (between the
+ustack service and user application). If there is some space, the packet is read
+from the socket and is placed in the ring. The application is then kicked to
+notify that there are data to read. The receive path is also non-blocking
+and zero-copy
 
 Using API
 The API is posix-like, however some extensions are introduced:
-- to avoid memory copying, buffer descriptor is passed as well as the pointer to the buffer's memory
+- to avoid memory copying, buffer descriptor is passed as well as the pointer to
+  the buffer's memory
 - bulk API for sending bulks of buffers
 - FD sets are designed to allow two approaches for handling:
-	- socket descriptor (integer, returned when opening socket) may be used to query whether a socket is readable or writable
-	- upon returning from select, one can iterate all readable/writable descriptors
-	Please consult the examples about how to use it
+	- socket descriptor (integer, returned when opening socket) may be used to
+      query whether a socket is readable or writable
+	- upon returning from select, one can iterate all readable/writable
+      descriptors
+Please read the examples to know how to use it
 
 Porting detailed info:
 
-    Linux kernel version IPAugenblick is based on: 3.14.2
+    Linux kernel version ustack is based on: 3.14.2
     Resolving header files conflicts:
 
-       since DPDK itself uses header files in /usr/include/,
-       all Linux TCP/IP stack headers are placed in special_includes to avoid conflicts. In source files the paths are fixed correspondigly.
+       since DPDK itself uses header files in /usr/include/, all Linux TCP/IP
+       stack headers are placed in special_includes to avoid conflicts. In
+       source files the paths are fixed correspondingly.
 
     Kernel subsystems porting:
 
     kmem_cache is ported to rte_mempool
-    kmalloc/kfree (and other heap memory allocation functions) are ported to rte_malloc/rte_free
+    kmalloc/kfree (and other heap memory allocation functions) are ported to
+        rte_malloc/rte_free
     timer is ported to rte_timer
     workqueue & tasklets are ported to direct calls
     delayed workqueue is ported to rte_timer
@@ -49,32 +70,47 @@ Porting detailed info:
     mmap functions (protocol specific) are dummy
     sendmsg functions (protocol specific) are dummy
     all spinlocks, mutexes are removed (empty macros),
-      there are also two assumptions about the socket: it is now owned by user (which prevents pre-queueingthe packets), on other hand, it assumes the code is executing in the process's context so the received data can be directly queued)
+      there are also two assumptions about the socket: it is now owned by user
+      (which prevents pre-queueing the packets), on other hand, it assumes the
+      code is executing in the process's context so the received data can be
+      directly queued)
     inter-core communication where needed, is done using rte_ring
 
 Getting struct skbuff work with rte_mbuf, skbuff.c & skbuff.h changes:
 
 struct skbuff:
 
-instead of porting complex struct skbuff into rte_mbuf, skbuff is made to hold pointers to rte_mbuf.
+instead of porting complex struct skbuff into rte_mbuf, skbuff is made to hold
+pointers to rte_mbuf.
 
 header_mbuf field is added. This is a pointer to DPDK's rte_mbuf.
 
-The memory the data field points to is not allocated from the heap with kmalloc. It rather points to the same memory header_mbuf->pkt.data points to.
+The memory the data field points to is not allocated from the heap with kmalloc.
+It rather points to the same memory header_mbuf->pkt.data points to.
 
-shinfo is allocated at the moment skbuff it self is allocated. This will save few cycles
+shinfo is allocated at the moment skbuff it self is allocated. This will save
+few cycles
 
-On the transmit path (when skb comes from either tcp_sendpage, udp_sendmsg or raw_sendmsg), the headers are placed in the memory data/header_mbuf points to while user's data is hold in the fragment's array (struct page wraps the struct rte_mbuf).
+On the transmit path (when skb comes from either tcp_sendpage, udp_sendmsg or
+raw_sendmsg), the headers are placed in the memory data/header_mbuf points to
+while user's data is hold in the fragment's array (struct page wraps the struct
+rte_mbuf).
 
-On the receive path, currently the data is hold together with headers in header_mbuf.
+On the receive path, currently the data is hold together with headers in
+header_mbuf.
 
-Across all the stack rte_mbuf->pkt.data, rte_mbuf->pkt.data_len & rte_mbuf->pkt.pkt_len are not modified, stack moves skbuff's data/len with regular skb_put, skb_push etc. There is however a limited nuber of places  the rte_mbuf's fields are adjusted:
+Across all the stack rte_mbuf->pkt.data, rte_mbuf->pkt.data_len
+& rte_mbuf->pkt.pkt_len are not modified, stack moves skbuff's data/len with
+regular skb_put, skb_push etc. There is however a limited number of places the
+rte_mbuf's fields are adjusted:
 
 - In the functions which copy to/from iovec
 
-- In the driver - before transmitting and upon packet arrival, when skb is initialized.
+- In the driver - before transmitting and upon packet arrival, when skb is
+  initialized.
 
-- skb_copy_bits is modified in such a way it copies the pointers to the rte_mbufs rather than data the point to
+- skb_copy_bits is modified in such a way it copies the pointers to the
+  rte_mbufs rather than the data it points to
 
 - skb_copy_bits2 - is exactly the original skb_copy_bits
 
@@ -85,20 +121,33 @@ Across all the stack rte_mbuf->pkt.data, rte_mbuf->pkt.data_len & rte_mbuf->pkt.
 - If defined, tcp_sendpage will:
 
     ignore the page argument
-    while size (passed as argument) and size_gloal (calculated at the beginning of the function) are greater than zero,  for each calculated mss user_get_buffer function will be called to get filled by user rte_mbuf. This function receives a maximal size of the buffer and updates it.
-    user_get_buffer is called only when mss & size_goal are calculated and skb is alllocated, and all the data written to rte_mbuf (up to the max size passed to user_get_buffer) is placed in socket's write queue. Therefore, no dealing with partial writes
+    while size (passed as argument) and size_gloal (calculated at the beginning
+    of the function) are greater than zero,  for each calculated mss
+    user_get_buffer function will be called to get filled by user rte_mbuf. This
+    function receives a maximal size of the buffer and updates it.
+    user_get_buffer is called only when mss & size_goal are calculated and skb
+    is alllocated, and all the data written to rte_mbuf (up to the max size
+    passed to user_get_buffer) is placed in socket's write queue. Therefore, no
+    dealing with partial writes
 
-- Otherwise,if not defined, tcp_sendpage will retrieve from struct page (wrapper structure for rte_mbuf) a filled rte_mbuf attach to skb and send, if size_goal and mss allow.
+- Otherwise,if not defined, tcp_sendpage will retrieve from struct page (wrapper
+  structure for rte_mbuf) a filled rte_mbuf attach to skb and send, if size_goal
+  and mss allow.
 
      Receiving optimizations for TCP
 
 - Controlled by OPTIMIZE_TCP_RECEIVE build switch (main Makefile)
 
-Since all the processing is done in one single context, backlog queue becomes unnecessary. This switch helps to ensure the received (if not out of order) data is queued directly into ucopy's iovec (in tcp control block)
+Since all the processing is done in one single context, backlog queue becomes
+unnecessary. This switch helps to ensure the received (if not out of order) data
+is queued directly into ucopy's iovec (in tcp control block)
 
     ip_ouput changes
 
-__ip_append_append_data calls does_protocol_use_flat_buf to determine whether the data is in array of frags or in buffer (rte_mbuf), pointed by skb->header_buf. Currently all protocols except ICMP are expected to hold data in frags.
+__ip_append_append_data calls does_protocol_use_flat_buf to determine whether
+the data is in array of frags or in buffer (rte_mbuf), pointed by
+skb->header_buf. Currently all protocols except ICMP are expected to hold data
+in frags.
 
 skb_copy_datagram_iovec and similar functions:
 
@@ -114,35 +163,51 @@ Initialization flow:
   - The file format is:  <port number> <ip address of the port> <subnet mask of the port>
   - Example: 0 192.168.1.1 255.255.255.0
 - API functions are called to open sockets. Socket's structure corresponding fields
-  sk_data_ready, sk_write_space, sk_state_change are assigned in app_glue functions which open the sockets.
+  sk_data_ready, sk_write_space, sk_state_change are assigned in app_glue functions
+  which open the sockets.
 
 Transmit flow:
-
-- User calls app_glue_periodic function. This calls driver's function which correspondingly calls the PMD driver function.
-- As a result, IP stack may receive a packet and decide the socket became writable.
-- If socket is writable, app_glue_write_space is called by the stack and the socket is placed in
-  writable queue. Then user defined function is called to transmit.
-- User allocates an rte_mbuf and copies there the data to be sent
-- Corresponding APi function is called (kernel_sendmsg/kernel_sendpage) and the pointer  to rte_mbuf is passed.
-- The rte_mbuf is placed in fragments array, the headers are setup in another mbuf, pointed by skbuff's header_mbuf.
-- Finally, driver's xmit is called. This is the point where the fields in rte_mbuf structure are adjusted, mbufs are chained, detached
-  from the skbuff and passed to PMD
+- User calls app_glue_periodic function. This calls driver's function which
+  correspondingly calls the PMD driver function.
+- As a result, IP stack may receive a packet and decide the socket became
+  writable.
+- If socket is writable, app_glue_write_space is called by the stack and the
+  socket is placed in writable queue. Then user defined function is called to
+  transmit.
+- User allocates an rte_mbuf and copies the data to be sent
+- Corresponding API function is called (kernel_sendmsg/kernel_sendpage) and the
+  pointer to rte_mbuf is passed.
+- The rte_mbuf is placed in fragments array, the headers are setup in another
+  mbuf, pointed by skbuff's header_mbuf.
+- Finally, driver's xmit is called. This is the point where the fields in
+  rte_mbuf structure are adjusted, mbufs are chained, detached from the skbuff
+  and passed to PMD
+ 
 Receive flow:
-- User calls app_glue_periodic function. This calls driver's function which correspondingly calls the PMD driver function.
-- If there are mbufs received, an skbuff is allocated and setup, the header_mbuf is set to point the received mbuf (currently no
-scattered receive) and netif_receive_skb is called.
-- Inside of the stack, when it is determined the data is ready, app_glue_data_ready is called.
-- These functions place socket to corresponding list which is later called (when app_glue_periodic is called).
-- In case of received data, no copying is performed, the user receives pointers to rte_mbufs (which are adjusted accordingly no strip headers)
+- User calls app_glue_periodic function. This calls driver's function which
+  correspondingly calls the PMD driver function.
+- If there are mbufs received, an skbuff is allocated and setup, the header_mbuf
+  is set to point to the received mbuf (currently no scattered receive) and
+  netif_receive_skb is called.
+- Inside of the stack, when the data is determined to be ready,
+  app_glue_data_ready is called.
+- These functions place socket to corresponding list which is later called (when
+  app_glue_periodic is called).
+- In case of received data, no copying is performed, the user receives pointers
+  to rte_mbufs (which are adjusted accordingly no strip headers)
+
 Accept flow:
 - User calls app_glue_periodic function.
-- This calls driver's function which correspondingly calls the PMD driver function.
-- As a result, IP stack may receive a packet resulting in establishing a new connection.
-- app_glue_wakeup if a new connection is accepted is called. This places socket to corresponding list which is later called (when app_glue_periodic is called).
+- This calls driver's function which correspondingly calls the PMD driver
+  function.
+- As a result, IP stack may receive a packet resulting in establishing a new
+  connection.
+- app_glue_wakeup is called if a new connection is accepted. This places socket
+  to corresponding list which is later called (when app_glue_periodic is called).
 
 Please do not hesitate to report any bug you may find.
 
-To get IP Augenblick source code:
+To get IP ustack source code:
 
 git clone https://github.com/vadimsu/ipaugenblick.git
 
@@ -168,15 +233,19 @@ To build test programs, invoke corresponding build_* script in under tests
 
 Running examples:
 
-Please don't forget to setup the huge pages (I use about 1600-1700 2M pages, as many as was possible to allocate, I used tools/setup.py script, you can do it with grub)
+Please don't forget to setup the huge pages (I use about 1600-1700 2M pages,
+as many as possible to allocate, I used tools/setup.py script, you can do it
+with grub)
 
 Before the first run, do:
 
 sudo ifconfig <interface name> down
 
-load uio & igb_uio (run load_modules.sh from the project's root directory) - this  mustbe done before the step below
+load uio & igb_uio (run load_modules.sh from the project's root
+directory) - this must be done before the step below
 
-Then invoke tools/setup script under DPDK root directory and bind the port(s) to IGB_UIO
+Then invoke tools/setup script under DPDK root directory and bind the port(s) to
+IGB_UIO
 
 The following examples are provided:
 
@@ -186,7 +255,8 @@ TCP & UDP with select
 UDP
 There is an option to use bulk send API
 
-IPAugenblick interfaces IP addresses and masks are configured in dpdk_ip_stack.txt (in the same directory as the executable)
+ustack interfaces IP addresses and masks are configured in dpdk_ip_stack.txt (in
+the same directory as the executable)
 
 Pre-build customization:
 
@@ -198,13 +268,19 @@ Pre-build customization:
 
 Initialization:
 
-- call  dpdk_linux_tcpip_init (prototype changed in multicore branch)
+- call dpdk_linux_tcpip_init (prototype changed in multicore branch)
 This function must be called prior any other in this package.
-It initializes all the DPDK libs, reads the configuration, initializes the stack's subsystems, allocates mbuf pools, creates netdev and attaches it to the stack.
+It initializes all the DPDK libs, reads the configuration, initializes the
+stack's subsystems, allocates mbuf pools, creates netdev and attaches it to the
+stack.
 
 Configuration:
 
-PMD is currently configured in libinit.c, I've just copied the configuration from DPDK provided examples. IP address configuration comes from dpdk_ip_stack_config.txt. I've not tried to work with more than 1 NIC at time, probably there are places in app_glue.c where the port number is hardcoded to 0. Benchmark apps's IP addresses and ports to connect/bind are hardcoded in bm_app*.c
+PMD is currently configured in libinit.c, I've just copied the configuration
+from DPDK provided examples. IP address configuration comes from
+dpdk_ip_stack_config.txt. I've not tried to work with more than 1 NIC at time,
+probably there are places in app_glue.c where the port number is hardcoded to 0.
+Benchmark apps's IP addresses and ports to connect/bind are hardcoded in bm_app*.c
 Opening sockets:
 
 - call create_raw_socket/create_udp_socket/create_client_socket/create_server_socket
@@ -215,8 +291,10 @@ Initialize polling:
 Run time:
 - call app_glue_periodic periodically
 
-This is the heart of the system, it performs all the driver/IP stack work and timers
-You can tell it whether to call user callbacks on socket events automatically or not (in that case you have to call app_glue_get_next_* functions)
+This is the core of the system, it performs all the driver/IP stack work and
+timers
+You can tell it whether to call user callbacks on socket events automatically or
+not (in that case you have to call app_glue_get_next_* functions)
 
 You can attach your applicative data to socket:
 
@@ -224,7 +302,8 @@ You can attach your applicative data to socket:
 
 - call app_glue_get_user_data to get
 
-The following set of functions are provided in case you want to process socket events outside periodic function
+The following set of functions are provided in case you want to process socket
+events outside periodic function
 
 - app_glue_get_next_closed
 
@@ -236,28 +315,34 @@ The following set of functions are provided in case you want to process socket e
 
 - app_glue_close_socket
 
-This functions helps to estimate how much data could be sent on socket (however, since the stack performs one more test for overall protocol's memory allocation, attempt to send may fail even if a greater than 0 is returned)
+This functions helps to estimate how much data could be sent on socket (however,
+since the stack performs one more test for overall protocol's memory allocation,
+attempt to send may fail even if a greater than 0 is returned)
 
 - app_glue_calc_size_of_data_to_send(void *sock);
 
-This function allocates an rte_mbuf from pool, allocated at the time of initialization in dpdk_linux_tcpip_init
+This function allocates an rte_mbuf from pool, allocated at the time of
+initialization in dpdk_linux_tcpip_init
 
 - app_glue_get_buffer
 
 
 Contribute
 
-I'm looking for motivated developers to work together on this project. Any suggestion/bug report/bug fix is welcome. Please feel free to contact me for any question you may have
+I'm looking for motivated developers to work together on this project. Any
+suggestion/bug report/bug fix is welcomed. Please feel free to contact me for
+any question you may have
 
-My name is Vadim Suraev, I am a software engineer with over 16 years of experience in networking, embedded and Linux kernel areas:
+My name is Vadim Suraev, I am a software engineer with over 16 years of
+experience in networking, embedded and Linux kernel areas:
 
     TCP/IP
     Routing: OSPF, BGP. ISIS
     MPLS,RSVP-TE,LDP
     HTTP
-    Developed a proprietary wireless stack with MAC, transport and routing capabilities for security forces of one of Asian countries
+    Developed a proprietary wireless stack with MAC, transport and routing
+    capabilities for security forces of one of Asian countries
     Contributed to open source projects:  Quagga (former Zebra) OSPF, DPDK
     Device drivers
     Openstack
 contact e-mail: vadim.suraev@gmail.com
-
